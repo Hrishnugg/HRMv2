@@ -338,5 +338,93 @@ def forward(self, x):
 
 ---
 
-*Experiment conducted: January 2026*
+
+---
+
+## 6. Follow-up Experiment: ON-LSTM vs HRM on DynamicMaze++ (Preset M)
+
+This follow-up keeps the **training protocol, history length (20), and prediction horizon (20)** the same as the original LSTM vs HRM study, but makes two key changes:
+
+1. **Replace the baseline LSTM with an Ordered Neurons LSTM (ON-LSTM)** to introduce an explicit hierarchical memory bias.
+2. **Upgrade the environment** from a simple 20×20 bouncing-obstacle grid to a larger, structured, and less predictable *DynamicMaze++* world.
+
+### 6.1 Goals
+
+- Stress-test whether HRM’s dual-timescale computation still provides an advantage once the dynamics require **multi-timescale memory** (gates + regime-based motion).
+- Test whether ON-LSTM’s *ordered/hierarchical gating* closes the gap to HRM (or surpasses it) under a more demanding planning distribution.
+
+### 6.2 Model Configurations
+
+#### ON-LSTM Variants
+
+All ON-LSTM models use:
+- **Chunked master gates** (Ordered Neurons) with `chunk_size = 5`
+- Same optimizer/scheduler setup as the prior LSTM training loop (AdamW + OneCycleLR, AMP)
+
+| Model | Hidden Dim | Layers | Chunk Size | Parameters (approx) | Batch Size | LR | Epochs |
+|-------|------------|--------|-----------:|--------------------:|-----------:|---:|------:|
+| onlstm_300k | 155 | 2 | 5 | 320,170 | 4096 | 1e-3 | 30 |
+| onlstm_1m | 275 | 2 | 5 | 1,003,642 | 4096 | 1e-3 | 30 |
+| onlstm_3m | 475 | 2 | 5 | 2,987,562 | 4096 | 1e-3 | 30 |
+| onlstm_10m | 860 | 3 | 5 | 16,291,842 | 2048 | 5e-4 | 40 |
+
+#### HRM Variants (unchanged)
+
+Same as the original study (for direct comparability).
+
+| Model | Hidden Dim | Layers | Heads | Parameters | Batch Size | LR | Epochs |
+|-------|------------|--------|-------|------------|------------|------|--------|
+| hrm_302k | 128 | 2 | 4 | 907,394 | 4096 | 1e-3 | 40 |
+| hrm_3m | 256 | 2 | 4 | 3,624,194 | 4096 | 4e-4 | 40 |
+| hrm_10m | 384 | 3 | 6 | 12,224,642 | 2048 | 5e-4 | 40 |
+
+### 6.3 Environment: DynamicMaze++ (Preset M)
+
+**Grid**
+- Size: **32×32**
+- Start/Goal: fixed at **(0,0)** → **(31,31)** (keeps evaluation comparable)
+
+**Static Map Generation**
+- 8 randomized rectangular rooms (size 4–7)
+- 1-cell corridors connecting rooms (L-shaped links)
+- Corridors create frequent **chokepoints** and **forced timing** situations
+
+**Dynamic Obstacles (12 total)**
+- **4× Patrollers**: follow shortest-path routes between room waypoints, with occasional dwell at waypoints.
+- **6× Drifters**: grid-walkers with *persistent turning-bias regimes* (mode lasts 8–20 steps).
+- **2× Gates**: periodic open/close behavior at chokepoints, implemented as movement between:
+  - a **closed** corridor cell (blocks passage)
+  - an **open** side-alcove cell (unblocks passage)
+
+**Key properties**
+- Dynamics are designed to be *more complex than simple bouncing* but still **largely inferable from each obstacle’s own history** (important because training data is per-obstacle).
+
+### 6.4 Training / Evaluation Protocol
+
+- History length: 20
+- Prediction horizon: 20
+- Training episodes: 60,000
+- Evaluation episodes: 100
+- Max episode steps: 128 (scaled up for 32×32)
+
+### 6.5 How to Run (Modal)
+
+The Modal entrypoint is implemented in:
+
+- `hrm-cloud/onlstm_hrm_comparison.py`
+
+Run:
+
+```bash
+modal run hrm-cloud/onlstm_hrm_comparison.py
+```
+
+Artifacts are stored in the Modal volume:
+
+- `/data/onlstm_comparison_presetm/...`
+
+---
+
+*Original experiment conducted: January 2026*
+*Follow-up (DynamicMaze++ Preset M): in progress*
 *Infrastructure: Modal Cloud (H100, B200 GPUs)*
