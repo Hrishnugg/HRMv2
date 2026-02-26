@@ -23,6 +23,14 @@ from __future__ import annotations
 import modal
 import numpy as np
 import torch
+
+# Silence harmless NNPACK warnings on unsupported CPU hardware (common in container VMs).
+# This does not affect correctness; it just prevents repeated log spam.
+try:
+    if hasattr(torch.backends, "nnpack") and hasattr(torch.backends.nnpack, "set_flags"):
+        torch.backends.nnpack.set_flags(False)
+except Exception:
+    pass
 import torch.nn as nn
 import torch.nn.functional as F
 import heapq
@@ -135,80 +143,91 @@ class EvalSuite:
 # =============================================================================
 
 MODEL_CONFIGS: Dict[str, ModelConfig] = {
+    # NOTE: This experiment is rollout/CPU-heavy (Space-Time A*). Using H100/B200 burns credits fast.
+    # We keep the cost-saver budgets but run ON-LSTM on H100 and HRM on B200 for speed. You can change the decorator GPU or split functions later
+    # if you want to selectively use H100/B200 for the largest tiers.
+
     # ON-LSTM tiers
     "onlstm_300k": ModelConfig("onlstm_300k", "onlstm", hidden_dim=155, num_layers=2, chunk_size=5,
-                              lr=3e-4, gpu="H100", episodes_per_update=64, minibatch_episodes=16, sgd_epochs=2),
+                              lr=3e-4, gpu="H100", episodes_per_update=16, minibatch_episodes=8, sgd_epochs=4),
     "onlstm_1m": ModelConfig("onlstm_1m", "onlstm", hidden_dim=275, num_layers=2, chunk_size=5,
-                             lr=3e-4, gpu="H100", episodes_per_update=64, minibatch_episodes=16, sgd_epochs=2),
+                             lr=3e-4, gpu="H100", episodes_per_update=16, minibatch_episodes=8, sgd_epochs=4),
     "onlstm_3m": ModelConfig("onlstm_3m", "onlstm", hidden_dim=475, num_layers=2, chunk_size=5,
-                             lr=3e-4, gpu="H100", episodes_per_update=48, minibatch_episodes=12, sgd_epochs=2),
+                             lr=3e-4, gpu="H100", episodes_per_update=12, minibatch_episodes=6, sgd_epochs=4),
     "onlstm_10m": ModelConfig("onlstm_10m", "onlstm", hidden_dim=860, num_layers=3, chunk_size=5,
-                              lr=2e-4, gpu="H100", episodes_per_update=32, minibatch_episodes=8, sgd_epochs=2),
+                              lr=2e-4, gpu="H100", episodes_per_update=8, minibatch_episodes=4, sgd_epochs=4),
 
     # HRM tiers
     "hrm_302k": ModelConfig("hrm_302k", "hrm", hidden_dim=128, num_layers=2, num_heads=4,
-                            lr=3e-4, gpu="B200", episodes_per_update=64, minibatch_episodes=16, sgd_epochs=2),
+                            lr=3e-4, gpu="A10", episodes_per_update=16, minibatch_episodes=8, sgd_epochs=4),
     "hrm_3m": ModelConfig("hrm_3m", "hrm", hidden_dim=256, num_layers=2, num_heads=4,
-                          lr=2e-4, gpu="B200", episodes_per_update=48, minibatch_episodes=12, sgd_epochs=2),
+                          lr=2e-4, gpu="A10", episodes_per_update=12, minibatch_episodes=6, sgd_epochs=4),
     "hrm_10m": ModelConfig("hrm_10m", "hrm", hidden_dim=384, num_layers=3, num_heads=6,
-                           lr=2e-4, gpu="B200", episodes_per_update=32, minibatch_episodes=8, sgd_epochs=2),
+                           lr=2e-4, gpu="A10", episodes_per_update=8, minibatch_episodes=4, sgd_epochs=4),
 }
 
 # Curriculum stages (Family A only)
+# Curriculum stages (Family A only)
+# Cost controls:
+# - Early stages are "warm start" and can be short once success is high.
+# - Stage3a/3b are the expensive ones; keep updates modest and lean on few-shot for the hardest OOD.
 STAGES: List[StageConfig] = [
     StageConfig(stage_id="stage1_A32_D0", map_family="A", grid_size=32, dynamics="D0",
                 n_gates=0, n_patrollers=0, n_drifters=0,
-                horizon=20, max_steps=80,
-                updates=60,
+                horizon=12, max_steps=80,
+                updates=20,
                 expansions_lambda=0.0,  # no need early
                 alpha=1.0,
                 heuristic_noise_std=0.08,
-                max_expansions=6000),
+                max_expansions=4000),
     StageConfig(stage_id="stage2_A32_D1", map_family="A", grid_size=32, dynamics="D1",
                 n_gates=0, n_patrollers=2, n_drifters=2,
-                horizon=20, max_steps=90,
-                updates=80,
+                horizon=15, max_steps=90,
+                updates=30,
                 expansions_lambda=5e-5,
                 alpha=1.0,
                 heuristic_noise_std=0.06,
-                max_expansions=7000),
+                max_expansions=5000),
     StageConfig(stage_id="stage3a_A64_D1", map_family="A", grid_size=64, dynamics="D1",
                 n_gates=0, n_patrollers=4, n_drifters=4,
                 horizon=20, max_steps=160,
-                updates=120,
+                updates=30,
                 expansions_lambda=8e-5,
                 alpha=1.0,
                 heuristic_noise_std=0.05,
-                max_expansions=10000),
+                max_expansions=8000),
     StageConfig(stage_id="stage3b_A64_D2", map_family="A", grid_size=64, dynamics="D2",
                 n_gates=2, n_patrollers=4, n_drifters=10,
                 horizon=20, max_steps=180,
-                updates=160,
+                updates=60,
                 expansions_lambda=1e-4,
                 alpha=1.0,
                 heuristic_noise_std=0.04,
-                max_expansions=12000),
+                max_expansions=10000),
 ]
 
 # Evaluation suites (zero-shot transfer + ID)
+# Evaluation suites (zero-shot transfer + ID)
+# NOTE: evaluation is CPU-heavy (A*). Use 100 episodes per suite by default for cost control.
+# You can increase to 200-500 for final reporting once budgets are validated.
 EVAL_SUITES: List[EvalSuite] = [
     # In-distribution Family A
-    EvalSuite("ID_A32_D1", "A", 32, "D1", n_gates=0, n_patrollers=2, n_drifters=2, horizon=20, max_steps=90, episodes=200),
-    EvalSuite("ID_A64_D2", "A", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=200),
+    EvalSuite("ID_A32_D1", "A", 32, "D1", n_gates=0, n_patrollers=2, n_drifters=2, horizon=20, max_steps=90, episodes=100),
+    EvalSuite("ID_A64_D2", "A", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=100),
 
     # OOD topology B/C small
-    EvalSuite("OOD_B32_D1", "B", 32, "D1", n_gates=0, n_patrollers=2, n_drifters=2, horizon=20, max_steps=90, episodes=200),
-    EvalSuite("OOD_C32_D1", "C", 32, "D1", n_gates=0, n_patrollers=2, n_drifters=2, horizon=20, max_steps=90, episodes=200),
+    EvalSuite("OOD_B32_D1", "B", 32, "D1", n_gates=0, n_patrollers=2, n_drifters=2, horizon=20, max_steps=90, episodes=100),
+    EvalSuite("OOD_C32_D1", "C", 32, "D1", n_gates=0, n_patrollers=2, n_drifters=2, horizon=20, max_steps=90, episodes=100),
 
     # OOD topology + scale
-    EvalSuite("OOD_B64_D2", "B", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=250),
-    EvalSuite("OOD_C64_D2", "C", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=250),
+    EvalSuite("OOD_B64_D2", "B", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=120),
+    EvalSuite("OOD_C64_D2", "C", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=120),
 ]
 
 # Few-shot target (Family B Large D2)
-FEWSHOT_TARGET = EvalSuite("TARGET_B64_D2", "B", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=300)
-FEWSHOT_K = [50, 200, 1000]
-
+FEWSHOT_TARGET = EvalSuite("TARGET_B64_D2", "B", 64, "D2", n_gates=2, n_patrollers=4, n_drifters=10, horizon=20, max_steps=180, episodes=150)
+# Default few-shot K values (cost-controlled). Increase / add 1000 once everything is stable.
+FEWSHOT_K = [50, 200]
 # =============================================================================
 # Utilities
 # =============================================================================
@@ -467,6 +486,11 @@ class TransferDynamicMazeEnv:
         self.cfg = dict(cfg)
         self.size = int(cfg["grid_size"])
         self.patch_size = int(cfg.get("patch_size", 15))
+        # Safety default: some call-sites (especially evaluation/baselines) may
+        # forget to include max_steps in cfg. Use the same scale as our suites
+        # (≈2.8×grid_size) as a reasonable default.
+        if "max_steps" not in self.cfg:
+            self.cfg["max_steps"] = int(round(2.8 * self.size))
         self.rng: Optional[np.random.Generator] = None
         self.map_rng: Optional[np.random.Generator] = None
         self.dynamic_obs: List[Dict[str, Any]] = []
@@ -810,6 +834,33 @@ class TransferDynamicMazeEnv:
             "obstacles": [(o["type"], float(o["pos"][0]), float(o["pos"][1]), int(o.get("is_closed", 0))) for o in self.dynamic_obs],
             "t": self.step_count,
         }
+
+
+# =============================================================================
+# Artifact helpers
+# =============================================================================
+
+@app.function(
+    image=image,
+    volumes={"/data": vol},
+    cpu=2,
+    timeout=60 * 5,
+)
+def available_base_models() -> Dict[str, Any]:
+    """Return which models have a stage3b final checkpoint saved."""
+    vol.reload()
+    ensure_dirs()
+    tag = "stage3b_A64_D2_final"
+    avail = []
+    missing = []
+    for model_name in MODEL_CONFIGS.keys():
+        p = os.path.join(PATHS["models"], f"{model_name}_{tag}.pt")
+        if os.path.exists(p):
+            avail.append(model_name)
+        else:
+            missing.append(model_name)
+    return {"available": avail, "missing": missing}
+
 
 # =============================================================================
 # Models: ON-LSTM and HRM recurrent cores + heuristic head
@@ -1488,6 +1539,13 @@ def train_on_batch(model: HeuristicModel, batch: Dict[str, torch.Tensor], cfg: M
     optimizer.step()
     return float(loss.detach().cpu().item())
 
+def _move_optimizer_state_to_device(optimizer: torch.optim.Optimizer, device: torch.device) -> None:
+    """Ensure optimizer state tensors are on the correct device after loading a checkpoint."""
+    for state in optimizer.state.values():
+        for k, v in list(state.items()):
+            if torch.is_tensor(v):
+                state[k] = v.to(device, non_blocking=True)
+
 def save_checkpoint(model: HeuristicModel, optimizer: torch.optim.Optimizer, model_name: str, stage_id: str, update: int):
     ckpt_path = os.path.join(PATHS["checkpoints"], f"{model_name}_{stage_id}.pt")
     torch.save({
@@ -1499,15 +1557,33 @@ def save_checkpoint(model: HeuristicModel, optimizer: torch.optim.Optimizer, mod
     }, ckpt_path)
     vol.commit()
 
-def load_checkpoint(model: HeuristicModel, optimizer: torch.optim.Optimizer, model_name: str, stage_id: str) -> int:
+def load_checkpoint(
+    model: HeuristicModel,
+    optimizer: torch.optim.Optimizer,
+    model_name: str,
+    stage_id: str,
+    device: torch.device,
+) -> int:
+    """Load per-stage checkpoint if it exists. Returns next update index to run.
+
+    Note: if the checkpoint is corrupted (e.g., interrupted write), we fall back to starting the stage from scratch.
+    """
     ckpt_path = os.path.join(PATHS["checkpoints"], f"{model_name}_{stage_id}.pt")
     if not os.path.exists(ckpt_path):
         return 0
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-    model.load_state_dict(ckpt["model"])
-    model_rollout.load_state_dict(model.state_dict())
-    optimizer.load_state_dict(ckpt["optimizer"])
-    return int(ckpt.get("update", 0)) + 1
+
+    try:
+        # Load directly onto the training device to avoid optimizer device mismatch
+        ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        _move_optimizer_state_to_device(optimizer, device)
+        return int(ckpt.get("update", 0)) + 1
+    except Exception as e:
+        print(f"⚠️  Failed to load checkpoint {ckpt_path}: {e!r}. Restarting stage from scratch.")
+        return 0
+
+
 
 def save_final_model(model: HeuristicModel, model_name: str, tag: str):
     out_path = os.path.join(PATHS["models"], f"{model_name}_{tag}.pt")
@@ -1525,14 +1601,7 @@ def model_file_exists(model_name: str, tag: str) -> bool:
 # Training function (Modal)
 # =============================================================================
 
-@app.function(
-    image=image,
-    volumes={"/data": vol},
-    gpu="H100",
-    cpu=8,
-    timeout=60 * 60 * 12,  # 12h
-)
-def train_model_full(model_name: str) -> Dict[str, Any]:
+def _train_model_full_impl(model_name: str) -> Dict[str, Any]:
     """Train one model through the full curriculum (Family A), producing a final Stage3b checkpoint."""
     vol.reload()
     ensure_dirs()
@@ -1559,7 +1628,7 @@ def train_model_full(model_name: str) -> Dict[str, Any]:
             continue
 
         # resume from stage checkpoint if available
-        start_update = load_checkpoint(model, optimizer, model_name, stage.stage_id)
+        start_update = load_checkpoint(model, optimizer, model_name, stage.stage_id, train_device)
         model_rollout.load_state_dict(model.state_dict())
         if start_update > 0:
             print(f"↻ {model_name}: resuming {stage.stage_id} from update {start_update}")
@@ -1631,17 +1700,47 @@ def train_model_full(model_name: str) -> Dict[str, Any]:
 # Few-shot adaptation function (Modal)
 # =============================================================================
 
+
+
 @app.function(
     image=image,
     volumes={"/data": vol},
     gpu="H100",
     cpu=8,
-    timeout=60 * 60 * 6,  # 6h
+    timeout=60 * 60 * 24,  # 24h (Modal max)
 )
-def fewshot_adapt(model_name: str, K: int) -> Dict[str, Any]:
+def train_model_full(model_name: str) -> Dict[str, Any]:
+    """Train one model through the full curriculum (Family A), producing a final Stage3b checkpoint.
+
+    H100 variant (used for ON-LSTM by default).
+    """
+    return _train_model_full_impl(model_name)
+
+
+@app.function(
+    image=image,
+    volumes={"/data": vol},
+    gpu="B200",
+    cpu=8,
+    timeout=60 * 60 * 24,  # 24h (Modal max)
+)
+def train_model_full_b200(model_name: str) -> Dict[str, Any]:
+    """Train one model through the full curriculum (Family A), producing a final Stage3b checkpoint.
+
+    B200 variant (used for HRM by default).
+    """
+    return _train_model_full_impl(model_name)
+
+
+def _fewshot_adapt_impl(model_name: str, K: int) -> Dict[str, Any]:
     """Fine-tune a trained model for K episodes on the FEWSHOT_TARGET domain and save adapted checkpoint."""
     vol.reload()
     ensure_dirs()
+    # Skip if few-shot checkpoint already exists (unless FORCE_FEWSHOT=1)
+    tag_existing = f"fewshotK{K}"
+    if model_file_exists(model_name, tag_existing) and os.environ.get("FORCE_FEWSHOT", "0").strip() != "1":
+        return {"model": model_name, "K": K, "skipped": True, "reason": f"Few-shot checkpoint already exists: {tag_existing}"}
+
     cfg = MODEL_CONFIGS[model_name]
     train_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     rollout_device = torch.device("cpu")
@@ -1650,7 +1749,8 @@ def fewshot_adapt(model_name: str, K: int) -> Dict[str, Any]:
     base_tag = "stage3b_A64_D2_final"
     base_path = os.path.join(PATHS["models"], f"{model_name}_{base_tag}.pt")
     if not os.path.exists(base_path):
-        raise FileNotFoundError(f"Base model not found: {base_path}")
+        # Training may not have reached stage3b yet (e.g., timeouts). Skip gracefully.
+        return {"model": model_name, "K": K, "skipped": True, "reason": f"Base model not found: {base_path}"}
 
     ckpt = torch.load(base_path, map_location="cpu", weights_only=False)
     model = HeuristicModel(cfg).to(train_device)
@@ -1708,6 +1808,196 @@ def fewshot_adapt(model_name: str, K: int) -> Dict[str, Any]:
 # Evaluation (Modal)
 # =============================================================================
 
+
+
+@app.function(
+    image=image,
+    volumes={"/data": vol},
+    gpu="H100",
+    cpu=8,
+    timeout=60 * 60 * 12,  # 12h
+)
+def fewshot_adapt(model_name: str, K: int) -> Dict[str, Any]:
+    """Fine-tune one trained model on the few-shot target domain.
+
+    H100 variant (used for ON-LSTM by default).
+    """
+    return _fewshot_adapt_impl(model_name, K)
+
+
+@app.function(
+    image=image,
+    volumes={"/data": vol},
+    gpu="B200",
+    cpu=8,
+    timeout=60 * 60 * 12,  # 12h
+)
+def fewshot_adapt_b200(model_name: str, K: int) -> Dict[str, Any]:
+    """Fine-tune one trained model on the few-shot target domain.
+
+    B200 variant (used for HRM by default).
+    """
+    return _fewshot_adapt_impl(model_name, K)
+
+
+
+
+def evaluate_suite(suite: EvalSuite,
+                   model_state: Optional[Dict[str, Any]],
+                   model_cfg: Optional[ModelConfig]) -> Dict[str, Any]:
+    """Evaluate a single suite for either:
+    - baseline (model_state=None): static A* heuristic only
+    - learned heuristic (model_state provided): HRM / ON-LSTM delta-h heuristic
+
+    Returns summary metrics for the suite.
+    """
+    device = torch.device("cpu")
+
+    # Build an env config from the suite
+    env_cfg: Dict[str, Any] = {
+        "map_family": suite.map_family,
+        "grid_size": int(suite.grid_size),
+        "max_steps": int(suite.max_steps),
+        "dynamics": suite.dynamics,
+        "n_gates": int(suite.n_gates),
+        "n_patrollers": int(suite.n_patrollers),
+        "n_drifters": int(suite.n_drifters),
+        "patch_size": int(model_cfg.patch_size) if model_cfg is not None else 15,
+    }
+    env = TransferDynamicMazeEnv(env_cfg)
+
+    # StageConfig is used by the planner + run_episode; for eval we set updates=0 and disable exploration/noise.
+    stage = StageConfig(
+        stage_id=f"eval_{suite.suite_id}",
+        map_family=suite.map_family,
+        grid_size=int(suite.grid_size),
+        dynamics=suite.dynamics,
+        n_gates=int(suite.n_gates),
+        n_patrollers=int(suite.n_patrollers),
+        n_drifters=int(suite.n_drifters),
+        horizon=int(suite.horizon),
+        max_steps=int(suite.max_steps),
+        updates=0,
+        gamma=0.99,
+        expansions_lambda=1e-4,   # only affects training targets; harmless here
+        collision_penalty=50.0,
+        timeout_penalty=25.0,
+        alpha=float(suite.alpha),
+        heuristic_noise_std=0.0,
+        epsilon_action=0.0,
+        max_expansions=int(suite.max_expansions),
+    )
+
+    model: Optional[HeuristicModel] = None
+    if model_state is not None:
+        assert model_cfg is not None, "model_cfg must be provided when model_state is provided"
+        model = HeuristicModel(model_cfg).to(device)
+        model.load_state_dict(model_state)
+        model.eval()
+
+    total = int(suite.episodes)
+    succ = 0
+    coll = 0
+    tout = 0
+    steps_sum = 0
+    exp_sum = 0
+    steps_succ = 0
+    steps_fail = 0
+    exp_succ = 0
+    exp_fail = 0
+
+    # Progress logging (enabled by default; set EVAL_PROGRESS=0 to disable)
+    label = model_cfg.name if model_cfg is not None else "baseline_static_astar"
+    show_progress = os.environ.get("EVAL_PROGRESS", "1").strip() != "0"
+    try:
+        print_every = int(os.environ.get("EVAL_PRINT_EVERY", "0").strip() or 0)
+    except Exception:
+        print_every = 0
+    if print_every <= 0:
+        # Default: ~5% increments (at least every episode for very small evals)
+        print_every = max(1, total // 20)
+
+    t0 = time.time()
+    if show_progress:
+        print(
+            f"   ▶️  [{label}] {suite.suite_id}: {total} eps | grid={suite.grid_size} | dyn={suite.dynamics} | "
+            f"h={suite.horizon} | max_steps={suite.max_steps} | gates={suite.n_gates} pat={suite.n_patrollers} drift={suite.n_drifters}",
+            flush=True,
+        )
+
+    for i in range(total):
+        traj = run_episode(env, model, device, stage, train_mode=False)
+        term = str(traj.get("term", "timeout"))
+        steps = int(traj.get("steps", 0))
+        exps = int(traj.get("total_expansions", 0))
+
+        steps_sum += steps
+        exp_sum += exps
+
+        if term == "success":
+            succ += 1
+            steps_succ += steps
+            exp_succ += exps
+        elif term == "collision":
+            coll += 1
+            steps_fail += steps
+            exp_fail += exps
+        else:
+            tout += 1
+            steps_fail += steps
+            exp_fail += exps
+
+        if show_progress and (((i + 1) % print_every == 0) or (i + 1 == total)):
+            elapsed = time.time() - t0
+            done = i + 1
+            eps_per_s = done / max(1e-9, elapsed)
+            eta_s = (total - done) / max(1e-9, eps_per_s)
+            avg_steps_so_far = steps_sum / done
+            exp_per_step = exp_sum / max(1, steps_sum)
+            succ_rate = succ / done
+            print(
+                f"      [{label}|{suite.suite_id}] ep {done}/{total} "
+                f"succ={succ_rate:.2f} coll={coll} tout={tout} "
+                f"avg_steps={avg_steps_so_far:.1f} exp/step={exp_per_step:.1f} "
+                f"eps/s={eps_per_s:.2f} ETA={eta_s/60:.1f}m",
+                flush=True,
+            )
+
+    denom = max(1, total)
+    fail_n = max(1, coll + tout)
+
+    if show_progress:
+        elapsed = time.time() - t0
+        exp_per_step = exp_sum / max(1, steps_sum)
+        print(
+            f"   ✓ [{label}] {suite.suite_id} complete in {elapsed/60:.1f}m: "
+            f"success_rate={succ/denom:.2f} coll={coll} tout={tout} "
+            f"avg_steps={steps_sum/denom:.1f} exp/step={exp_per_step:.1f}",
+            flush=True,
+        )
+
+    return {
+        "total": total,
+        "successes": succ,
+        "collisions": coll,
+        "timeouts": tout,
+        "success_rate": succ / denom,
+        "avg_steps": steps_sum / denom,
+        "avg_steps_success": steps_succ / max(1, succ),
+        "avg_steps_fail": steps_fail / fail_n,
+        "avg_expansions": exp_sum / denom,
+        "expansions_per_step": exp_sum / max(1, steps_sum),
+        "avg_exp_success": exp_succ / max(1, succ),
+        "avg_exp_fail": exp_fail / fail_n,
+    }
+
+
+@app.function(
+    image=image,
+    volumes={"/data": vol},
+    cpu=4,
+    timeout=60 * 60 * 12,  # 12h
+)
 def evaluate_all() -> Dict[str, Any]:
     """Evaluate all trained models + static A* baseline on the evaluation suites."""
     vol.reload()
@@ -1716,28 +2006,31 @@ def evaluate_all() -> Dict[str, Any]:
     results: Dict[str, Any] = {"timestamp": time.time(), "suites": [asdict(s) for s in EVAL_SUITES], "models": {}}
 
     # baseline (static A*)
-    print("Evaluating static A* baseline...")
+    print(f"Evaluating static A* baseline ({len(EVAL_SUITES)} suites)...", flush=True)
     baseline = {}
-    for suite in EVAL_SUITES:
+    for si, suite in enumerate(EVAL_SUITES, 1):
+        print(f"  🧪 [baseline] suite {si}/{len(EVAL_SUITES)}: {suite.suite_id} ({suite.episodes} eps)", flush=True)
         baseline[suite.suite_id] = evaluate_suite(suite, model_state=None, model_cfg=None)
     results["models"]["baseline_static_astar"] = baseline
 
     # learned models
-    for model_name, cfg in MODEL_CONFIGS.items():
+    n_models_total = len(MODEL_CONFIGS)
+    for mi, (model_name, cfg) in enumerate(MODEL_CONFIGS.items(), 1):
         tag = "stage3b_A64_D2_final"
         model_path = os.path.join(PATHS["models"], f"{model_name}_{tag}.pt")
         if not os.path.exists(model_path):
-            print(f"⚠️  missing model {model_name}, skipping eval")
+            print(f"⚠️  missing model {model_name}, skipping eval", flush=True)
             continue
         ckpt = torch.load(model_path, map_location="cpu", weights_only=False)
         model_state = ckpt["model"]
         model_results = {}
-        print(f"Evaluating {model_name}...")
-        for suite in EVAL_SUITES:
+        print(f"Evaluating {model_name} ({mi}/{n_models_total})...", flush=True)
+        for si, suite in enumerate(EVAL_SUITES, 1):
+            print(f"  🧪 [{model_name}] suite {si}/{len(EVAL_SUITES)}: {suite.suite_id} ({suite.episodes} eps)", flush=True)
             model_results[suite.suite_id] = evaluate_suite(suite, model_state=model_state, model_cfg=cfg)
         results["models"][model_name] = model_results
 
-    # save json
+# save json
     out_path = os.path.join(PATHS["results"], "eval_zero_shot.json")
     with open(out_path, "w") as f:
         json.dump(results, f, indent=2)
@@ -1748,7 +2041,7 @@ def evaluate_all() -> Dict[str, Any]:
     image=image,
     volumes={"/data": vol},
     cpu=4,
-    timeout=60 * 60 * 3,  # 3h
+    timeout=60 * 60 * 6,  # 6h
 )
 def evaluate_fewshot() -> Dict[str, Any]:
     """Evaluate few-shot adapted models on the hard target suite."""
@@ -1757,17 +2050,25 @@ def evaluate_fewshot() -> Dict[str, Any]:
 
     results: Dict[str, Any] = {"timestamp": time.time(), "target_suite": asdict(FEWSHOT_TARGET), "models": {}}
 
+    print(f"Evaluating few-shot target suite {FEWSHOT_TARGET.suite_id}...", flush=True)
+
     # baseline
+    print(f"  🧪 [baseline] {FEWSHOT_TARGET.suite_id} ({FEWSHOT_TARGET.episodes} eps)", flush=True)
     results["models"]["baseline_static_astar"] = {
         FEWSHOT_TARGET.suite_id: evaluate_suite(FEWSHOT_TARGET, model_state=None, model_cfg=None)
     }
 
-    for model_name, cfg in MODEL_CONFIGS.items():
-        res = {}
+    n_models_total = len(MODEL_CONFIGS)
+    for mi, (model_name, cfg) in enumerate(MODEL_CONFIGS.items(), 1):
+        res: Dict[str, Any] = {}
+
+        print(f"Evaluating {model_name} ({mi}/{n_models_total}) on target...", flush=True)
+
         # zero-shot (stage3b final)
         base_tag = "stage3b_A64_D2_final"
         base_path = os.path.join(PATHS["models"], f"{model_name}_{base_tag}.pt")
         if os.path.exists(base_path):
+            print(f"  🧪 [{model_name}] zero-shot ({FEWSHOT_TARGET.episodes} eps)", flush=True)
             ckpt = torch.load(base_path, map_location="cpu", weights_only=False)
             res["zero_shot"] = evaluate_suite(FEWSHOT_TARGET, model_state=ckpt["model"], model_cfg=cfg)
         else:
@@ -1778,6 +2079,7 @@ def evaluate_fewshot() -> Dict[str, Any]:
             tag = f"fewshotK{K}"
             p = os.path.join(PATHS["models"], f"{model_name}_{tag}.pt")
             if os.path.exists(p):
+                print(f"  🧪 [{model_name}] K={K} ({FEWSHOT_TARGET.episodes} eps)", flush=True)
                 ckpt2 = torch.load(p, map_location="cpu", weights_only=False)
                 res[f"K{K}"] = evaluate_suite(FEWSHOT_TARGET, model_state=ckpt2["model"], model_cfg=cfg)
             else:
@@ -1805,28 +2107,110 @@ def main():
     print("Eval suites:", [s.suite_id for s in EVAL_SUITES])
     print()
 
-    # Launch training in parallel
-    handles = {}
-    for name, cfg in MODEL_CONFIGS.items():
-        print(f"🚀 Launching training: {name} ({cfg.model_type}, gpu={cfg.gpu})")
-        # NOTE: Modal doesn't allow dynamic gpu via lambda per call here; we keep the function GPU default.
-        handles[name] = train_model_full.spawn(name)
+    # ----------------------------
+    # Cost controls / run selectors
+    # ----------------------------
+    max_parallel = int(os.environ.get("MAX_PARALLEL_MODELS", "2"))
+    max_parallel = max(1, max_parallel)
 
-    # Wait
-    for name, h in handles.items():
-        print(f"⏳ Waiting for {name}...")
-        res = h.get()
-        print(f"✓ {name} finished: {res}")
+    only = os.environ.get("ONLY_MODELS", "").strip()
+    if only:
+        only_set = {s.strip() for s in only.split(",") if s.strip()}
+        model_names = [n for n in MODEL_CONFIGS.keys() if n in only_set]
+        print("ONLY_MODELS active ->", model_names)
+    else:
+        model_names = list(MODEL_CONFIGS.keys())
 
-    # Few-shot adaptation jobs
-    adapth = []
-    for name in MODEL_CONFIGS.keys():
-        for K in FEWSHOT_K:
-            print(f"🧪 Launching few-shot adaptation: {name}, K={K}")
-            adapth.append(fewshot_adapt.spawn(name, K))
-    for h in adapth:
-        _ = h.get()
-    print("✓ Few-shot adaptation complete")
+    if not model_names:
+        print("No models selected; exiting.")
+        return
+
+    print(f"Max parallel training containers: {max_parallel}")
+    print()
+
+    # ----------------------------
+    # Curriculum training
+    # ----------------------------
+    skip_train = os.environ.get("SKIP_TRAIN", "0").strip() == "1"
+    if skip_train:
+        print("⏭️  SKIP_TRAIN=1 set; skipping curriculum training (using existing checkpoints/models).")
+        print()
+    else:
+        results: Dict[str, Any] = {}
+        failures: Dict[str, str] = {}
+
+        for i in range(0, len(model_names), max_parallel):
+            batch = model_names[i:i+max_parallel]
+            print(f"\n🚀 Launching training batch {i//max_parallel+1} with {len(batch)} model(s): {batch}")
+
+            handles = {}
+            for name in batch:
+                cfg = MODEL_CONFIGS[name]
+                print(f"   🚀 Launching: {name} ({cfg.model_type}, requested_gpu={cfg.gpu})")
+                # NOTE: Modal doesn't allow per-call dynamic gpu selection in a single decorator.
+                train_fn = train_model_full_b200 if cfg.model_type == "hrm" else train_model_full
+                handles[name] = train_fn.spawn(name)
+
+            for name, h in handles.items():
+                print(f"   ⏳ Waiting for {name}...")
+                try:
+                    res = h.get()
+                    results[name] = res
+                    print(f"   ✓ {name} finished: {res}")
+                except Exception as e:
+                    failures[name] = repr(e)
+                    print(f"   ✗ {name} failed: {e!r}")
+
+        if failures:
+            print("\n⚠️  Some training jobs failed (others may still have completed):")
+            for name, err in failures.items():
+                print(f"   - {name}: {err}")
+            print("You can rerun to resume from checkpoints once the underlying issue is fixed.\n")
+
+        # ----------------------------
+    # Few-shot + evaluation (only when stage3b finals exist)
+    # ----------------------------
+    print("🔎 Checking which models have stage3b final checkpoints...")
+    avail = available_base_models.remote()
+    ready_models = avail.get("available", [])
+    # restrict to models we actually ran this invocation
+    ready_models = [m for m in ready_models if m in set(model_names)]
+
+    if not ready_models:
+        print("⚠️ No stage3b final models found yet; skipping few-shot + evaluation for now.")
+        print("   Rerun the script to resume training from checkpoints.")
+        return
+
+    skip_fewshot_all = os.environ.get("SKIP_FEWSHOT", "0").strip() == "1"
+    skip_fewshot_adapt = os.environ.get("SKIP_FEWSHOT_ADAPT", "0").strip() == "1"
+
+    if skip_fewshot_all:
+        print("⏭️  SKIP_FEWSHOT=1 set; skipping few-shot adaptation and few-shot evaluation.")
+    elif skip_fewshot_adapt:
+        print("⏭️  SKIP_FEWSHOT_ADAPT=1 set; skipping few-shot adaptation (will still evaluate if checkpoints exist).")
+    else:
+        adapth = []
+        for name in ready_models:
+            for K in FEWSHOT_K:
+                print(f"🧪 Launching few-shot adaptation: {name}, K={K}")
+                fs_fn = fewshot_adapt_b200 if MODEL_CONFIGS[name].model_type == "hrm" else fewshot_adapt
+                adapth.append((name, K, fs_fn.spawn(name, K)))
+
+        fs_failures: Dict[str, str] = {}
+        for name, K, h in adapth:
+            try:
+                _ = h.get()
+            except Exception as e:
+                fs_failures[f"{name}_K{K}"] = repr(e)
+                print(f"✗ Few-shot failed for {name} K={K}: {e!r}")
+
+        if fs_failures:
+            print("\n⚠️  Some few-shot jobs failed:")
+            for key, err in fs_failures.items():
+                print(f"   - {key}: {err}")
+            print()
+
+        print("✓ Few-shot adaptation complete")
 
     # Evaluate zero-shot suites
     print("📊 Running zero-shot evaluation suites...")
@@ -1834,8 +2218,11 @@ def main():
     print("Zero-shot evaluation saved:", zs.keys())
 
     # Evaluate few-shot target
-    print("📊 Running few-shot target evaluation...")
-    fs = evaluate_fewshot.remote()
-    print("Few-shot evaluation saved:", fs.keys())
+    if skip_fewshot_all:
+        print("⏭️  SKIP_FEWSHOT=1 set; skipping few-shot target evaluation.")
+    else:
+        print("📊 Running few-shot target evaluation...")
+        fs = evaluate_fewshot.remote()
+        print("Few-shot evaluation saved:", fs.keys())
 
     print("✅ Done. Artifacts in", PATHS["root"])
