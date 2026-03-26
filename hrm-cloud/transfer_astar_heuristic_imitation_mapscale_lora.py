@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TRANSFER-FIRST A* AUGMENTATION — HEURISTIC IMITATION V2
+TRANSFER-FIRST A* AUGMENTATION — HEURISTIC IMITATION V2 (MAP-SCALE CURRICULUM)
 ======================================================
 
 This experiment implements the "fixes" identified in the recent analysis:
@@ -34,7 +34,7 @@ Family-A maps across a curriculum of stages, then train HRM vs ON-LSTM models en
 success vs budget curves; and we optionally run few-shot adaptation (fine-tune) on a target OOD suite.
 
 Run on Modal like:
-    python -m modal run HRMv2/hrm-cloud/transfer_astar_heuristic_imitation_v2.py --detach
+    python -m modal run HRMv2/hrm-cloud/transfer_astar_heuristic_imitation_mapscale_lora.py --detach
 
 Useful environment variables:
     TRAIN_MODELS="hrm_3m,onlstm_3m"      # models to train (default: HRM 3m + ON-LSTM 3m)
@@ -42,13 +42,31 @@ Useful environment variables:
     ONLY_MODELS="..."                    # (legacy) alias for TRAIN_MODELS + EVAL_MODELS
     MAX_PARALLEL_TRAIN=2                 # training concurrency
     MAX_PARALLEL_COLLECT=8               # data collection concurrency
-    MAX_PARALLEL_EVAL=24                 # eval concurrency
+    MAX_PARALLEL_EVAL=48                 # eval concurrency (higher works better with sharded eval)
     SKIP_COLLECT=1                       # skip dataset collection if cached
     SKIP_TRAIN=1                         # skip training (use existing checkpoints/models)
     SKIP_FEWSHOT=1                       # skip few-shot adapt
     EVAL_EPISODES=100                    # override eval episodes per suite
     EVAL_BUDGETS="200,500,2000"          # expansion budgets per replanning step
+    EVAL_SHARD_SIZE=10                   # episodes per eval shard (lower = better restartability / tail latency)
+    EVAL_CHECKPOINT_EVERY=1              # commit eval progress every N episodes within a shard
+    EVAL_USE_GPU=0                       # optional: run learned-model eval shards on GPU (experimental)
+    EVAL_TORCH_THREADS=1                 # PyTorch CPU threads per eval shard
+    EVAL_CPU=2                           # CPU cores per CPU eval shard (default tuned for single-thread dominated eval)
+    EVAL_MEMORY_MB=8192                  # RAM per CPU eval shard
+    EVAL_TIMEOUT_SEC=43200               # timeout for each eval shard (12h)
+    EVAL_NONPREEMPTIBLE=1                # CPU eval shards are non-preemptible by default (Modal >= 1.2.3)
+    ORCH_CPU=1                           # resources for the orchestration function
+    ORCH_MEMORY_MB=2048
+    ORCH_NONPREEMPTIBLE=1                # keep the orchestrator alive across long eval sweeps
     ALPHA="1.0"                          # heuristic scale factor
+    RUN_TAG="..."                        # write checkpoints/models/results under this run family
+    MODEL_RUN_TAG="..."                  # optional: read existing base/few-shot models from another run tag
+    EVAL_EXISTING_FEWSHOT=1              # when SKIP_FEWSHOT=1, still evaluate cached few-shot models if found
+    INCLUDE_STRETCH_STAGE=0              # default: run the professor's 3-stage core curriculum; set to 1 to add stage4
+    START_STAGE_ID="stage4_A64_fullDyn"  # optional: start from a later stage (useful for stretch continuation)
+    FEWSHOT_TARGET_SUITE="OOD_B64_sparseDyn"  # default core few-shot target; defaults to fullDyn when stretch is enabled
+    FEWSHOT_KS="50,200"                  # few-shot episode counts
 
     USE_LORA=1                            # (default in this file) stage-wise stacked LoRA
     LORA_R=8                              # LoRA rank
@@ -95,8 +113,8 @@ import modal
 # Modal setup
 # -----------------------------
 
-APP_NAME = "transfer-astar-heuristic-imitation-v2"
-VOLUME_NAME = "transfer-astar-heuristic-imitation-v2-vol"
+APP_NAME = "transfer-astar-heuristic-imitation-mapscale-v1"
+VOLUME_NAME = os.environ.get("VOLUME_NAME", "transfer-astar-heuristic-imitation-v2-vol-v2")
 
 image = (
     modal.Image.debian_slim(python_version="3.10")
@@ -113,13 +131,11 @@ app = modal.App(APP_NAME)
 
 vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
-# New experiment root (kept separate from earlier V2 runs to avoid mixing
-# datasets/checkpoints produced before the critical A* + labeling fixes).
-DATA_ROOT = "/data/transfer_astar_heuristic_imitation_v2_fixpack"
+# Shared experiment root.
+# Datasets are shared across runs; models/checkpoints/results are isolated by RUN_TAG
+# so LoRA vs non-LoRA (and future sweeps) do not collide.
+DATA_ROOT = "/data/transfer_astar_heuristic_imitation_mapscale_lora_v1"
 DATASETS_DIR = f"{DATA_ROOT}/datasets"
-MODELS_DIR = f"{DATA_ROOT}/models"
-CHECKPOINTS_DIR = f"{DATA_ROOT}/checkpoints"
-RESULTS_DIR = f"{DATA_ROOT}/results"
 
 # -----------------------------
 # Config and helpers
@@ -192,11 +208,159 @@ def _parse_models_spec(spec: Optional[str]) -> Optional[List[str]]:
         return []
     return [_canonical_model_name(x) for x in _parse_csv_strs(s)]
 
+def _sanitize_file_component(s: str) -> str:
+    out = []
+    for ch in str(s):
+        if ch.isalnum() or ch in ("-", "_", ".", "="):
+            out.append(ch)
+        else:
+            out.append("_")
+    collapsed = "".join(out)
+    while "__" in collapsed:
+        collapsed = collapsed.replace("__", "_")
+    return collapsed.strip("_") or "default"
+
+def _summarize_exc(e: Exception, max_chars: int = 240) -> str:
+    s = str(e).replace("\n", " | ")
+    if len(s) > max_chars:
+        s = s[:max_chars] + "..."
+    return s
+
+
+def _parse_version_tuple(v: str) -> Tuple[int, ...]:
+    parts: List[int] = []
+    for tok in str(v).split("."):
+        digits = []
+        for ch in tok:
+            if ch.isdigit():
+                digits.append(ch)
+            else:
+                break
+        if not digits:
+            break
+        parts.append(int("".join(digits)))
+    return tuple(parts)
+
+def _modal_supports_nonpreemptible() -> bool:
+    try:
+        return _parse_version_tuple(getattr(modal, "__version__", "0")) >= (1, 2, 3)
+    except Exception:
+        return False
+
+def _read_json_safe(path: str) -> Optional[Dict[str, Any]]:
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def _write_json_atomic(path: str, payload: Dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = f"{path}.tmp.{os.getpid()}.{time.time_ns()}"
+    with open(tmp_path, "w") as f:
+        json.dump(payload, f, indent=2)
+    os.replace(tmp_path, path)
+
+def _eval_progress_count(payload: Optional[Dict[str, Any]]) -> int:
+    if not payload:
+        return 0
+    if "completed_episodes" in payload:
+        return int(payload.get("completed_episodes", 0))
+    if payload.get("complete"):
+        return int(payload.get("episodes", 0))
+    # Back-compat: legacy shard files written by the earlier patch only stored the
+    # final metric_sums/episodes payload and had no explicit completion marker.
+    if "metric_sums" in payload and "episodes" in payload and "ep_start" in payload:
+        return int(payload.get("episodes", 0))
+    return 0
+
+def _is_complete_eval_shard(payload: Optional[Dict[str, Any]]) -> bool:
+    if not payload:
+        return False
+    episodes = int(payload.get("episodes", 0))
+    done = _eval_progress_count(payload)
+    return done >= episodes and episodes > 0
+
+def _write_eval_shard_progress(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    existing = _read_json_safe(path)
+    new_done = _eval_progress_count(payload)
+    if existing is not None:
+        existing_done = _eval_progress_count(existing)
+        if _is_complete_eval_shard(existing) and not _is_complete_eval_shard(payload):
+            return existing
+        if existing_done > new_done:
+            return existing
+    _write_json_atomic(path, payload)
+    return payload
+
+EVAL_FN_CPU = float(_env_float("EVAL_CPU", 2.0))
+EVAL_FN_MEMORY_MB = _env_int("EVAL_MEMORY_MB", 8192)
+EVAL_FN_TIMEOUT_SEC = _env_int("EVAL_TIMEOUT_SEC", 60 * 60 * 12)
+EVAL_FN_NONPREEMPTIBLE = (_env_int("EVAL_NONPREEMPTIBLE", 1) == 1) and _modal_supports_nonpreemptible()
+
+ORCH_FN_CPU = float(_env_float("ORCH_CPU", 1.0))
+ORCH_FN_MEMORY_MB = _env_int("ORCH_MEMORY_MB", 2048)
+ORCH_FN_TIMEOUT_SEC = _env_int("ORCH_TIMEOUT_SEC", 60 * 60 * 24)
+ORCH_FN_NONPREEMPTIBLE = (_env_int("ORCH_NONPREEMPTIBLE", 1) == 1) and _modal_supports_nonpreemptible()
+
+def _run_tag() -> str:
+    raw = os.environ.get("RUN_TAG")
+    if raw is None or raw.strip() == "":
+        if _env_int("USE_LORA", 1) == 1:
+            r = _env_int("LORA_R", 8)
+            a = _env_float("LORA_ALPHA", 16.0)
+            raw = f"lora_r{r}_a{str(a).replace('.', 'p')}"
+        else:
+            raw = "fullft"
+    return _sanitize_file_component(raw)
+
+RUN_TAG = _run_tag()
+MODEL_RUN_TAG = _sanitize_file_component(os.environ.get("MODEL_RUN_TAG") or RUN_TAG)
+RUN_ROOT = f"{DATA_ROOT}/runs/{RUN_TAG}"
+MODEL_RUN_ROOT = f"{DATA_ROOT}/runs/{MODEL_RUN_TAG}"
+
+MODELS_DIR = f"{RUN_ROOT}/models"
+CHECKPOINTS_DIR = f"{RUN_ROOT}/checkpoints"
+RESULTS_DIR = f"{RUN_ROOT}/results"
+
+SOURCE_MODELS_DIR = MODELS_DIR if MODEL_RUN_ROOT == RUN_ROOT else f"{MODEL_RUN_ROOT}/models"
+
+def _configure_eval_torch_threads() -> None:
+    n = max(1, _env_int("EVAL_TORCH_THREADS", 1))
+    try:
+        torch.set_num_threads(n)
+    except Exception:
+        pass
+    try:
+        if hasattr(torch, "set_num_interop_threads"):
+            torch.set_num_interop_threads(max(1, _env_int("EVAL_TORCH_INTEROP_THREADS", 1)))
+    except Exception:
+        pass
+
+def _alpha_tag(alpha: float) -> str:
+    return _sanitize_file_component(f"{alpha:.4f}".rstrip("0").rstrip("."))
+
+def _eval_shard_result_path(model_name: str, suite_id: str, budget: int, alpha: float, seed_base: int, ep_start: int, ep_count: int) -> str:
+    return (
+        f"{RESULTS_DIR}/eval_shards/"
+        f"{_sanitize_file_component(model_name)}__{suite_id}__B{budget}__a{_alpha_tag(alpha)}__"
+        f"seed{seed_base}__eps{ep_start:04d}_{ep_start + ep_count - 1:04d}.json"
+    )
+
+def _eval_result_path(model_name: str, suite_id: str, budget: int, alpha: float, seed_base: int, episodes: int) -> str:
+    return (
+        f"{RESULTS_DIR}/eval_agg/"
+        f"{_sanitize_file_component(model_name)}__{suite_id}__B{budget}__a{_alpha_tag(alpha)}__"
+        f"seed{seed_base}__N{episodes}.json"
+    )
+
 def _ensure_dirs():
     os.makedirs(DATASETS_DIR, exist_ok=True)
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(f"{RESULTS_DIR}/eval_shards", exist_ok=True)
+    os.makedirs(f"{RESULTS_DIR}/eval_agg", exist_ok=True)
 
 # -----------------------------
 # Curriculum + evaluation suites
@@ -232,23 +396,48 @@ class EvalSuite:
     n_drifters: int
     episodes: int
 
-# Bumping epochs to allow proper convergence on offline supervised dataset
-STAGES: List[Stage] = [
-    Stage("stage1_A32_D0", "A", 32, "D0", 80, 18, 8000, 1200, 48, 2, 25, 0, 0, 0),
-    Stage("stage2_A32_D1", "A", 32, "D1", 90, 18, 12000, 1800, 48, 2, 30, 1, 2, 2),
-    Stage("stage3a_A64_D1", "A", 64, "D1", 160, 20, 15000, 2200, 48, 3, 30, 1, 4, 4),
-    Stage("stage3b_A64_D2", "A", 64, "D2", 180, 22, 20000, 3200, 48, 3, 40, 2, 6, 6),
-]
+# Professor-guided map-scale curriculum:
+#   (1) small static maps with static obstacles
+#   (2) medium static maps with static obstacles
+#   (3) medium static maps with mostly static obstacles and only 1-2 dynamic obstacles
+#   (4) stretch: medium static maps with all dynamic obstacle types
+#
+# By default we run only the 3-stage core curriculum. Enable stage4 with
+# INCLUDE_STRETCH_STAGE=1. This keeps the main write-up path clean while still
+# making the stretch goal available in the same script.
+
+def build_curriculum_stages(include_stretch: bool) -> List[Stage]:
+    stages: List[Stage] = [
+        Stage("stage1_A32_static", "A", 32, "static", 80, 18, 8000, 1200, 48, 2, 25, 0, 0, 0),
+        Stage("stage2_A64_static", "A", 64, "static", 160, 20, 12000, 1800, 48, 2, 30, 0, 0, 0),
+        Stage("stage3_A64_sparseDyn", "A", 64, "sparseDyn", 170, 20, 15000, 2400, 48, 3, 35, 1, 1, 0),
+    ]
+    if include_stretch:
+        stages.append(
+            Stage("stage4_A64_fullDyn", "A", 64, "fullDyn", 180, 22, 18000, 3000, 48, 3, 40, 2, 4, 4)
+        )
+    return stages
+
+INCLUDE_STRETCH_STAGE = (_env_int("INCLUDE_STRETCH_STAGE", 0) == 1)
+STAGES: List[Stage] = build_curriculum_stages(INCLUDE_STRETCH_STAGE)
 
 def build_eval_suites(default_episodes: int) -> List[EvalSuite]:
-    return [
-        EvalSuite("ID_A32_D1", "A", 32, "D1", 90, 18, 1, 2, 2, default_episodes),
-        EvalSuite("ID_A64_D2", "A", 64, "D2", 180, 22, 2, 6, 6, default_episodes),
-        EvalSuite("OOD_B32_D1", "B", 32, "D1", 90, 18, 1, 2, 2, default_episodes),
-        EvalSuite("OOD_C32_D1", "C", 32, "D1", 90, 18, 1, 2, 2, default_episodes),
-        EvalSuite("OOD_B64_D2", "B", 64, "D2", 180, 22, 2, 6, 6, default_episodes),
-        EvalSuite("OOD_C64_D2", "C", 64, "D2", 180, 22, 2, 6, 6, default_episodes),
+    suites = [
+        EvalSuite("ID_A32_static", "A", 32, "static", 80, 18, 0, 0, 0, default_episodes),
+        EvalSuite("ID_A64_static", "A", 64, "static", 160, 20, 0, 0, 0, default_episodes),
+        EvalSuite("ID_A64_sparseDyn", "A", 64, "sparseDyn", 170, 20, 1, 1, 0, default_episodes),
+        EvalSuite("OOD_B64_static", "B", 64, "static", 160, 20, 0, 0, 0, default_episodes),
+        EvalSuite("OOD_C64_static", "C", 64, "static", 160, 20, 0, 0, 0, default_episodes),
+        EvalSuite("OOD_B64_sparseDyn", "B", 64, "sparseDyn", 170, 20, 1, 1, 0, default_episodes),
+        EvalSuite("OOD_C64_sparseDyn", "C", 64, "sparseDyn", 170, 20, 1, 1, 0, default_episodes),
     ]
+    if INCLUDE_STRETCH_STAGE:
+        suites.extend([
+            EvalSuite("ID_A64_fullDyn", "A", 64, "fullDyn", 180, 22, 2, 4, 4, default_episodes),
+            EvalSuite("OOD_B64_fullDyn", "B", 64, "fullDyn", 180, 22, 2, 4, 4, default_episodes),
+            EvalSuite("OOD_C64_fullDyn", "C", 64, "fullDyn", 180, 22, 2, 4, 4, default_episodes),
+        ])
+    return suites
 
 # -----------------------------
 # Map generation
@@ -1442,6 +1631,18 @@ def _checkpoint_path(model_name: str, stage_id: str) -> str:
 def _final_model_path(model_name: str, stage_id: str) -> str:
     return f"{MODELS_DIR}/{model_name}__{stage_id}.pt"
 
+def _final_model_source_path(model_name: str, stage_id: str) -> str:
+    return f"{SOURCE_MODELS_DIR}/{model_name}__{stage_id}.pt"
+
+def _resolve_existing_final_model_path(model_name: str, stage_id: str) -> str:
+    primary = _final_model_path(model_name, stage_id)
+    if os.path.exists(primary):
+        return primary
+    secondary = _final_model_source_path(model_name, stage_id)
+    if secondary != primary and os.path.exists(secondary):
+        return secondary
+    return primary
+
 def save_checkpoint(path: str, model: nn.Module, opt: torch.optim.Optimizer, epoch: int, best_loss: float) -> None:
     torch.save(
         {
@@ -1584,7 +1785,7 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
             start_epoch, best_loss = load_checkpoint(ckpt_path, model, opt)
             print(f"[{model_name}][{stage_id}] resume epoch={start_epoch} best_loss={best_loss:.6f}")
         except Exception as e:
-            print("Failed to load checkpoint:", e)
+            print(f"[{model_name}][{stage_id}] ignoring incompatible checkpoint {ckpt_path}: {_summarize_exc(e)}")
 
     if start_epoch == 0:
         prev_stage_id = None
@@ -1594,14 +1795,14 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
                     prev_stage_id = STAGES[i-1].stage_id
                 break
         if prev_stage_id is not None:
-            prev_path = _final_model_path(model_name, prev_stage_id)
+            prev_path = _resolve_existing_final_model_path(model_name, prev_stage_id)
             if os.path.exists(prev_path):
                 try:
                     prev = torch.load(prev_path, map_location="cpu")
                     model.load_state_dict(prev["state"], strict=False)
                     print(f"[{model_name}][{stage_id}] init from prev stage {prev_stage_id}")
                 except Exception as e:
-                    print(f"[{model_name}][{stage_id}] failed to init from prev stage:", e)
+                    print(f"[{model_name}][{stage_id}] failed to init from prev stage {prev_stage_id}: {_summarize_exc(e)}")
 
     stage_obj = next((s for s in STAGES if s.stage_id == stage_id), None)
     default_epochs = stage_obj.train_epochs if stage_obj is not None else 30
@@ -1667,7 +1868,7 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
     gpu="H100",
     cpu=8,
     memory=65536,
-    timeout=60 * 60 * 6,
+    timeout=60 * 60 * 12,
     volumes={"/data": vol},
 )
 def fewshot_adapt_h100(model_name: str, base_stage: str, suite_id: str, k_episodes: int, seed: int = 0) -> Dict[str, Any]:
@@ -1678,7 +1879,7 @@ def fewshot_adapt_h100(model_name: str, base_stage: str, suite_id: str, k_episod
     gpu="B200",
     cpu=8,
     memory=65536,
-    timeout=60 * 60 * 6,
+    timeout=60 * 60 * 12,
     volumes={"/data": vol},
 )
 def fewshot_adapt_b200(model_name: str, base_stage: str, suite_id: str, k_episodes: int, seed: int = 0) -> Dict[str, Any]:
@@ -1690,6 +1891,21 @@ def _fewshot_dataset_path(model_name: str, suite_id: str, k: int) -> str:
 def _fewshot_model_path(model_name: str, suite_id: str, k: int) -> str:
     return f"{MODELS_DIR}/{model_name}__fewshot_{suite_id}__K{k}.pt"
 
+def _fewshot_model_source_path(model_name: str, suite_id: str, k: int) -> str:
+    return f"{SOURCE_MODELS_DIR}/{model_name}__fewshot_{suite_id}__K{k}.pt"
+
+def _resolve_existing_fewshot_model_path(model_name: str, suite_id: str, k: int) -> str:
+    primary = _fewshot_model_path(model_name, suite_id, k)
+    if os.path.exists(primary):
+        return primary
+    secondary = _fewshot_model_source_path(model_name, suite_id, k)
+    if secondary != primary and os.path.exists(secondary):
+        return secondary
+    return primary
+
+def _fewshot_checkpoint_path(model_name: str, suite_id: str, k: int) -> str:
+    return f"{CHECKPOINTS_DIR}/{model_name}__fewshot_{suite_id}__K{k}.pt"
+
 def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episodes: int, device: str, seed: int) -> Dict[str, Any]:
     vol.reload()
     _ensure_dirs()
@@ -1698,54 +1914,62 @@ def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episo
     eval_suites = build_eval_suites(default_episodes=100)
     suite = next(s for s in eval_suites if s.suite_id == suite_id)
 
-    base_path = _final_model_path(model_name, base_stage)
+    base_path = _resolve_existing_final_model_path(model_name, base_stage)
     if not os.path.exists(base_path):
         raise FileNotFoundError(base_path)
     saved = torch.load(base_path, map_location="cpu")
-    obs_dim = int(saved["cfg"]["obs_dim"])
 
-    samples: List[StepSample] = []
-    for epi in range(k_episodes):
-        seed_ep = 10_000_000 + epi
-        ep = make_episode(seed_ep, suite.family, suite.size, suite.max_steps, suite.n_gates, suite.n_patrollers, suite.n_drifters)
-        occ = simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
-        dist_abs = compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps)
-        static_dist = compute_static_distances(ep.walls, ep.goal)
-
-        agent = ep.start
-        obs_hist: List[np.ndarray] = []
-        for t_abs in range(ep.max_steps):
-            obs = build_obs_vector(suite.size, agent, ep.goal, ep.gates, ep.pats, ep.drifts)
-            obs_hist.append(obs)
-            if (t_abs % 3) == 0:
-                sample, action0, _ = oracle_collect_step_sample(
-                    ep, occ, dist_abs, static_dist, t_abs, agent, obs_hist,
-                    nodes_per_sample=48,
-                    plan_horizon=suite.plan_horizon,
-                    oracle_max_exp=25_000,
-                    alpha=1.0,
-                    rng=rng,
-                )
-                samples.append(sample)
-                a0 = action0
-            else:
-                def hfn0_batch(states: List[Tuple[int,int,int]]) -> List[float]:
-                    return [0.0] * len(states)
-
-                plan = space_time_astar(agent, ep.goal, t_abs, suite.plan_horizon, 8000, occ, static_dist, hfn0_batch, 1.0)
-                a0 = plan.actions[0] if plan.actions else 4
-                
-            agent, done, _info = step_episode(ep, agent, a0)
-            if done:
-                break
+    out_path = _fewshot_model_path(model_name, suite_id, k_episodes)
+    if os.path.exists(out_path):
+        print(f"[fewshot] using cached model -> {out_path}")
+        params = int(torch.load(out_path, map_location="cpu").get("params", 0))
+        return {"name": model_name, "suite": suite_id, "k": k_episodes, "params": params, "status": "cached"}
 
     ds_path = _fewshot_dataset_path(model_name, suite_id, k_episodes)
-    save_samples(ds_path, samples)
-    try:
-        vol.commit()
-    except Exception as e:
-        print(f"[fewshot][dataset] volume commit warning: {e}")
-    print(f"[fewshot] dataset saved -> {ds_path} ({len(samples)} samples)")
+    if os.path.exists(ds_path):
+        print(f"[fewshot] using cached dataset -> {ds_path}")
+    else:
+        samples: List[StepSample] = []
+        for epi in range(k_episodes):
+            seed_ep = 10_000_000 + epi
+            ep = make_episode(seed_ep, suite.family, suite.size, suite.max_steps, suite.n_gates, suite.n_patrollers, suite.n_drifters)
+            occ = simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
+            dist_abs = compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps)
+            static_dist = compute_static_distances(ep.walls, ep.goal)
+
+            agent = ep.start
+            obs_hist: List[np.ndarray] = []
+            for t_abs in range(ep.max_steps):
+                obs = build_obs_vector(suite.size, agent, ep.goal, ep.gates, ep.pats, ep.drifts)
+                obs_hist.append(obs)
+                if (t_abs % 3) == 0:
+                    sample, action0, _ = oracle_collect_step_sample(
+                        ep, occ, dist_abs, static_dist, t_abs, agent, obs_hist,
+                        nodes_per_sample=48,
+                        plan_horizon=suite.plan_horizon,
+                        oracle_max_exp=25_000,
+                        alpha=1.0,
+                        rng=rng,
+                    )
+                    samples.append(sample)
+                    a0 = action0
+                else:
+                    def hfn0_batch(states: List[Tuple[int,int,int]]) -> List[float]:
+                        return [0.0] * len(states)
+
+                    plan = space_time_astar(agent, ep.goal, t_abs, suite.plan_horizon, 8000, occ, static_dist, hfn0_batch, 1.0)
+                    a0 = plan.actions[0] if plan.actions else 4
+
+                agent, done, _info = step_episode(ep, agent, a0)
+                if done:
+                    break
+
+        save_samples(ds_path, samples)
+        try:
+            vol.commit()
+        except Exception as e:
+            print(f"[fewshot][dataset] volume commit warning: {e}")
+        print(f"[fewshot] dataset saved -> {ds_path} ({len(samples)} samples)")
 
     cfg = ModelConfig(**saved["cfg"])
     model = build_model(cfg).to(device)
@@ -1760,10 +1984,20 @@ def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episo
     opt = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=1e-3)
     epochs = _env_int("FEWSHOT_EPOCHS", 25)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
-    
+
+    ckpt_path = _fewshot_checkpoint_path(model_name, suite_id, k_episodes)
+    start_epoch = 0
+    best_loss = 1e9
+    if os.path.exists(ckpt_path):
+        try:
+            start_epoch, best_loss = load_checkpoint(ckpt_path, model, opt)
+            print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] resume epoch={start_epoch} best_loss={best_loss:.6f}")
+        except Exception as e:
+            print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] ignoring incompatible checkpoint {ckpt_path}: {_summarize_exc(e)}")
+
     model.train()
-    
-    for epc in range(epochs):
+
+    for epc in range(start_epoch, epochs):
         running = 0.0
         nb = 0
         for obs_seq, node_patch, node_meta, tgt, mask in dl:
@@ -1784,11 +2018,14 @@ def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episo
 
             running += float(loss.item())
             nb += 1
-            
-        scheduler.step()
-        print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] epoch {epc+1}/{epochs} loss={running/max(1,nb):.6f}")
 
-    out_path = _fewshot_model_path(model_name, suite_id, k_episodes)
+        epoch_loss = running / max(1, nb)
+        if epoch_loss < best_loss:
+            best_loss = epoch_loss
+        scheduler.step()
+        save_checkpoint(ckpt_path, model, opt, epc, best_loss)
+        print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] epoch {epc+1}/{epochs} loss={epoch_loss:.6f} best={best_loss:.6f}")
+
     torch.save({"cfg": cfg.__dict__, "state": model.state_dict(), "params": params}, out_path)
     try:
         vol.commit()
@@ -1798,7 +2035,7 @@ def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episo
     return {"name": model_name, "suite": suite_id, "k": k_episodes, "params": params, "status": "adapted"}
 
 # -----------------------------
-# Evaluation (CPU, parallelizable)
+# Evaluation (preemption-tolerant, cacheable, parallelizable)
 # -----------------------------
 
 def run_policy_episode(
@@ -1812,12 +2049,17 @@ def run_policy_episode(
     Run one episode with receding-horizon ST-A*.
     If model is None, use baseline static heuristic (Δh=0).
     """
-    rng = random.Random(seed)
     ep = make_episode(seed, suite.family, suite.size, suite.max_steps, suite.n_gates, suite.n_patrollers, suite.n_drifters)
 
     occ = simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
     static_dist = compute_static_distances(ep.walls, ep.goal)
 
+    model_device = torch.device("cpu")
+    if model is not None:
+        try:
+            model_device = next(model.parameters()).device
+        except StopIteration:
+            model_device = torch.device("cpu")
 
     agent = ep.start
     obs_hist: List[np.ndarray] = []
@@ -1835,8 +2077,9 @@ def run_policy_episode(
             def hfn_batch(states: List[Tuple[int,int,int]]) -> List[float]:
                 return [0.0] * len(states)
         else:
-            obs_seq = torch.from_numpy(build_obs_sequence(obs_hist, 20, obs.shape[0])).unsqueeze(0).float()
-            with torch.no_grad():
+            obs_seq_np = build_obs_sequence(obs_hist, 20, obs.shape[0])
+            obs_seq = torch.from_numpy(obs_seq_np).unsqueeze(0).float().to(model_device, non_blocking=True)
+            with torch.inference_mode():
                 ctx = model.compute_context(obs_seq).squeeze(0)
 
             cache: Dict[Tuple[int,int,int], float] = {}
@@ -1868,10 +2111,10 @@ def run_policy_episode(
                         hs = int(static_dist[x, y])
                         metas.append(build_node_meta(suite.size, (x, y), ep.goal, t_off, suite.plan_horizon, hs))
 
-                    patch_t = torch.from_numpy(np.stack(patches)).float()
-                    meta_t = torch.from_numpy(np.stack(metas)).float()
-                    with torch.no_grad():
-                        deltas = model.eval_nodes(ctx.unsqueeze(0), patch_t, meta_t).cpu().numpy()
+                    patch_t = torch.from_numpy(np.stack(patches)).float().to(model_device, non_blocking=True)
+                    meta_t = torch.from_numpy(np.stack(metas)).float().to(model_device, non_blocking=True)
+                    with torch.inference_mode():
+                        deltas = model.eval_nodes(ctx.unsqueeze(0), patch_t, meta_t).detach().cpu().numpy()
 
                     for idx, st, d in zip(to_eval_idx, to_eval_states, deltas):
                         d_float = float(d)
@@ -1913,54 +2156,211 @@ def run_policy_episode(
         "exp_per_step": total_exp / max(1, steps),
     }
 
-@app.function(
-    image=image,
-    cpu=8,
-    memory=16384,
-    timeout=60 * 60 * 3,
-    volumes={"/data": vol},
-)
-def evaluate_pair(
+def _aggregate_eval_parts(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not parts:
+        raise ValueError("No evaluation parts to aggregate.")
+    parts_sorted = sorted(parts, key=lambda p: (p["ep_start"], p["episodes"]))
+    first = parts_sorted[0]
+    total_eps = sum(int(p["episodes"]) for p in parts_sorted)
+    sums = {"success": 0, "collision": 0, "timeout": 0, "steps": 0.0, "expansions": 0.0}
+    for p in parts_sorted:
+        ms = p["metric_sums"]
+        sums["success"] += int(ms["success"])
+        sums["collision"] += int(ms["collision"])
+        sums["timeout"] += int(ms["timeout"])
+        sums["steps"] += float(ms["steps"])
+        sums["expansions"] += float(ms["expansions"])
+
+    return {
+        "suite": first["suite"],
+        "family": first["family"],
+        "size": first["size"],
+        "dynamics": first["dynamics"],
+        "budget": first["budget"],
+        "alpha": first["alpha"],
+        "model": first["model"],
+        "episodes": total_eps,
+        "success_rate": sums["success"] / total_eps,
+        "collision_rate": sums["collision"] / total_eps,
+        "timeout_rate": sums["timeout"] / total_eps,
+        "avg_steps": sums["steps"] / total_eps,
+        "avg_expansions": sums["expansions"] / total_eps,
+        "expansions_per_step": sums["expansions"] / max(1e-6, sums["steps"]),
+    }
+
+
+def _evaluate_pair_chunk_impl(
     suite: EvalSuite,
     model_name: str,
     model_path: Optional[str],
     alpha: float,
     max_expansions: int,
     seed_base: int,
+    ep_start: int,
+    ep_count: int,
+    device: str,
 ) -> Dict[str, Any]:
     vol.reload()
     _ensure_dirs()
+    if device == "cpu":
+        _configure_eval_torch_threads()
+
+    shard_path = _eval_shard_result_path(model_name, suite.suite_id, max_expansions, alpha, seed_base, ep_start, ep_count)
+    existing = _read_json_safe(shard_path)
+    if _is_complete_eval_shard(existing):
+        return existing  # type: ignore[return-value]
+
     model = None
     if model_path is not None:
         payload = torch.load(model_path, map_location="cpu")
         cfg = ModelConfig(**payload["cfg"])
-        model = build_model(cfg).to(torch.device("cpu"))
+        device_t = torch.device(device)
+        model = build_model(cfg).to(device_t)
         model.load_state_dict(payload["state"])
         model.eval()
 
     metrics = {"success": 0, "collision": 0, "timeout": 0, "steps": 0.0, "expansions": 0.0}
+    completed = 0
+    if existing is not None:
+        completed = min(ep_count, _eval_progress_count(existing))
+        ms = existing.get("metric_sums", {})
+        for k in metrics.keys():
+            metrics[k] = float(ms.get(k, 0.0))
+        if completed > 0:
+            print(
+                f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] "
+                f"resuming shard eps {ep_start}-{ep_start + ep_count - 1} "
+                f"from {completed}/{ep_count} completed on device={device}"
+            )
+
+    checkpoint_every = max(1, _env_int("EVAL_CHECKPOINT_EVERY", 1))
     t0 = time.time()
-    for i in range(suite.episodes):
+    for local_done, i in enumerate(range(ep_start + completed, ep_start + ep_count), start=completed + 1):
         seed = seed_base + i
         r = run_policy_episode(suite, seed, model, alpha=alpha, max_expansions=max_expansions)
-        for k in ("success","collision","timeout"): metrics[k] += r[k]
+        for k in ("success", "collision", "timeout"):
+            metrics[k] += r[k]
         metrics["steps"] += r["steps"]
         metrics["expansions"] += r["expansions"]
-        if (i+1) % max(1, suite.episodes // 5) == 0:
-            elapsed = time.time() - t0
-            eps_s = (i+1) / max(1e-6, elapsed)
-            eta = (suite.episodes - (i+1)) / max(1e-6, eps_s)
-            print(f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] {i+1}/{suite.episodes} eps_s={eps_s:.2f} ETA={eta/60:.1f}m")
 
-    n = suite.episodes
+        if (local_done % checkpoint_every) == 0 or local_done == ep_count:
+            progress = {
+                "suite": suite.suite_id,
+                "family": suite.family,
+                "size": suite.size,
+                "dynamics": suite.dynamics,
+                "budget": max_expansions,
+                "alpha": alpha,
+                "model": model_name,
+                "episodes": ep_count,
+                "ep_start": ep_start,
+                "metric_sums": metrics,
+                "completed_episodes": local_done,
+                "complete": local_done >= ep_count,
+            }
+            _write_eval_shard_progress(shard_path, progress)
+            try:
+                vol.commit()
+            except Exception as e:
+                print(f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] volume commit warning: {e}")
+
+        if (local_done % max(1, ep_count // 5) == 0) or local_done == ep_count:
+            elapsed = time.time() - t0
+            effective_done = max(1, local_done - completed)
+            eps_s = effective_done / max(1e-6, elapsed)
+            eta = (ep_count - local_done) / max(1e-6, eps_s)
+            print(
+                f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] "
+                f"episodes {ep_start + local_done}/{ep_start + ep_count} of {suite.episodes} "
+                f"eps_s={eps_s:.2f} ETA={eta/60:.1f}m device={device}"
+            )
+
     out = {
-        "suite": suite.suite_id, "family": suite.family, "size": suite.size, "dynamics": suite.dynamics,
-        "budget": max_expansions, "alpha": alpha, "model": model_name, "episodes": n,
-        "success_rate": metrics["success"] / n, "collision_rate": metrics["collision"] / n, "timeout_rate": metrics["timeout"] / n,
-        "avg_steps": metrics["steps"] / n, "avg_expansions": metrics["expansions"] / n,
-        "expansions_per_step": metrics["expansions"] / max(1e-6, metrics["steps"]),
+        "suite": suite.suite_id,
+        "family": suite.family,
+        "size": suite.size,
+        "dynamics": suite.dynamics,
+        "budget": max_expansions,
+        "alpha": alpha,
+        "model": model_name,
+        "episodes": ep_count,
+        "ep_start": ep_start,
+        "metric_sums": metrics,
+        "completed_episodes": ep_count,
+        "complete": True,
     }
+    _write_eval_shard_progress(shard_path, out)
+    try:
+        vol.commit()
+    except Exception as e:
+        print(f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] volume commit warning: {e}")
     return out
+
+@app.function(
+    image=image,
+    cpu=EVAL_FN_CPU,
+    memory=EVAL_FN_MEMORY_MB,
+    timeout=EVAL_FN_TIMEOUT_SEC,
+    nonpreemptible=EVAL_FN_NONPREEMPTIBLE,
+    volumes={"/data": vol},
+)
+def evaluate_pair_chunk(
+    suite: EvalSuite,
+    model_name: str,
+    model_path: Optional[str],
+    alpha: float,
+    max_expansions: int,
+    seed_base: int,
+    ep_start: int,
+    ep_count: int,
+) -> Dict[str, Any]:
+    return _evaluate_pair_chunk_impl(
+        suite, model_name, model_path, alpha, max_expansions, seed_base, ep_start, ep_count, device="cpu"
+    )
+
+@app.function(
+    image=image,
+    gpu="H100",
+    cpu=8,
+    memory=65536,
+    timeout=60 * 60 * 12,
+    volumes={"/data": vol},
+)
+def evaluate_pair_chunk_h100(
+    suite: EvalSuite,
+    model_name: str,
+    model_path: Optional[str],
+    alpha: float,
+    max_expansions: int,
+    seed_base: int,
+    ep_start: int,
+    ep_count: int,
+) -> Dict[str, Any]:
+    return _evaluate_pair_chunk_impl(
+        suite, model_name, model_path, alpha, max_expansions, seed_base, ep_start, ep_count, device="cuda"
+    )
+
+@app.function(
+    image=image,
+    gpu="B200",
+    cpu=8,
+    memory=65536,
+    timeout=60 * 60 * 12,
+    volumes={"/data": vol},
+)
+def evaluate_pair_chunk_b200(
+    suite: EvalSuite,
+    model_name: str,
+    model_path: Optional[str],
+    alpha: float,
+    max_expansions: int,
+    seed_base: int,
+    ep_start: int,
+    ep_count: int,
+) -> Dict[str, Any]:
+    return _evaluate_pair_chunk_impl(
+        suite, model_name, model_path, alpha, max_expansions, seed_base, ep_start, ep_count, device="cuda"
+    )
 
 def _choose_train_fn(model_name: str):
     if model_name.startswith("hrm"): return train_model_b200
@@ -1970,11 +2370,19 @@ def _choose_fewshot_fn(model_name: str):
     if model_name.startswith("hrm"): return fewshot_adapt_b200
     return fewshot_adapt_h100
 
+def _choose_eval_fn(model_name: str):
+    if _env_int("EVAL_USE_GPU", 0) == 1 and not model_name.startswith("baseline_static_astar"):
+        if model_name.startswith("hrm"):
+            return evaluate_pair_chunk_b200
+        return evaluate_pair_chunk_h100
+    return evaluate_pair_chunk
+
 @app.function(
     image=image,
-    cpu=4,
-    memory=16384,
-    timeout=60 * 60 * 24, # 24 hour timeout for the orchestrator
+    cpu=ORCH_FN_CPU,
+    memory=ORCH_FN_MEMORY_MB,
+    timeout=ORCH_FN_TIMEOUT_SEC, # 24 hour timeout for the orchestrator
+    nonpreemptible=ORCH_FN_NONPREEMPTIBLE,
     volumes={"/data": vol},
 )
 def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_parallel_eval,
@@ -1982,6 +2390,14 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
     _ensure_dirs()
     
     eval_suites = build_eval_suites(eval_eps)
+
+    start_stage_id = _env_flag("START_STAGE_ID", "").strip()
+    stages_to_run = list(STAGES)
+    if start_stage_id:
+        idx = next((i for i, s in enumerate(STAGES) if s.stage_id == start_stage_id), None)
+        if idx is None:
+            raise ValueError(f"Unknown START_STAGE_ID={start_stage_id}. Known stages: {[s.stage_id for s in STAGES]}")
+        stages_to_run = STAGES[idx:]
 
     dummy_obs = build_obs_vector(64, (0,0), (1,1), [], [], [])
     obs_dim = int(dummy_obs.shape[0])
@@ -2013,13 +2429,14 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
     
     print("Train models:", train_model_names)
     print("Eval models:", eval_model_names)
-    print("Stages:", [s.stage_id for s in STAGES])
+    print("Stages (configured):", [s.stage_id for s in STAGES])
+    print("Stages (active this run):", [s.stage_id for s in stages_to_run])
     print("Eval suites:", [s.suite_id for s in eval_suites])
     print("Budgets:", budgets, "alpha:", alpha)
     print()
 
     stage_final_model_paths: Dict[str, str] = {}
-    for stage in STAGES:
+    for stage in stages_to_run:
         print(f"\n📦 Stage {stage.stage_id}: dataset + training")
 
         vol.reload() 
@@ -2063,23 +2480,42 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
         vol.reload() 
         
         for m in train_model_names:
-            p = _final_model_path(m, stage.stage_id)
+            p = _resolve_existing_final_model_path(m, stage.stage_id)
             if os.path.exists(p):
                 stage_final_model_paths[m] = p
 
     # Few-shot adaptation
-    base_stage = STAGES[-1].stage_id 
-    fewshot_target = "OOD_B64_D2"
-    fewshot_ks = [50, 200]
+    base_stage = stages_to_run[-1].stage_id
+    default_fewshot_target = "OOD_B64_fullDyn" if INCLUDE_STRETCH_STAGE else "OOD_B64_sparseDyn"
+    fewshot_target = _env_flag("FEWSHOT_TARGET_SUITE", default_fewshot_target)
+    fewshot_ks = _parse_csv_ints(_env_flag("FEWSHOT_KS", "50,200"))
+    fewshot_suite_lookup = {s.suite_id: s for s in eval_suites}
+    if fewshot_target and fewshot_target not in fewshot_suite_lookup:
+        print(f"\n! FEWSHOT_TARGET_SUITE={fewshot_target} is not present in this run's eval suites; skipping few-shot.")
+        print(f"  available suites: {sorted(fewshot_suite_lookup)}")
+        fewshot_target = ""
+        fewshot_ks = []
     fewshot_paths: Dict[Tuple[str,int], str] = {}
 
-    if not skip_fewshot:
-        print("\n🧪 Few-shot adaptation on", fewshot_target)
+    if not skip_fewshot and fewshot_target and fewshot_ks:
+        print("\n🧪 Few-shot adaptation on", fewshot_target, f"from base stage {base_stage}")
         handles = []
         for m in eval_model_names:
-            base_path = _final_model_path(m, base_stage)
+            base_path = _resolve_existing_final_model_path(m, base_stage)
             if not os.path.exists(base_path):
+                primary = _final_model_path(m, base_stage)
+                source = _final_model_source_path(m, base_stage)
                 print(f"  ! missing base model for {m} at {base_stage}, skipping few-shot")
+                print(f"    checked: {primary}")
+                if source != primary:
+                    print(f"             {source}")
+                src_dir = os.path.dirname(source)
+                if os.path.isdir(src_dir):
+                    nearby = sorted(fn for fn in os.listdir(src_dir) if fn.startswith(f"{m}__"))[:12]
+                    if nearby:
+                        print(f"    nearby files in source dir: {nearby}")
+                else:
+                    print(f"    source dir missing: {src_dir}")
                 continue
             fn = _choose_fewshot_fn(m)
             for k in fewshot_ks:
@@ -2089,12 +2525,24 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
             print("   ✓ few-shot", h.get()["status"])
             outp = _fewshot_model_path(m, fewshot_target, k)
             fewshot_paths[(m,k)] = outp
-    else:
+    elif skip_fewshot:
         print("\n⏭️  SKIP_FEWSHOT=1 set; skipping few-shot adaptation.")
+        if fewshot_target and fewshot_ks and _env_int("EVAL_EXISTING_FEWSHOT", 1) == 1:
+            for m in eval_model_names:
+                for k in fewshot_ks:
+                    existing_fewshot = _resolve_existing_fewshot_model_path(m, fewshot_target, k)
+                    if os.path.exists(existing_fewshot):
+                        fewshot_paths[(m, k)] = existing_fewshot
+                        print(f"  ✓ using existing few-shot model {m} K={k} -> {existing_fewshot}")
+    else:
+        print("\n⏭️  Few-shot adaptation disabled because no valid target suite / K values were configured.")
 
     # Evaluation
-    print("\n📊 Evaluation (parallel)")
-    vol.reload() 
+    print("\n📊 Evaluation (parallel, sharded + cacheable)")
+    vol.reload()
+    print(f"  volume={VOLUME_NAME}")
+    print(f"  current models dir={MODELS_DIR}")
+    print(f"  source models dir={SOURCE_MODELS_DIR}")
 
     eval_jobs = []
     for suite in eval_suites:
@@ -2102,35 +2550,91 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
             eval_jobs.append(("baseline_static_astar", None, suite, budget))
 
     for m in eval_model_names:
-        p = _final_model_path(m, base_stage)
+        p = _resolve_existing_final_model_path(m, base_stage)
         if not os.path.exists(p):
+            primary = _final_model_path(m, base_stage)
+            source = _final_model_source_path(m, base_stage)
             print(f"  ! missing model {m} at {base_stage}, skipping eval")
+            print(f"    checked: {primary}")
+            if source != primary:
+                print(f"             {source}")
+            src_dir = os.path.dirname(source)
+            if os.path.isdir(src_dir):
+                nearby = sorted(fn for fn in os.listdir(src_dir) if fn.startswith(f"{m}__"))[:12]
+                if nearby:
+                    print(f"    nearby files in source dir: {nearby}")
+            else:
+                print(f"    source dir missing: {src_dir}")
             continue
         for suite in eval_suites:
             for budget in budgets:
                 eval_jobs.append((m, p, suite, budget))
 
     for (m,k), p in fewshot_paths.items():
-        if not os.path.exists(p): continue
-        suite = next(s for s in eval_suites if s.suite_id == fewshot_target)
+        if not os.path.exists(p) or not fewshot_target:
+            continue
+        suite = fewshot_suite_lookup[fewshot_target]
         for budget in budgets:
             eval_jobs.append((f"{m}_fewshotK{k}", p, suite, budget))
 
+    eval_seed_base = seed_base + 1_000_000
+    eval_shard_size = max(1, _env_int("EVAL_SHARD_SIZE", 10))
     results: List[Dict[str,Any]] = []
-    in_flight = []
+    partials: Dict[Tuple[str, str, int], List[Dict[str, Any]]] = {}
+    in_flight: List[Tuple[Tuple[str, str, int], Any]] = []
 
     def flush_one():
-        nonlocal in_flight, results
-        mname, h = in_flight.pop(0)
-        results.append(h.get())
+        nonlocal in_flight, partials
+        while True:
+            for idx, (job_key, h) in enumerate(list(in_flight)):
+                try:
+                    res = h.get(timeout=0)
+                    partials.setdefault(job_key, []).append(res)
+                    in_flight.pop(idx)
+                    return
+                except (TimeoutError, modal.exception.TimeoutError):
+                    continue
+            time.sleep(1.0)
 
     for (mname, path, suite, budget) in eval_jobs:
-        h = evaluate_pair.spawn(suite, mname, path, alpha, budget, seed_base + 1_000_000)
-        in_flight.append((mname, h))
-        if len(in_flight) >= max_parallel_eval:
-            flush_one()
+        agg_path = _eval_result_path(mname, suite.suite_id, budget, alpha, eval_seed_base, suite.episodes)
+        if os.path.exists(agg_path):
+            with open(agg_path, "r") as f:
+                results.append(json.load(f))
+            print(f"  ✓ cached eval {mname} {suite.suite_id} B={budget}")
+            continue
+
+        job_key = (mname, suite.suite_id, budget)
+        partials.setdefault(job_key, [])
+
+        eval_fn = _choose_eval_fn(mname)
+        for ep_start in range(0, suite.episodes, eval_shard_size):
+            ep_count = min(eval_shard_size, suite.episodes - ep_start)
+            shard_path = _eval_shard_result_path(mname, suite.suite_id, budget, alpha, eval_seed_base, ep_start, ep_count)
+            existing_shard = _read_json_safe(shard_path)
+            if _is_complete_eval_shard(existing_shard):
+                partials[job_key].append(existing_shard)
+                continue
+
+            h = eval_fn.spawn(suite, mname, path, alpha, budget, eval_seed_base, ep_start, ep_count)
+            in_flight.append((job_key, h))
+            if len(in_flight) >= max_parallel_eval:
+                flush_one()
+
     while in_flight:
         flush_one()
+
+    for (mname, path, suite, budget) in eval_jobs:
+        agg_path = _eval_result_path(mname, suite.suite_id, budget, alpha, eval_seed_base, suite.episodes)
+        if os.path.exists(agg_path):
+            continue
+        job_key = (mname, suite.suite_id, budget)
+        parts = partials.get(job_key, [])
+        if not parts:
+            continue
+        agg = _aggregate_eval_parts(parts)
+        _write_json_atomic(agg_path, agg)
+        results.append(agg)
 
     ts = int(time.time())
     out_path = f"{RESULTS_DIR}/results__{ts}.json"
@@ -2150,10 +2654,21 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
 @app.local_entrypoint()
 def main():
     print("=" * 78)
-    print("TRANSFER-FIRST A* AUGMENTATION — HEURISTIC IMITATION V2")
+    print("TRANSFER-FIRST A* AUGMENTATION — HEURISTIC IMITATION V2 (MAP-SCALE CURRICULUM)")
     print("=" * 78)
+    print(f"VOLUME_NAME={VOLUME_NAME}")
+    print(f"RUN_TAG={RUN_TAG}")
+    print(f"INCLUDE_STRETCH_STAGE={1 if INCLUDE_STRETCH_STAGE else 0}")
+    start_stage_id = _env_flag("START_STAGE_ID", "").strip()
+    if start_stage_id:
+        print(f"START_STAGE_ID={start_stage_id}")
+    if MODEL_RUN_TAG != RUN_TAG:
+        print(f"MODEL_RUN_TAG={MODEL_RUN_TAG}  (reading existing models from this run tag)")
+    if _env_int("EVAL_NONPREEMPTIBLE", 1) == 1 and not _modal_supports_nonpreemptible():
+        print("Warning: EVAL_NONPREEMPTIBLE=1 requested, but this Modal client does not support nonpreemptible Functions. Upgrade modal to >=1.2.3 to enable it.")
+    print(f"EVAL_NONPREEMPTIBLE={'1' if EVAL_FN_NONPREEMPTIBLE else '0'}  (cpu={EVAL_FN_CPU}, mem={EVAL_FN_MEMORY_MB}MB)")
     if _env_int("DETACH_HINT", 1) == 1:
-        print("Tip: use `modal run --detach HRMv2/hrm-cloud/transfer_astar_heuristic_imitation_v2.py` to avoid disconnects.\n")
+        print("Tip: use `modal run --detach HRMv2/hrm-cloud/transfer_astar_heuristic_imitation_mapscale_lora.py` to avoid disconnects.\n")
     
     # Model selection
     #  - TRAIN_MODELS controls which models are trained.
@@ -2172,7 +2687,7 @@ def main():
     model_selection = {"train_models": train_models, "eval_models": eval_models}
     max_parallel_train = _env_int("MAX_PARALLEL_TRAIN", 2)
     max_parallel_collect = _env_int("MAX_PARALLEL_COLLECT", 8)
-    max_parallel_eval = _env_int("MAX_PARALLEL_EVAL", 24)
+    max_parallel_eval = _env_int("MAX_PARALLEL_EVAL", 48)
 
     skip_collect = _env_int("SKIP_COLLECT", 0) == 1
     skip_train = _env_int("SKIP_TRAIN", 0) == 1

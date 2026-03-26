@@ -42,13 +42,20 @@ Useful environment variables:
     ONLY_MODELS="..."                    # (legacy) alias for TRAIN_MODELS + EVAL_MODELS
     MAX_PARALLEL_TRAIN=2                 # training concurrency
     MAX_PARALLEL_COLLECT=8               # data collection concurrency
-    MAX_PARALLEL_EVAL=24                 # eval concurrency
+    MAX_PARALLEL_EVAL=48                 # eval concurrency (higher works better with sharded eval)
+    VOLUME_NAME="transfer-astar-heuristic-imitation-v2-vol-v2"  # optional: rerun from a fresh Modal volume
+    APP_NAME="transfer-astar-heuristic-imitation-v2-v2"         # optional: separate Modal app name
     SKIP_COLLECT=1                       # skip dataset collection if cached
     SKIP_TRAIN=1                         # skip training (use existing checkpoints/models)
     SKIP_FEWSHOT=1                       # skip few-shot adapt
     EVAL_EPISODES=100                    # override eval episodes per suite
     EVAL_BUDGETS="200,500,2000"          # expansion budgets per replanning step
+    EVAL_SHARD_SIZE=10                   # episodes per eval shard (lower = better restartability / tail latency)
+    EVAL_USE_GPU=0                       # optional: run learned-model eval shards on GPU (experimental)
+    EVAL_TORCH_THREADS=1                 # PyTorch CPU threads per eval shard
     ALPHA="1.0"                          # heuristic scale factor
+    RUN_TAG="..."                        # isolate models/checkpoints/results for this run family
+    DATA_ROOT="/data/transfer_astar_heuristic_imitation_v2_fixpack"  # optional: override experiment root inside the volume
 
     USE_LORA=1                            # (default in this file) stage-wise stacked LoRA
     LORA_R=8                              # LoRA rank
@@ -95,8 +102,8 @@ import modal
 # Modal setup
 # -----------------------------
 
-APP_NAME = "transfer-astar-heuristic-imitation-v2"
-VOLUME_NAME = "transfer-astar-heuristic-imitation-v2-vol"
+APP_NAME = os.environ.get("APP_NAME", "transfer-astar-heuristic-imitation-v2")
+VOLUME_NAME = os.environ.get("VOLUME_NAME", "transfer-astar-heuristic-imitation-v2-vol")
 
 image = (
     modal.Image.debian_slim(python_version="3.10")
@@ -113,13 +120,11 @@ app = modal.App(APP_NAME)
 
 vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
-# New experiment root (kept separate from earlier V2 runs to avoid mixing
-# datasets/checkpoints produced before the critical A* + labeling fixes).
-DATA_ROOT = "/data/transfer_astar_heuristic_imitation_v2_fixpack"
+# Shared experiment root.
+# Datasets are shared across runs; models/checkpoints/results are isolated by RUN_TAG
+# so LoRA vs non-LoRA (and future sweeps) do not collide.
+DATA_ROOT = os.environ.get("DATA_ROOT", "/data/transfer_astar_heuristic_imitation_v2_fixpack")
 DATASETS_DIR = f"{DATA_ROOT}/datasets"
-MODELS_DIR = f"{DATA_ROOT}/models"
-CHECKPOINTS_DIR = f"{DATA_ROOT}/checkpoints"
-RESULTS_DIR = f"{DATA_ROOT}/results"
 
 # -----------------------------
 # Config and helpers
@@ -192,11 +197,99 @@ def _parse_models_spec(spec: Optional[str]) -> Optional[List[str]]:
         return []
     return [_canonical_model_name(x) for x in _parse_csv_strs(s)]
 
+def _sanitize_file_component(s: str) -> str:
+    out = []
+    for ch in str(s):
+        if ch.isalnum() or ch in ("-", "_", ".", "="):
+            out.append(ch)
+        else:
+            out.append("_")
+    collapsed = "".join(out)
+    while "__" in collapsed:
+        collapsed = collapsed.replace("__", "_")
+    return collapsed.strip("_") or "default"
+
+def _summarize_exc(e: Exception, max_chars: int = 240) -> str:
+    s = str(e).replace("\n", " | ")
+    if len(s) > max_chars:
+        s = s[:max_chars] + "..."
+    return s
+
+def _run_tag() -> str:
+    raw = os.environ.get("RUN_TAG")
+    if raw is None or raw.strip() == "":
+        if _env_int("USE_LORA", 1) == 1:
+            r = _env_int("LORA_R", 8)
+            a = _env_float("LORA_ALPHA", 16.0)
+            raw = f"lora_r{r}_a{str(a).replace('.', 'p')}"
+        else:
+            raw = "fullft"
+    return _sanitize_file_component(raw)
+
+RUN_TAG = _run_tag()
+RUN_ROOT = f"{DATA_ROOT}/runs/{RUN_TAG}"
+MODELS_DIR = f"{RUN_ROOT}/models"
+CHECKPOINTS_DIR = f"{RUN_ROOT}/checkpoints"
+RESULTS_DIR = f"{RUN_ROOT}/results"
+
+def _configure_eval_torch_threads() -> None:
+    n = max(1, _env_int("EVAL_TORCH_THREADS", 1))
+    try:
+        torch.set_num_threads(n)
+    except Exception:
+        pass
+    try:
+        if hasattr(torch, "set_num_interop_threads"):
+            torch.set_num_interop_threads(max(1, _env_int("EVAL_TORCH_INTEROP_THREADS", 1)))
+    except Exception:
+        pass
+
+def _target_stats_string(target_delta: torch.Tensor, mask: torch.Tensor, label: str) -> str:
+    try:
+        valid = target_delta[mask > 0].float().view(-1)
+    except Exception:
+        return f"{label}: unavailable"
+    if valid.numel() == 0:
+        return f"{label}: no valid targets"
+    zero_frac = float((valid <= 1e-6).float().mean().item())
+    pos = valid[valid > 1e-6]
+    q50 = float(torch.quantile(valid, 0.50).item())
+    q90 = float(torch.quantile(valid, 0.90).item())
+    q95 = float(torch.quantile(valid, 0.95).item())
+    maxv = float(valid.max().item())
+    meanv = float(valid.mean().item())
+    msg = (
+        f"{label}: n_valid={int(valid.numel())} mean={meanv:.3f} "
+        f"p50={q50:.3f} p90={q90:.3f} p95={q95:.3f} max={maxv:.3f} zero_frac={zero_frac:.3f}"
+    )
+    if pos.numel() > 0:
+        msg += f" pos_mean={float(pos.mean().item()):.3f} pos_p90={float(torch.quantile(pos, 0.90).item()):.3f}"
+    return msg
+
+def _alpha_tag(alpha: float) -> str:
+    return _sanitize_file_component(f"{alpha:.4f}".rstrip("0").rstrip("."))
+
+def _eval_shard_result_path(model_name: str, suite_id: str, budget: int, alpha: float, seed_base: int, ep_start: int, ep_count: int) -> str:
+    return (
+        f"{RESULTS_DIR}/eval_shards/"
+        f"{_sanitize_file_component(model_name)}__{suite_id}__B{budget}__a{_alpha_tag(alpha)}__"
+        f"seed{seed_base}__eps{ep_start:04d}_{ep_start + ep_count - 1:04d}.json"
+    )
+
+def _eval_result_path(model_name: str, suite_id: str, budget: int, alpha: float, seed_base: int, episodes: int) -> str:
+    return (
+        f"{RESULTS_DIR}/eval_agg/"
+        f"{_sanitize_file_component(model_name)}__{suite_id}__B{budget}__a{_alpha_tag(alpha)}__"
+        f"seed{seed_base}__N{episodes}.json"
+    )
+
 def _ensure_dirs():
     os.makedirs(DATASETS_DIR, exist_ok=True)
     os.makedirs(MODELS_DIR, exist_ok=True)
     os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
     os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(f"{RESULTS_DIR}/eval_shards", exist_ok=True)
+    os.makedirs(f"{RESULTS_DIR}/eval_agg", exist_ok=True)
 
 # -----------------------------
 # Curriculum + evaluation suites
@@ -1490,6 +1583,8 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
 
     data = load_dataset(dataset_path)
     ds = StepDataset(data)
+    if _env_int("VERBOSE_TARGET_STATS", 1) == 1:
+        print(_target_stats_string(ds.target_delta, ds.mask, f"[{model_name}][{stage_id}] targets"))
 
     obs_dim = int(ds.obs_seq.shape[-1])
     cfgs = build_model_configs(obs_dim)
@@ -1584,7 +1679,7 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
             start_epoch, best_loss = load_checkpoint(ckpt_path, model, opt)
             print(f"[{model_name}][{stage_id}] resume epoch={start_epoch} best_loss={best_loss:.6f}")
         except Exception as e:
-            print("Failed to load checkpoint:", e)
+            print(f"[{model_name}][{stage_id}] ignoring incompatible checkpoint {ckpt_path}: {_summarize_exc(e)}")
 
     if start_epoch == 0:
         prev_stage_id = None
@@ -1601,7 +1696,7 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
                     model.load_state_dict(prev["state"], strict=False)
                     print(f"[{model_name}][{stage_id}] init from prev stage {prev_stage_id}")
                 except Exception as e:
-                    print(f"[{model_name}][{stage_id}] failed to init from prev stage:", e)
+                    print(f"[{model_name}][{stage_id}] failed to init from prev stage {prev_stage_id}: {_summarize_exc(e)}")
 
     stage_obj = next((s for s in STAGES if s.stage_id == stage_id), None)
     default_epochs = stage_obj.train_epochs if stage_obj is not None else 30
@@ -1667,7 +1762,7 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
     gpu="H100",
     cpu=8,
     memory=65536,
-    timeout=60 * 60 * 6,
+    timeout=60 * 60 * 12,
     volumes={"/data": vol},
 )
 def fewshot_adapt_h100(model_name: str, base_stage: str, suite_id: str, k_episodes: int, seed: int = 0) -> Dict[str, Any]:
@@ -1678,7 +1773,7 @@ def fewshot_adapt_h100(model_name: str, base_stage: str, suite_id: str, k_episod
     gpu="B200",
     cpu=8,
     memory=65536,
-    timeout=60 * 60 * 6,
+    timeout=60 * 60 * 12,
     volumes={"/data": vol},
 )
 def fewshot_adapt_b200(model_name: str, base_stage: str, suite_id: str, k_episodes: int, seed: int = 0) -> Dict[str, Any]:
@@ -1689,6 +1784,9 @@ def _fewshot_dataset_path(model_name: str, suite_id: str, k: int) -> str:
 
 def _fewshot_model_path(model_name: str, suite_id: str, k: int) -> str:
     return f"{MODELS_DIR}/{model_name}__fewshot_{suite_id}__K{k}.pt"
+
+def _fewshot_checkpoint_path(model_name: str, suite_id: str, k: int) -> str:
+    return f"{CHECKPOINTS_DIR}/{model_name}__fewshot_{suite_id}__K{k}.pt"
 
 def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episodes: int, device: str, seed: int) -> Dict[str, Any]:
     vol.reload()
@@ -1702,50 +1800,58 @@ def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episo
     if not os.path.exists(base_path):
         raise FileNotFoundError(base_path)
     saved = torch.load(base_path, map_location="cpu")
-    obs_dim = int(saved["cfg"]["obs_dim"])
 
-    samples: List[StepSample] = []
-    for epi in range(k_episodes):
-        seed_ep = 10_000_000 + epi
-        ep = make_episode(seed_ep, suite.family, suite.size, suite.max_steps, suite.n_gates, suite.n_patrollers, suite.n_drifters)
-        occ = simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
-        dist_abs = compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps)
-        static_dist = compute_static_distances(ep.walls, ep.goal)
-
-        agent = ep.start
-        obs_hist: List[np.ndarray] = []
-        for t_abs in range(ep.max_steps):
-            obs = build_obs_vector(suite.size, agent, ep.goal, ep.gates, ep.pats, ep.drifts)
-            obs_hist.append(obs)
-            if (t_abs % 3) == 0:
-                sample, action0, _ = oracle_collect_step_sample(
-                    ep, occ, dist_abs, static_dist, t_abs, agent, obs_hist,
-                    nodes_per_sample=48,
-                    plan_horizon=suite.plan_horizon,
-                    oracle_max_exp=25_000,
-                    alpha=1.0,
-                    rng=rng,
-                )
-                samples.append(sample)
-                a0 = action0
-            else:
-                def hfn0_batch(states: List[Tuple[int,int,int]]) -> List[float]:
-                    return [0.0] * len(states)
-
-                plan = space_time_astar(agent, ep.goal, t_abs, suite.plan_horizon, 8000, occ, static_dist, hfn0_batch, 1.0)
-                a0 = plan.actions[0] if plan.actions else 4
-                
-            agent, done, _info = step_episode(ep, agent, a0)
-            if done:
-                break
+    out_path = _fewshot_model_path(model_name, suite_id, k_episodes)
+    if os.path.exists(out_path):
+        print(f"[fewshot] using cached model -> {out_path}")
+        params = int(torch.load(out_path, map_location="cpu").get("params", 0))
+        return {"name": model_name, "suite": suite_id, "k": k_episodes, "params": params, "status": "cached"}
 
     ds_path = _fewshot_dataset_path(model_name, suite_id, k_episodes)
-    save_samples(ds_path, samples)
-    try:
-        vol.commit()
-    except Exception as e:
-        print(f"[fewshot][dataset] volume commit warning: {e}")
-    print(f"[fewshot] dataset saved -> {ds_path} ({len(samples)} samples)")
+    if os.path.exists(ds_path):
+        print(f"[fewshot] using cached dataset -> {ds_path}")
+    else:
+        samples: List[StepSample] = []
+        for epi in range(k_episodes):
+            seed_ep = 10_000_000 + epi
+            ep = make_episode(seed_ep, suite.family, suite.size, suite.max_steps, suite.n_gates, suite.n_patrollers, suite.n_drifters)
+            occ = simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
+            dist_abs = compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps)
+            static_dist = compute_static_distances(ep.walls, ep.goal)
+
+            agent = ep.start
+            obs_hist: List[np.ndarray] = []
+            for t_abs in range(ep.max_steps):
+                obs = build_obs_vector(suite.size, agent, ep.goal, ep.gates, ep.pats, ep.drifts)
+                obs_hist.append(obs)
+                if (t_abs % 3) == 0:
+                    sample, action0, _ = oracle_collect_step_sample(
+                        ep, occ, dist_abs, static_dist, t_abs, agent, obs_hist,
+                        nodes_per_sample=48,
+                        plan_horizon=suite.plan_horizon,
+                        oracle_max_exp=25_000,
+                        alpha=1.0,
+                        rng=rng,
+                    )
+                    samples.append(sample)
+                    a0 = action0
+                else:
+                    def hfn0_batch(states: List[Tuple[int,int,int]]) -> List[float]:
+                        return [0.0] * len(states)
+
+                    plan = space_time_astar(agent, ep.goal, t_abs, suite.plan_horizon, 8000, occ, static_dist, hfn0_batch, 1.0)
+                    a0 = plan.actions[0] if plan.actions else 4
+
+                agent, done, _info = step_episode(ep, agent, a0)
+                if done:
+                    break
+
+        save_samples(ds_path, samples)
+        try:
+            vol.commit()
+        except Exception as e:
+            print(f"[fewshot][dataset] volume commit warning: {e}")
+        print(f"[fewshot] dataset saved -> {ds_path} ({len(samples)} samples)")
 
     cfg = ModelConfig(**saved["cfg"])
     model = build_model(cfg).to(device)
@@ -1755,15 +1861,27 @@ def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episo
 
     data = load_dataset(ds_path)
     ds = StepDataset(data)
+    if _env_int("VERBOSE_TARGET_STATS", 1) == 1:
+        print(_target_stats_string(ds.target_delta, ds.mask, f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] targets"))
     dl = torch.utils.data.DataLoader(ds, batch_size=16, shuffle=True, num_workers=1, pin_memory=True)
 
     opt = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=1e-3)
     epochs = _env_int("FEWSHOT_EPOCHS", 25)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
-    
+
+    ckpt_path = _fewshot_checkpoint_path(model_name, suite_id, k_episodes)
+    start_epoch = 0
+    best_loss = 1e9
+    if os.path.exists(ckpt_path):
+        try:
+            start_epoch, best_loss = load_checkpoint(ckpt_path, model, opt)
+            print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] resume epoch={start_epoch} best_loss={best_loss:.6f}")
+        except Exception as e:
+            print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] ignoring incompatible checkpoint {ckpt_path}: {_summarize_exc(e)}")
+
     model.train()
-    
-    for epc in range(epochs):
+
+    for epc in range(start_epoch, epochs):
         running = 0.0
         nb = 0
         for obs_seq, node_patch, node_meta, tgt, mask in dl:
@@ -1784,11 +1902,14 @@ def _fewshot_adapt_impl(model_name: str, base_stage: str, suite_id: str, k_episo
 
             running += float(loss.item())
             nb += 1
-            
-        scheduler.step()
-        print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] epoch {epc+1}/{epochs} loss={running/max(1,nb):.6f}")
 
-    out_path = _fewshot_model_path(model_name, suite_id, k_episodes)
+        epoch_loss = running / max(1, nb)
+        if epoch_loss < best_loss:
+            best_loss = epoch_loss
+        scheduler.step()
+        save_checkpoint(ckpt_path, model, opt, epc, best_loss)
+        print(f"[fewshot][{model_name}][{suite_id}][K={k_episodes}] epoch {epc+1}/{epochs} loss={epoch_loss:.6f} best={best_loss:.6f}")
+
     torch.save({"cfg": cfg.__dict__, "state": model.state_dict(), "params": params}, out_path)
     try:
         vol.commit()
@@ -1812,12 +1933,17 @@ def run_policy_episode(
     Run one episode with receding-horizon ST-A*.
     If model is None, use baseline static heuristic (Δh=0).
     """
-    rng = random.Random(seed)
     ep = make_episode(seed, suite.family, suite.size, suite.max_steps, suite.n_gates, suite.n_patrollers, suite.n_drifters)
 
     occ = simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
     static_dist = compute_static_distances(ep.walls, ep.goal)
 
+    model_device = torch.device("cpu")
+    if model is not None:
+        try:
+            model_device = next(model.parameters()).device
+        except StopIteration:
+            model_device = torch.device("cpu")
 
     agent = ep.start
     obs_hist: List[np.ndarray] = []
@@ -1835,8 +1961,9 @@ def run_policy_episode(
             def hfn_batch(states: List[Tuple[int,int,int]]) -> List[float]:
                 return [0.0] * len(states)
         else:
-            obs_seq = torch.from_numpy(build_obs_sequence(obs_hist, 20, obs.shape[0])).unsqueeze(0).float()
-            with torch.no_grad():
+            obs_seq_np = build_obs_sequence(obs_hist, 20, obs.shape[0])
+            obs_seq = torch.from_numpy(obs_seq_np).unsqueeze(0).float().to(model_device, non_blocking=True)
+            with torch.inference_mode():
                 ctx = model.compute_context(obs_seq).squeeze(0)
 
             cache: Dict[Tuple[int,int,int], float] = {}
@@ -1868,10 +1995,10 @@ def run_policy_episode(
                         hs = int(static_dist[x, y])
                         metas.append(build_node_meta(suite.size, (x, y), ep.goal, t_off, suite.plan_horizon, hs))
 
-                    patch_t = torch.from_numpy(np.stack(patches)).float()
-                    meta_t = torch.from_numpy(np.stack(metas)).float()
-                    with torch.no_grad():
-                        deltas = model.eval_nodes(ctx.unsqueeze(0), patch_t, meta_t).cpu().numpy()
+                    patch_t = torch.from_numpy(np.stack(patches)).float().to(model_device, non_blocking=True)
+                    meta_t = torch.from_numpy(np.stack(metas)).float().to(model_device, non_blocking=True)
+                    with torch.inference_mode():
+                        deltas = model.eval_nodes(ctx.unsqueeze(0), patch_t, meta_t).detach().cpu().numpy()
 
                     for idx, st, d in zip(to_eval_idx, to_eval_states, deltas):
                         d_float = float(d)
@@ -1913,54 +2040,172 @@ def run_policy_episode(
         "exp_per_step": total_exp / max(1, steps),
     }
 
-@app.function(
-    image=image,
-    cpu=8,
-    memory=16384,
-    timeout=60 * 60 * 3,
-    volumes={"/data": vol},
-)
-def evaluate_pair(
+def _aggregate_eval_parts(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not parts:
+        raise ValueError("No evaluation parts to aggregate.")
+    parts_sorted = sorted(parts, key=lambda p: (p["ep_start"], p["episodes"]))
+    first = parts_sorted[0]
+    total_eps = sum(int(p["episodes"]) for p in parts_sorted)
+    sums = {"success": 0, "collision": 0, "timeout": 0, "steps": 0.0, "expansions": 0.0}
+    for p in parts_sorted:
+        ms = p["metric_sums"]
+        sums["success"] += int(ms["success"])
+        sums["collision"] += int(ms["collision"])
+        sums["timeout"] += int(ms["timeout"])
+        sums["steps"] += float(ms["steps"])
+        sums["expansions"] += float(ms["expansions"])
+
+    return {
+        "suite": first["suite"],
+        "family": first["family"],
+        "size": first["size"],
+        "dynamics": first["dynamics"],
+        "budget": first["budget"],
+        "alpha": first["alpha"],
+        "model": first["model"],
+        "episodes": total_eps,
+        "success_rate": sums["success"] / total_eps,
+        "collision_rate": sums["collision"] / total_eps,
+        "timeout_rate": sums["timeout"] / total_eps,
+        "avg_steps": sums["steps"] / total_eps,
+        "avg_expansions": sums["expansions"] / total_eps,
+        "expansions_per_step": sums["expansions"] / max(1e-6, sums["steps"]),
+    }
+
+def _evaluate_pair_chunk_impl(
     suite: EvalSuite,
     model_name: str,
     model_path: Optional[str],
     alpha: float,
     max_expansions: int,
     seed_base: int,
+    ep_start: int,
+    ep_count: int,
+    device: str,
 ) -> Dict[str, Any]:
     vol.reload()
     _ensure_dirs()
+    if device == "cpu":
+        _configure_eval_torch_threads()
+
+    shard_path = _eval_shard_result_path(model_name, suite.suite_id, max_expansions, alpha, seed_base, ep_start, ep_count)
+    if os.path.exists(shard_path):
+        with open(shard_path, "r") as f:
+            return json.load(f)
+
     model = None
     if model_path is not None:
         payload = torch.load(model_path, map_location="cpu")
         cfg = ModelConfig(**payload["cfg"])
-        model = build_model(cfg).to(torch.device("cpu"))
+        device_t = torch.device(device)
+        model = build_model(cfg).to(device_t)
         model.load_state_dict(payload["state"])
         model.eval()
 
     metrics = {"success": 0, "collision": 0, "timeout": 0, "steps": 0.0, "expansions": 0.0}
     t0 = time.time()
-    for i in range(suite.episodes):
+    for local_i, i in enumerate(range(ep_start, ep_start + ep_count), start=1):
         seed = seed_base + i
         r = run_policy_episode(suite, seed, model, alpha=alpha, max_expansions=max_expansions)
-        for k in ("success","collision","timeout"): metrics[k] += r[k]
+        for k in ("success", "collision", "timeout"):
+            metrics[k] += r[k]
         metrics["steps"] += r["steps"]
         metrics["expansions"] += r["expansions"]
-        if (i+1) % max(1, suite.episodes // 5) == 0:
-            elapsed = time.time() - t0
-            eps_s = (i+1) / max(1e-6, elapsed)
-            eta = (suite.episodes - (i+1)) / max(1e-6, eps_s)
-            print(f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] {i+1}/{suite.episodes} eps_s={eps_s:.2f} ETA={eta/60:.1f}m")
 
-    n = suite.episodes
+        if local_i % max(1, ep_count // 5) == 0 or local_i == ep_count:
+            elapsed = time.time() - t0
+            eps_s = local_i / max(1e-6, elapsed)
+            eta = (ep_count - local_i) / max(1e-6, eps_s)
+            print(
+                f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] "
+                f"episodes {ep_start + local_i}/{ep_start + ep_count} of {suite.episodes} "
+                f"eps_s={eps_s:.2f} ETA={eta/60:.1f}m device={device}"
+            )
+
     out = {
-        "suite": suite.suite_id, "family": suite.family, "size": suite.size, "dynamics": suite.dynamics,
-        "budget": max_expansions, "alpha": alpha, "model": model_name, "episodes": n,
-        "success_rate": metrics["success"] / n, "collision_rate": metrics["collision"] / n, "timeout_rate": metrics["timeout"] / n,
-        "avg_steps": metrics["steps"] / n, "avg_expansions": metrics["expansions"] / n,
-        "expansions_per_step": metrics["expansions"] / max(1e-6, metrics["steps"]),
+        "suite": suite.suite_id,
+        "family": suite.family,
+        "size": suite.size,
+        "dynamics": suite.dynamics,
+        "budget": max_expansions,
+        "alpha": alpha,
+        "model": model_name,
+        "episodes": ep_count,
+        "ep_start": ep_start,
+        "metric_sums": metrics,
     }
+    with open(shard_path, "w") as f:
+        json.dump(out, f, indent=2)
+    try:
+        vol.commit()
+    except Exception as e:
+        print(f"[eval][{model_name}][{suite.suite_id}][B={max_expansions}] volume commit warning: {e}")
     return out
+
+@app.function(
+    image=image,
+    cpu=8,
+    memory=16384,
+    timeout=60 * 60 * 12,
+    volumes={"/data": vol},
+)
+def evaluate_pair_chunk(
+    suite: EvalSuite,
+    model_name: str,
+    model_path: Optional[str],
+    alpha: float,
+    max_expansions: int,
+    seed_base: int,
+    ep_start: int,
+    ep_count: int,
+) -> Dict[str, Any]:
+    return _evaluate_pair_chunk_impl(
+        suite, model_name, model_path, alpha, max_expansions, seed_base, ep_start, ep_count, device="cpu"
+    )
+
+@app.function(
+    image=image,
+    gpu="H100",
+    cpu=8,
+    memory=65536,
+    timeout=60 * 60 * 12,
+    volumes={"/data": vol},
+)
+def evaluate_pair_chunk_h100(
+    suite: EvalSuite,
+    model_name: str,
+    model_path: Optional[str],
+    alpha: float,
+    max_expansions: int,
+    seed_base: int,
+    ep_start: int,
+    ep_count: int,
+) -> Dict[str, Any]:
+    return _evaluate_pair_chunk_impl(
+        suite, model_name, model_path, alpha, max_expansions, seed_base, ep_start, ep_count, device="cuda"
+    )
+
+@app.function(
+    image=image,
+    gpu="B200",
+    cpu=8,
+    memory=65536,
+    timeout=60 * 60 * 12,
+    volumes={"/data": vol},
+)
+def evaluate_pair_chunk_b200(
+    suite: EvalSuite,
+    model_name: str,
+    model_path: Optional[str],
+    alpha: float,
+    max_expansions: int,
+    seed_base: int,
+    ep_start: int,
+    ep_count: int,
+) -> Dict[str, Any]:
+    return _evaluate_pair_chunk_impl(
+        suite, model_name, model_path, alpha, max_expansions, seed_base, ep_start, ep_count, device="cuda"
+    )
 
 def _choose_train_fn(model_name: str):
     if model_name.startswith("hrm"): return train_model_b200
@@ -1969,6 +2214,13 @@ def _choose_train_fn(model_name: str):
 def _choose_fewshot_fn(model_name: str):
     if model_name.startswith("hrm"): return fewshot_adapt_b200
     return fewshot_adapt_h100
+
+def _choose_eval_fn(model_name: str):
+    if _env_int("EVAL_USE_GPU", 0) == 1 and not model_name.startswith("baseline_static_astar"):
+        if model_name.startswith("hrm"):
+            return evaluate_pair_chunk_b200
+        return evaluate_pair_chunk_h100
+    return evaluate_pair_chunk
 
 @app.function(
     image=image,
@@ -2093,8 +2345,8 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
         print("\n⏭️  SKIP_FEWSHOT=1 set; skipping few-shot adaptation.")
 
     # Evaluation
-    print("\n📊 Evaluation (parallel)")
-    vol.reload() 
+    print("\n📊 Evaluation (parallel, sharded + cacheable)")
+    vol.reload()
 
     eval_jobs = []
     for suite in eval_suites:
@@ -2111,26 +2363,63 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
                 eval_jobs.append((m, p, suite, budget))
 
     for (m,k), p in fewshot_paths.items():
-        if not os.path.exists(p): continue
+        if not os.path.exists(p):
+            continue
         suite = next(s for s in eval_suites if s.suite_id == fewshot_target)
         for budget in budgets:
             eval_jobs.append((f"{m}_fewshotK{k}", p, suite, budget))
 
+    eval_seed_base = seed_base + 1_000_000
+    eval_shard_size = max(1, _env_int("EVAL_SHARD_SIZE", 10))
     results: List[Dict[str,Any]] = []
-    in_flight = []
+    partials: Dict[Tuple[str, str, int], List[Dict[str, Any]]] = {}
+    in_flight: List[Tuple[Tuple[str, str, int], Any]] = []
 
     def flush_one():
-        nonlocal in_flight, results
-        mname, h = in_flight.pop(0)
-        results.append(h.get())
+        nonlocal in_flight, partials
+        job_key, h = in_flight.pop(0)
+        partials.setdefault(job_key, []).append(h.get())
 
     for (mname, path, suite, budget) in eval_jobs:
-        h = evaluate_pair.spawn(suite, mname, path, alpha, budget, seed_base + 1_000_000)
-        in_flight.append((mname, h))
-        if len(in_flight) >= max_parallel_eval:
-            flush_one()
+        agg_path = _eval_result_path(mname, suite.suite_id, budget, alpha, eval_seed_base, suite.episodes)
+        if os.path.exists(agg_path):
+            with open(agg_path, "r") as f:
+                results.append(json.load(f))
+            print(f"  ✓ cached eval {mname} {suite.suite_id} B={budget}")
+            continue
+
+        job_key = (mname, suite.suite_id, budget)
+        partials.setdefault(job_key, [])
+
+        eval_fn = _choose_eval_fn(mname)
+        for ep_start in range(0, suite.episodes, eval_shard_size):
+            ep_count = min(eval_shard_size, suite.episodes - ep_start)
+            shard_path = _eval_shard_result_path(mname, suite.suite_id, budget, alpha, eval_seed_base, ep_start, ep_count)
+            if os.path.exists(shard_path):
+                with open(shard_path, "r") as f:
+                    partials[job_key].append(json.load(f))
+                continue
+
+            h = eval_fn.spawn(suite, mname, path, alpha, budget, eval_seed_base, ep_start, ep_count)
+            in_flight.append((job_key, h))
+            if len(in_flight) >= max_parallel_eval:
+                flush_one()
+
     while in_flight:
         flush_one()
+
+    for (mname, path, suite, budget) in eval_jobs:
+        agg_path = _eval_result_path(mname, suite.suite_id, budget, alpha, eval_seed_base, suite.episodes)
+        if os.path.exists(agg_path):
+            continue
+        job_key = (mname, suite.suite_id, budget)
+        parts = partials.get(job_key, [])
+        if not parts:
+            continue
+        agg = _aggregate_eval_parts(parts)
+        with open(agg_path, "w") as f:
+            json.dump(agg, f, indent=2)
+        results.append(agg)
 
     ts = int(time.time())
     out_path = f"{RESULTS_DIR}/results__{ts}.json"
@@ -2152,6 +2441,9 @@ def main():
     print("=" * 78)
     print("TRANSFER-FIRST A* AUGMENTATION — HEURISTIC IMITATION V2")
     print("=" * 78)
+    print(f"APP_NAME={APP_NAME}")
+    print(f"VOLUME_NAME={VOLUME_NAME}")
+    print(f"RUN_TAG={RUN_TAG}")
     if _env_int("DETACH_HINT", 1) == 1:
         print("Tip: use `modal run --detach HRMv2/hrm-cloud/transfer_astar_heuristic_imitation_v2.py` to avoid disconnects.\n")
     
@@ -2172,7 +2464,7 @@ def main():
     model_selection = {"train_models": train_models, "eval_models": eval_models}
     max_parallel_train = _env_int("MAX_PARALLEL_TRAIN", 2)
     max_parallel_collect = _env_int("MAX_PARALLEL_COLLECT", 8)
-    max_parallel_eval = _env_int("MAX_PARALLEL_EVAL", 24)
+    max_parallel_eval = _env_int("MAX_PARALLEL_EVAL", 48)
 
     skip_collect = _env_int("SKIP_COLLECT", 0) == 1
     skip_train = _env_int("SKIP_TRAIN", 0) == 1

@@ -37,9 +37,7 @@ Run on Modal like:
     python -m modal run HRMv2/hrm-cloud/transfer_astar_heuristic_imitation_v2.py --detach
 
 Useful environment variables:
-    TRAIN_MODELS="hrm_3m,onlstm_3m"      # models to train (default: HRM 3m + ON-LSTM 3m)
-    EVAL_MODELS="hrm_3m,onlstm_3m"       # models to evaluate (default: HRM 3m + ON-LSTM 3m)
-    ONLY_MODELS="..."                    # (legacy) alias for TRAIN_MODELS + EVAL_MODELS
+    ONLY_MODELS="hrm_3m,onlstm_3m"       # restrict models
     MAX_PARALLEL_TRAIN=2                 # training concurrency
     MAX_PARALLEL_COLLECT=8               # data collection concurrency
     MAX_PARALLEL_EVAL=24                 # eval concurrency
@@ -49,19 +47,6 @@ Useful environment variables:
     EVAL_EPISODES=100                    # override eval episodes per suite
     EVAL_BUDGETS="200,500,2000"          # expansion budgets per replanning step
     ALPHA="1.0"                          # heuristic scale factor
-
-    USE_LORA=1                            # (default in this file) stage-wise stacked LoRA
-    LORA_R=8                              # LoRA rank
-    LORA_ALPHA=16                         # LoRA scaling
-    LORA_TRAIN_BIAS=1                     # also train bias terms when base frozen
-    LORA_TRAIN_BASE_STAGE1=1              # train base weights on stage1
-    LORA_TRAIN_BASE_LATER=0               # freeze base weights on later stages; train newest adapter only
-
-    BATCH_SIZE=64                         # training batch size
-    LR_FULL=2e-4                          # LR when training full model (or base)
-    LR_LORA=5e-4                          # LR when training adapter-only
-    WEIGHT_DECAY_FULL=1e-3                # weight decay for full training
-    WEIGHT_DECAY_LORA=0.0                 # weight decay for adapter-only training
 """
 
 from __future__ import annotations
@@ -152,45 +137,6 @@ def _parse_csv_ints(s: str) -> List[int]:
 
 def _parse_csv_strs(s: str) -> List[str]:
     return [p.strip() for p in s.split(",") if p.strip()]
-
-# Friendly aliases for model names passed via env vars.
-_MODEL_ALIASES = {
-    # People often say "LSTM" but the implementation here is ON-LSTM.
-    "lstm_300k": "onlstm_300k",
-    "lstm_1m": "onlstm_1m",
-    "lstm_3m": "onlstm_3m",
-    "lstm_10m": "onlstm_10m",
-    "on_lstm_300k": "onlstm_300k",
-    "on_lstm_1m": "onlstm_1m",
-    "on_lstm_3m": "onlstm_3m",
-    "on_lstm_10m": "onlstm_10m",
-    "onlstm300k": "onlstm_300k",
-    "onlstm1m": "onlstm_1m",
-    "onlstm3m": "onlstm_3m",
-    "onlstm10m": "onlstm_10m",
-}
-
-def _canonical_model_name(name: str) -> str:
-    s = name.strip().lower().replace("-", "_")
-    s = s.replace(" ", "")
-    while "__" in s:
-        s = s.replace("__", "_")
-    return _MODEL_ALIASES.get(s, s)
-
-def _parse_models_spec(spec: Optional[str]) -> Optional[List[str]]:
-    """Parse a comma-separated model list.
-
-    Returns:
-      - None if spec is None (unset)
-      - [] if spec is empty/"ALL"/"*" (meaning: no filtering)
-      - [..] otherwise
-    """
-    if spec is None:
-        return None
-    s = spec.strip()
-    if s == "" or s.lower() in ("all", "*"):
-        return []
-    return [_canonical_model_name(x) for x in _parse_csv_strs(s)]
 
 def _ensure_dirs():
     os.makedirs(DATASETS_DIR, exist_ok=True)
@@ -1496,8 +1442,7 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
     cfg = cfgs[model_name]
 
     # LoRA: stage-wise adapters (optional)
-    # Default ON in this file (you can disable with USE_LORA=0).
-    use_lora = (_env_int("USE_LORA", 1) == 1)
+    use_lora = (_env_int("USE_LORA", 0) == 1)
     stage_idx = 0
     for i, s in enumerate(STAGES):
         if s.stage_id == stage_id:
@@ -1526,19 +1471,11 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
 
     model = build_model(cfg).to(device)
 
-    batch_size = _env_int("BATCH_SIZE", 64)
-    num_workers = _env_int("NUM_WORKERS", 2)
-    dl = torch.utils.data.DataLoader(
-        ds,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
+    dl = torch.utils.data.DataLoader(ds, batch_size=32, shuffle=True, num_workers=2, pin_memory=True)
 
     # Configure trainable parameters + optimizer
     if use_lora:
-        train_bias = (_env_int("LORA_TRAIN_BIAS", 1) == 1)
+        train_bias = (_env_int("LORA_TRAIN_BIAS", 0) == 1)
         train_base_stage1 = (_env_int("LORA_TRAIN_BASE_STAGE1", 1) == 1)
         train_base_later = (_env_int("LORA_TRAIN_BASE_LATER", 0) == 1)
 
@@ -1560,21 +1497,7 @@ def _train_model_impl(model_name: str, stage_id: str, dataset_path: str, device:
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[{model_name}][{stage_id}] params={params:,} trainable={trainable:,} dataset={len(ds)}")
 
-    # Optimizer defaults chosen to work well for both full and adapter-only training.
-    # You can override with env vars if you want to sweep.
-    lr_full = _env_float("LR_FULL", 2e-4)
-    lr_lora = _env_float("LR_LORA", 5e-4)
-    wd_full = _env_float("WEIGHT_DECAY_FULL", 1e-3)
-    wd_lora = _env_float("WEIGHT_DECAY_LORA", 0.0)
-
-    if use_lora and (not train_base):
-        lr = lr_lora
-        wd = wd_lora
-    else:
-        lr = lr_full
-        wd = wd_full
-
-    opt = torch.optim.AdamW(opt_params, lr=lr, weight_decay=wd)
+    opt = torch.optim.AdamW(opt_params, lr=2e-4, weight_decay=1e-3)
 
     ckpt_path = _checkpoint_path(model_name, stage_id)
     start_epoch = 0
@@ -1987,32 +1910,11 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
     obs_dim = int(dummy_obs.shape[0])
     model_cfgs = build_model_configs(obs_dim)
 
-    all_model_names = list(model_cfgs.keys())
-
-    # Back-compat: older launcher passed a single list used for both train+eval.
-    # Newer launcher passes a dict-like payload, but to keep the Modal signature
-    # stable for existing runs, we accept either:
-    #   - only_models as List[str] (legacy)
-    #   - only_models as Dict[str, List[str]] with keys train_models/eval_models
-    train_models = []
-    eval_models = []
-    if isinstance(only_models, dict):
-        train_models = list(only_models.get("train_models", []) or [])
-        eval_models = list(only_models.get("eval_models", []) or [])
-    else:
-        train_models = list(only_models or [])
-        eval_models = list(only_models or [])
-
-    train_model_names = list(all_model_names)
-    if train_models:
-        train_model_names = [m for m in train_model_names if m in train_models]
-
-    eval_model_names = list(all_model_names)
-    if eval_models:
-        eval_model_names = [m for m in eval_model_names if m in eval_models]
+    model_names = list(model_cfgs.keys())
+    if only_models:
+        model_names = [m for m in model_names if m in only_models]
     
-    print("Train models:", train_model_names)
-    print("Eval models:", eval_model_names)
+    print("Models:", model_names)
     print("Stages:", [s.stage_id for s in STAGES])
     print("Eval suites:", [s.suite_id for s in eval_suites])
     print("Budgets:", budgets, "alpha:", alpha)
@@ -2050,7 +1952,7 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
             print("  ⏭️  SKIP_TRAIN=1 set; skipping training.")
         else:
             pending = []
-            for m in train_model_names:
+            for m in model_names:
                 train_fn = _choose_train_fn(m)
                 print(f"  🚀 training {m} on {stage.stage_id} ...")
                 pending.append((m, train_fn.spawn(m, stage.stage_id, merged_path, seed=0)))
@@ -2062,7 +1964,7 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
             
         vol.reload() 
         
-        for m in train_model_names:
+        for m in model_names:
             p = _final_model_path(m, stage.stage_id)
             if os.path.exists(p):
                 stage_final_model_paths[m] = p
@@ -2076,7 +1978,7 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
     if not skip_fewshot:
         print("\n🧪 Few-shot adaptation on", fewshot_target)
         handles = []
-        for m in eval_model_names:
+        for m in model_names:
             base_path = _final_model_path(m, base_stage)
             if not os.path.exists(base_path):
                 print(f"  ! missing base model for {m} at {base_stage}, skipping few-shot")
@@ -2101,7 +2003,7 @@ def run_pipeline(only_models, max_parallel_train, max_parallel_collect, max_para
         for budget in budgets:
             eval_jobs.append(("baseline_static_astar", None, suite, budget))
 
-    for m in eval_model_names:
+    for m in model_names:
         p = _final_model_path(m, base_stage)
         if not os.path.exists(p):
             print(f"  ! missing model {m} at {base_stage}, skipping eval")
@@ -2155,21 +2057,7 @@ def main():
     if _env_int("DETACH_HINT", 1) == 1:
         print("Tip: use `modal run --detach HRMv2/hrm-cloud/transfer_astar_heuristic_imitation_v2.py` to avoid disconnects.\n")
     
-    # Model selection
-    #  - TRAIN_MODELS controls which models are trained.
-    #  - EVAL_MODELS controls which models are evaluated (and few-shot adapted).
-    #  - ONLY_MODELS is a legacy alias for setting both.
-    DEFAULT_MODEL_LIST = "hrm_3m,onlstm_3m"
-    legacy_only = _parse_models_spec(os.environ.get("ONLY_MODELS"))
-    train_models = _parse_models_spec(os.environ.get("TRAIN_MODELS"))
-    eval_models = _parse_models_spec(os.environ.get("EVAL_MODELS"))
-
-    if train_models is None:
-        train_models = legacy_only if legacy_only is not None else _parse_csv_strs(DEFAULT_MODEL_LIST)
-    if eval_models is None:
-        eval_models = legacy_only if legacy_only is not None else _parse_csv_strs(DEFAULT_MODEL_LIST)
-
-    model_selection = {"train_models": train_models, "eval_models": eval_models}
+    only_models = _parse_csv_strs(_env_flag("ONLY_MODELS", ""))
     max_parallel_train = _env_int("MAX_PARALLEL_TRAIN", 2)
     max_parallel_collect = _env_int("MAX_PARALLEL_COLLECT", 8)
     max_parallel_eval = _env_int("MAX_PARALLEL_EVAL", 24)
@@ -2184,6 +2072,6 @@ def main():
     seed_base = _env_int("EVAL_SEED_BASE", 0)
 
     run_pipeline.remote(
-        model_selection, max_parallel_train, max_parallel_collect, max_parallel_eval,
+        only_models, max_parallel_train, max_parallel_collect, max_parallel_eval,
         skip_collect, skip_train, skip_fewshot, eval_eps, budgets, alpha, seed_base
     )
