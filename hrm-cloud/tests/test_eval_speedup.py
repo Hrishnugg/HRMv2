@@ -44,3 +44,32 @@ def test_diag_off_skips_cost_dp(monkeypatch):
         assert "steps" in res
     finally:
         R.EVAL_DIAG = True
+
+
+class _DummyDeterministicModel:
+    """Returns a deterministic delta per (x,y,t_rel)-ish input; no torch params.
+    Mimics the minimal interface run_policy_episode uses: encode_obs_sequence +
+    predict_delta_from_ctx. No predict_components_from_ctx (exercises simple path)."""
+    arm = "avgbase"
+
+    def encode_obs_sequence(self, obs_seq):
+        import torch
+        return torch.zeros((obs_seq.shape[0], 8), dtype=torch.float32)
+
+    def predict_delta_from_ctx(self, ctx, node_patch, node_meta):
+        import torch
+        # delta = sum of meta channels => deterministic function of node meta only.
+        return node_meta.sum(dim=-1)
+
+
+def test_cache_path_matches_uncached_for_dummy_model():
+    suite = _static_suite()
+    m = _DummyDeterministicModel()
+    for seed in range(3):
+        R.EVAL_DIAG = True   # uncached path
+        on = R.run_policy_episode(suite, seed=seed, model=m, alpha=1.0, max_expansions=300, device="cpu")
+        R.EVAL_DIAG = False  # cached path
+        off = R.run_policy_episode(suite, seed=seed, model=m, alpha=1.0, max_expansions=300, device="cpu")
+        assert (on["success"], on["steps"], on["expansions"]) == \
+               (off["success"], off["steps"], off["expansions"]), f"seed={seed}: {on} vs {off}"
+    R.EVAL_DIAG = True
