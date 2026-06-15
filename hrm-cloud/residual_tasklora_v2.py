@@ -4570,16 +4570,22 @@ def run_policy_episode(suite: EvalSuite, seed: int, model: Optional[Any], alpha:
                         metas[0, j] = build_node_meta(x, y, gx, gy, t_rel, ep.walls.shape[0])
                     patch_t = torch.from_numpy(patches).to(device)
                     meta_t = torch.from_numpy(metas).to(device)
+                    _assert_finite_tensor(f"{eval_tag}/patch_t", patch_t)
+                    _assert_finite_tensor(f"{eval_tag}/meta_t", meta_t)
                     with torch.no_grad():
                         if hasattr(model, "predict_components_from_ctx"):
                             parts = model.predict_components_from_ctx(ctx, patch_t, meta_t)
                             if SANITIZE_NONFINITE_EVAL:
                                 parts, _ = _sanitize_residual_parts_for_eval(eval_tag, parts)
+                            else:
+                                _assert_finite_eval_value(f"{eval_tag}/parts", parts)
                             pred_t = parts["final_delta"]
                         else:
                             pred_t = model.predict_delta_from_ctx(ctx, patch_t, meta_t)
                             if SANITIZE_NONFINITE_EVAL:
                                 pred_t, _ = _sanitize_eval_delta_tensor(eval_tag, pred_t)
+                            else:
+                                _assert_finite_tensor(f"{eval_tag}/pred_delta", pred_t)
                         vals = [float(v) for v in pred_t[0].detach().float().cpu().numpy().tolist()]
                     for j, s in enumerate(todo_states):
                         delta_cache[s] = vals[j]
