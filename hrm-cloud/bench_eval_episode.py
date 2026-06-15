@@ -5,8 +5,9 @@ Usage:
   python hrm-cloud/bench_eval_episode.py --suite ID_A64_static --seeds 3 --budget 500
   python hrm-cloud/bench_eval_episode.py --suite OOD_A256_static --seeds 1 --budget 2000
 
-Reports per-episode wall-clock and the share spent in compute_true_cost_to_goal
-(the diagnostics-only DP), which is the Phase-1 hypothesis.
+Reports per-episode wall-clock. Pass --profile to see the cProfile breakdown,
+where compute_true_cost_to_goal (the diagnostics-only DP) should dominate on
+large maps — the Phase-1 hypothesis.
 """
 import argparse, time, cProfile, pstats, io
 import residual_tasklora_v2 as R
