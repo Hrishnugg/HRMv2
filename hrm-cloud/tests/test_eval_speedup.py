@@ -73,3 +73,60 @@ def test_cache_path_matches_uncached_for_dummy_model():
         assert (on["success"], on["steps"], on["expansions"]) == \
                (off["success"], off["steps"], off["expansions"]), f"seed={seed}: {on} vs {off}"
     R.EVAL_DIAG = True
+
+
+class _DummyComponentsModel:
+    """Exercises the predict_components_from_ctx branch (the real production path).
+
+    The returned dict must satisfy:
+      - parts["final_delta"]          : shape [1, N] tensor  (read by both paths)
+      - parts["base_delta"]           : shape [1, N] tensor  (read by diag-on path, line 4620)
+      - parts["correction"]           : shape [1, N] tensor  (read by diag-on path, line 4621)
+      - parts["uncorrected_residual"] : shape [1, N] tensor  (read by diag-on path, line 4622)
+      - parts["bound_B"]              : scalar float          (read by diag-on path, line 4623)
+
+    All values are finite so _sanitize_residual_parts_for_eval and
+    _require_finite_scalar pass without alteration.
+
+    final_delta is a deterministic function of node_meta (sum of meta channels),
+    so cache hits on the fast path reproduce the same value as the uncached path.
+    """
+    arm = "avgbase"
+
+    def encode_obs_sequence(self, obs_seq):
+        import torch
+        return torch.zeros((obs_seq.shape[0], 8), dtype=torch.float32)
+
+    def predict_components_from_ctx(self, ctx, node_patch, node_meta):
+        import torch
+        # node_meta: [1, N, NODE_META_DIM] — sum across last dim gives [1, N]
+        final_delta = node_meta.sum(dim=-1).float()          # shape [1, N], finite, deterministic
+        N = final_delta.shape[1]
+        base_delta = torch.ones(1, N, dtype=torch.float32) * 0.5
+        correction = torch.zeros(1, N, dtype=torch.float32)
+        uncorrected_residual = torch.zeros(1, N, dtype=torch.float32)
+        bound_B = 1.0   # finite scalar — passes _require_finite_scalar
+        return {
+            "final_delta": final_delta,
+            "base_delta": base_delta,
+            "correction": correction,
+            "uncorrected_residual": uncorrected_residual,
+            "bound_B": bound_B,
+        }
+
+
+def test_cache_path_matches_uncached_for_components_model():
+    """EVAL_DIAG=True (uncached, diagnostics on) and EVAL_DIAG=False (cached fast
+    path) must produce identical (success, steps, expansions) when the model
+    exposes predict_components_from_ctx — the real production branch."""
+    suite = _static_suite()
+    m = _DummyComponentsModel()
+    for seed in range(3):
+        R.EVAL_DIAG = True   # uncached, runs full diagnostics + components path
+        on = R.run_policy_episode(suite, seed=seed, model=m, alpha=1.0, max_expansions=300, device="cpu")
+        R.EVAL_DIAG = False  # cached fast path, also uses components branch
+        off = R.run_policy_episode(suite, seed=seed, model=m, alpha=1.0, max_expansions=300, device="cpu")
+        assert (on["success"], on["steps"], on["expansions"]) == \
+               (off["success"], off["steps"], off["expansions"]), \
+               f"seed={seed} diverged on-vs-off: on={on} off={off}"
+    R.EVAL_DIAG = True  # restore
