@@ -45,35 +45,33 @@ EVAL_DIAG=0 EVAL_SHARD_SIZE=3 EVAL_BUDGETS=200,500 MAX_PARALLEL_EVAL=96 \
 3. **Profiling harness** (`bench_eval_episode.py`). Local CPU timing/profiling of
    `run_policy_episode`, no Modal/GPU, for before/after measurement.
 
-## ⚠️ Env-var propagation — verify on your first run
+## Env-var propagation (now handled automatically)
 
-`EVAL_DIAG` is read as a module-level global, the **same way as every other `EVAL_*` knob**
-(`EVAL_SHARD_SIZE`, `EVAL_TORCH_THREADS`, `EVAL_BUDGETS`, `MAX_PARALLEL_EVAL`, …). The eval
-work runs in remote Modal containers, and this file does **not** add any explicit env
-forwarding (`image.env(...)` / `modal.Secret`). So whether a shell-set `EVAL_DIAG=0` reaches
-the remote workers depends on the same mechanism your existing `EVAL_*` knobs already rely on:
+The eval work runs in remote Modal containers, which by default get the container's
+environment — **not** your shell's. Modal 1.4.0 does not auto-forward local env vars, so
+originally a shell-set `EVAL_DIAG=0` (and every other `EVAL_*` knob) was silently ignored
+remotely. This was confirmed: a baseline shard on `OOD_A256_static` with `EVAL_DIAG=0` ran at
+`eps_s=0.01` (~100s/ep — the diagnostics DP still ran).
 
-- If your existing `EVAL_*` knobs already take effect on remote runs, `EVAL_DIAG=0` will too —
-  it is read identically.
-- If you set run config via a `modal.Secret` / `image.env(...)` / launch wrapper, set
-  `EVAL_DIAG` there as well.
+This is now fixed. An allowlist of eval-control vars is forwarded to the remote functions via
+`eval_env_secret = modal.Secret.from_dict(_eval_forward_env())`, built from your **local**
+environment at deploy time and attached to `run_pipeline` and the three `evaluate_pair_chunk*`
+functions. `EVAL_DIAG` is additionally re-read at the start of each eval shard for robustness.
+After the fix, the same shard ran at `eps_s=0.39` (~2.6s/ep) — a ~39× remote speedup,
+confirming `EVAL_DIAG=0` now takes effect on the workers.
 
-**Verification (do this once):** run a single episode/shard with `EVAL_DIAG=0` and confirm the
-aggregated `diag` fields come back blank (and the per-episode time drops on a large suite). If
-diagnostics are still populated, the env var isn't reaching the workers — forward it the same
-way you forward your other knobs. If you find your knobs *don't* propagate at all, the minimal
-fix is to bake them into the image once, e.g.:
+Forwarded (set them in your shell before `modal run` and they reach the workers):
+`EVAL_DIAG`, `EVAL_TORCH_THREADS`, `EVAL_TORCH_INTEROP_THREADS`, `EVAL_BUDGETS`,
+`EVAL_SHARD_SIZE`, `EVAL_CHECKPOINT_EVERY`, `EVAL_ONLY_SUITES`, `EVAL_SKIP_SUITES`,
+`FORCE_REEVAL_SUITES`, `FORCE_REEVAL`, `FORCE_REEVAL_MODELED`, `EVAL_EPISODES`,
+`VALIDATION_EPISODES`, `ALPHA_CANDIDATES`, `ALPHA_TUNE_BUDGET`, `SKIP_COLLECT`, `SKIP_TRAIN`,
+`SKIP_ALPHA_TUNE`, `SKIP_EVAL`, `EVAL_ARMS`, `EVAL_MODELS`. (Only vars you actually set are
+forwarded; `EVAL_DIAG` always is, defaulting to `1`.)
 
-```python
-image = (
-    modal.Image.debian_slim(python_version="3.10")
-    .pip_install(["torch>=2.4.0", "numpy", "tqdm"])
-    .env({"EVAL_DIAG": os.environ.get("EVAL_DIAG", "1")})  # forwards local value at build time
-)
-```
-
-(Note: doing that would also start propagating every other `EVAL_*` knob you bake in, which may
-change behavior you currently rely on — hence it is intentionally **not** done by default.)
+**Intentionally NOT forwarded:** path/identity vars `RUN_TAG`, `MODEL_RUN_TAG`, `VOLUME_NAME` —
+forwarding these could silently relocate where results are read/written. Set those by your
+existing mechanism if you need them remotely. `MAX_PARALLEL_EVAL` is already passed as an
+explicit pipeline argument, so it needs no forwarding.
 
 ## Budget pruning workflow
 
