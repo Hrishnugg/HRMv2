@@ -3323,6 +3323,12 @@ EXPERT_LOSS_TOTAL_W = _env_float("EXPERT_LOSS_TOTAL_W", 0.25)
 EXPERT_LOSS_MAG_W = _env_float("EXPERT_LOSS_MAG_W", 1e-3)
 ABORT_ON_NONFINITE = (_env_int("ABORT_ON_NONFINITE", 1) == 1)
 SANITIZE_NONFINITE_EVAL = (_env_int("SANITIZE_NONFINITE_EVAL", 1) == 1)
+# Diagnostics (correction-saturation / ordering metrics) require an O(max_steps*n^2)
+# pure-Python exact-cost DP per episode that does NOT affect A* decisions. Default ON
+# (preserves headline metrics + diag exactly). Set EVAL_DIAG=0 for fast re-eval runs
+# where only success/expansions are needed; that path also enables the per-replan
+# heuristic cache.
+EVAL_DIAG = (_env_int("EVAL_DIAG", 1) == 1)
 EVAL_DELTA_SANITIZE_MAX = _env_float("EVAL_DELTA_SANITIZE_MAX", PRED_DELTA_MAX)
 SANITIZE_NONFINITE_LOG_LIMIT = _env_int("SANITIZE_NONFINITE_LOG_LIMIT", 10)
 _SANITIZE_NONFINITE_LOG_COUNT = 0
@@ -4502,7 +4508,7 @@ def run_policy_episode(suite: EvalSuite, seed: int, model: Optional[Any], alpha:
                        max_expansions: int, device: str) -> Dict[str, Any]:
     ep = make_episode(seed, suite.family, suite.size, suite.max_steps, suite.n_gates, suite.n_patrollers, suite.n_drifters)
     occ = simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
-    dist_abs = compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps)
+    dist_abs = compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps) if EVAL_DIAG else None
     static_template = make_static_template(ep.walls, ep.goal)
     agent_xy = ep.start
     done = False
@@ -4529,18 +4535,63 @@ def run_policy_episode(suite: EvalSuite, seed: int, model: Optional[Any], alpha:
 
         dynamic_cur = np.clip(occ["gate"][t_abs] + occ["pat"][t_abs] + occ["drift"][t_abs], 0, 1).astype(np.uint8)
         gx, gy = ep.goal
+        delta_cache: Dict[Tuple[int, int, int], float] = {}
 
         def heuristic_delta_batch_fn(states: List[Tuple[int, int, int]]) -> List[float]:
+            if model is None:
+                pred = [0.0 for _ in states]
+                if EVAL_DIAG:
+                    h_bases = [manhattan(x, y, gx, gy) for x, y, _ in states]
+                    target_deltas = []
+                    for x, y, t_rel in states:
+                        tgt = compute_target_delta_from_dist(dist_abs, min(t_abs + t_rel, ep.max_steps), x, y, gx, gy)
+                        target_deltas.append(0.0 if tgt is None else float(tgt))
+                    _diagnostics_update(diag_acc, target_deltas, pred, alpha, h_bases)
+                return pred
+
+            # ---- Fast path: cache NN delta per (x,y,t_rel) within this replan ----
+            if not EVAL_DIAG:
+                out: List[Optional[float]] = [None] * len(states)
+                todo_idx: List[int] = []
+                todo_states: List[Tuple[int, int, int]] = []
+                for i, s in enumerate(states):
+                    c = delta_cache.get(s)
+                    if c is None:
+                        todo_idx.append(i)
+                        todo_states.append(s)
+                    else:
+                        out[i] = c
+                if todo_states:
+                    p = 2 * PATCH_RADIUS + 1
+                    patches = np.zeros((1, len(todo_states), PATCH_CHANNELS, p, p), dtype=np.float32)
+                    metas = np.zeros((1, len(todo_states), NODE_META_DIM), dtype=np.float32)
+                    for j, (x, y, t_rel) in enumerate(todo_states):
+                        patches[0, j] = extract_local_patch_2ch(ep.walls, dynamic_cur, x, y, PATCH_RADIUS).astype(np.float32)
+                        metas[0, j] = build_node_meta(x, y, gx, gy, t_rel, ep.walls.shape[0])
+                    patch_t = torch.from_numpy(patches).to(device)
+                    meta_t = torch.from_numpy(metas).to(device)
+                    with torch.no_grad():
+                        if hasattr(model, "predict_components_from_ctx"):
+                            parts = model.predict_components_from_ctx(ctx, patch_t, meta_t)
+                            if SANITIZE_NONFINITE_EVAL:
+                                parts, _ = _sanitize_residual_parts_for_eval(eval_tag, parts)
+                            pred_t = parts["final_delta"]
+                        else:
+                            pred_t = model.predict_delta_from_ctx(ctx, patch_t, meta_t)
+                            if SANITIZE_NONFINITE_EVAL:
+                                pred_t, _ = _sanitize_eval_delta_tensor(eval_tag, pred_t)
+                        vals = [float(v) for v in pred_t[0].detach().float().cpu().numpy().tolist()]
+                    for j, s in enumerate(todo_states):
+                        delta_cache[s] = vals[j]
+                        out[todo_idx[j]] = vals[j]
+                return [float(v) for v in out]
+
+            # ---- Diagnostics-on path: unchanged behavior (no cache) ----
             h_bases = [manhattan(x, y, gx, gy) for x, y, _ in states]
-            target_deltas: List[float] = []
+            target_deltas = []
             for x, y, t_rel in states:
                 tgt = compute_target_delta_from_dist(dist_abs, min(t_abs + t_rel, ep.max_steps), x, y, gx, gy)
                 target_deltas.append(0.0 if tgt is None else float(tgt))
-            if model is None:
-                pred = [0.0 for _ in states]
-                _diagnostics_update(diag_acc, target_deltas, pred, alpha, h_bases)
-                return pred
-
             p = 2 * PATCH_RADIUS + 1
             patches = np.zeros((1, len(states), PATCH_CHANNELS, p, p), dtype=np.float32)
             metas = np.zeros((1, len(states), NODE_META_DIM), dtype=np.float32)
