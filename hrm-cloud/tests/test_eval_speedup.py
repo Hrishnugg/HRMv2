@@ -130,3 +130,34 @@ def test_cache_path_matches_uncached_for_components_model():
                (off["success"], off["steps"], off["expansions"]), \
                f"seed={seed} diverged on-vs-off: on={on} off={off}"
     R.EVAL_DIAG = True  # restore
+
+
+def test_eval_forward_env_allowlist(monkeypatch):
+    monkeypatch.setenv("EVAL_DIAG", "0")
+    monkeypatch.setenv("EVAL_BUDGETS", "200,500")
+    monkeypatch.delenv("EVAL_SHARD_SIZE", raising=False)
+    monkeypatch.setenv("RUN_TAG", "should_not_forward")
+    d = R._eval_forward_env()
+    assert d["EVAL_DIAG"] == "0"
+    assert d["EVAL_BUDGETS"] == "200,500"
+    assert "EVAL_SHARD_SIZE" not in d        # unset locally -> excluded
+    assert "RUN_TAG" not in d                # path-affecting -> never forwarded
+    assert all(isinstance(v, str) for v in d.values())  # Secret.from_dict needs str values
+
+
+def test_eval_forward_env_defaults_eval_diag(monkeypatch):
+    monkeypatch.delenv("EVAL_DIAG", raising=False)
+    d = R._eval_forward_env()
+    assert d["EVAL_DIAG"] == "1"             # always present, defaults to "1"
+
+
+def test_refresh_eval_diag_from_env(monkeypatch):
+    monkeypatch.setenv("EVAL_DIAG", "0")
+    assert R._refresh_eval_diag_from_env() is False
+    assert R.EVAL_DIAG is False
+    monkeypatch.setenv("EVAL_DIAG", "1")
+    assert R._refresh_eval_diag_from_env() is True
+    assert R.EVAL_DIAG is True
+    monkeypatch.delenv("EVAL_DIAG", raising=False)
+    assert R._refresh_eval_diag_from_env() is True   # default
+    R.EVAL_DIAG = True

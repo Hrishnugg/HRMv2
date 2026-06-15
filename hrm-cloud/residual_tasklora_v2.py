@@ -56,6 +56,39 @@ image = (
 app = modal.App(APP_NAME)
 vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
+# Modal does NOT auto-forward local env vars to remote containers. The eval/orchestration
+# code reads these as module globals at container-import time, so without forwarding they
+# always take their in-container defaults. Forward an allowlist of eval-control vars via a
+# Secret built from the LOCAL environment at deploy time (runtime injection, no image
+# rebuild). Path/identity vars (RUN_TAG, MODEL_RUN_TAG, VOLUME_NAME) are intentionally
+# EXCLUDED so data locations are never silently changed.
+_EVAL_FORWARD_VARS = [
+    "EVAL_DIAG",
+    "EVAL_TORCH_THREADS", "EVAL_TORCH_INTEROP_THREADS",
+    "EVAL_BUDGETS", "EVAL_SHARD_SIZE", "EVAL_CHECKPOINT_EVERY",
+    "EVAL_ONLY_SUITES", "EVAL_SKIP_SUITES",
+    "FORCE_REEVAL_SUITES", "FORCE_REEVAL", "FORCE_REEVAL_MODELED",
+    "EVAL_EPISODES", "VALIDATION_EPISODES",
+    "ALPHA_CANDIDATES", "ALPHA_TUNE_BUDGET",
+    "SKIP_COLLECT", "SKIP_TRAIN", "SKIP_ALPHA_TUNE", "SKIP_EVAL",
+    "EVAL_ARMS", "EVAL_MODELS",
+]
+
+
+def _eval_forward_env() -> Dict[str, str]:
+    # EVAL_DIAG is always forwarded (defaulting to "1") so the speedup flag is never
+    # silently lost; other vars are forwarded only when set locally so unset vars keep
+    # their in-container defaults.
+    out: Dict[str, str] = {"EVAL_DIAG": os.environ.get("EVAL_DIAG", "1")}
+    for k in _EVAL_FORWARD_VARS:
+        v = os.environ.get(k)
+        if v is not None:
+            out[k] = v
+    return out
+
+
+eval_env_secret = modal.Secret.from_dict(_eval_forward_env())
+
 DATA_ROOT = "/data/residual_tasklora_v2"
 DATASETS_DIR = f"{DATA_ROOT}/datasets"
 
@@ -2641,6 +2674,7 @@ def _evaluate_pair_chunk_impl(model_eval_id: str, display_name: str, model_path_
     timeout=EVAL_FN_TIMEOUT_SEC,
     nonpreemptible=EVAL_FN_NONPREEMPTIBLE,
     volumes={"/data": vol},
+    secrets=[eval_env_secret],
 )
 def evaluate_pair_chunk(model_eval_id: str, display_name: str, model_path_str: str, suite_id: str,
                         alpha: float, budget: int, total_episodes: int, seed_base: int, ep_start: int, ep_count: int) -> str:
@@ -2654,6 +2688,7 @@ def evaluate_pair_chunk(model_eval_id: str, display_name: str, model_path_str: s
     memory=32768,
     timeout=EVAL_FN_TIMEOUT_SEC,
     volumes={"/data": vol},
+    secrets=[eval_env_secret],
 )
 def evaluate_pair_chunk_h100(model_eval_id: str, display_name: str, model_path_str: str, suite_id: str,
                              alpha: float, budget: int, total_episodes: int, seed_base: int, ep_start: int, ep_count: int) -> str:
@@ -2667,6 +2702,7 @@ def evaluate_pair_chunk_h100(model_eval_id: str, display_name: str, model_path_s
     memory=32768,
     timeout=EVAL_FN_TIMEOUT_SEC,
     volumes={"/data": vol},
+    secrets=[eval_env_secret],
 )
 def evaluate_pair_chunk_b200(model_eval_id: str, display_name: str, model_path_str: str, suite_id: str,
                              alpha: float, budget: int, total_episodes: int, seed_base: int, ep_start: int, ep_count: int) -> str:
@@ -2892,6 +2928,7 @@ def _best_alpha_from_rows(rows: List[Dict[str, Any]]) -> Tuple[float, Dict[str, 
     timeout=ORCH_FN_TIMEOUT_SEC,
     nonpreemptible=ORCH_FN_NONPREEMPTIBLE,
     volumes={"/data": vol},
+    secrets=[eval_env_secret],
 )
 def run_pipeline(train_models: List[str], eval_models: List[str], train_arms: List[str], eval_arms: List[str],
                  max_parallel_train: int, max_parallel_collect: int, max_parallel_eval: int, seed_base: int = 0) -> Dict[str, Any]:
@@ -3329,6 +3366,16 @@ SANITIZE_NONFINITE_EVAL = (_env_int("SANITIZE_NONFINITE_EVAL", 1) == 1)
 # where only success/expansions are needed; that path also enables the per-replan
 # heuristic cache.
 EVAL_DIAG = (_env_int("EVAL_DIAG", 1) == 1)
+
+
+def _refresh_eval_diag_from_env() -> bool:
+    # Re-read EVAL_DIAG from the (possibly secret-injected) container environment at
+    # runtime, so the flag is correct even if it changed after module import.
+    global EVAL_DIAG
+    EVAL_DIAG = (_env_int("EVAL_DIAG", 1) == 1)
+    return EVAL_DIAG
+
+
 EVAL_DELTA_SANITIZE_MAX = _env_float("EVAL_DELTA_SANITIZE_MAX", PRED_DELTA_MAX)
 SANITIZE_NONFINITE_LOG_LIMIT = _env_int("SANITIZE_NONFINITE_LOG_LIMIT", 10)
 _SANITIZE_NONFINITE_LOG_COUNT = 0
@@ -4696,6 +4743,7 @@ def _merge_metric_sums(dst: Dict[str, Any], ep_res: Dict[str, Any]) -> None:
 def _evaluate_pair_chunk_impl(model_eval_id: str, display_name: str, model_path_str: str, suite_id: str,
                               alpha: float, budget: int, total_episodes: int, seed_base: int, ep_start: int, ep_count: int,
                               device: str) -> str:
+    _refresh_eval_diag_from_env()
     vol.reload()
     _ensure_dirs()
     _configure_eval_torch_threads()
