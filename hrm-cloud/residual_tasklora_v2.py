@@ -3206,6 +3206,27 @@ def main():
         SEED_BASE,
     )
 
+
+@app.local_entrypoint()
+def resume_spawn():
+    # Durable fire-and-forget launch. Unlike main()'s blocking `.remote()` (which streams
+    # for the whole run and lets a local crash/disconnect tear down the orchestrator), this
+    # submits run_pipeline server-side via `.spawn()` and returns immediately. Run it with
+    # `modal run --detach ...::resume_spawn` so the app and the spawned run_pipeline persist
+    # independently of this client. Combine with SKIP_COLLECT/SKIP_TRAIN/SKIP_ALPHA_TUNE +
+    # EVAL_DIAG to resume just the eval matrix.
+    fc = run_pipeline.spawn(
+        TRAIN_MODELS,
+        EVAL_MODELS,
+        TRAIN_ARMS,
+        EVAL_ARMS,
+        MAX_PARALLEL_TRAIN,
+        MAX_PARALLEL_COLLECT,
+        MAX_PARALLEL_EVAL,
+        SEED_BASE,
+    )
+    print(f"[resume_spawn] submitted run_pipeline server-side; function_call_id={fc.object_id}")
+
 # =============================================================================
 # Residual task LoRA v2 overrides
 # =============================================================================
