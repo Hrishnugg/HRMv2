@@ -3507,8 +3507,12 @@ EVAL_DIAG = (_env_int("EVAL_DIAG", 1) == 1)
 # learned signal orders the focal band (robust to magnitude miscalibration) instead of
 # inflating the heuristic. FOCAL_W is the suboptimality factor (w>=1; larger = more
 # reliance on the learned ranking, fewer expansions, bounded-longer paths).
+# Empirically (bench_focal on the large OOD maps) the win is in a narrow window
+# w~1.0-1.05 (~17-22% fewer expansions at matched success via learned tie-breaking);
+# wider bands tank success because the in-search ranking isn't reliable enough. So the
+# default is the safe tie-breaking floor, NOT a wide band.
 PLANNER = (os.environ.get("PLANNER", "astar").strip().lower() or "astar")
-FOCAL_W = _env_float("FOCAL_W", 2.0)
+FOCAL_W = _env_float("FOCAL_W", 1.0)
 
 
 def _refresh_eval_diag_from_env() -> bool:
