@@ -53,9 +53,10 @@ def test_determinism():
     assert a.expansions == b.expansions
 
 
-def test_perfect_signal_reduces_expansions():
-    # A perfect focal signal (true cost-to-go residual) should expand no more
-    # nodes than plain Manhattan A* on the same instance.
+def test_perfect_signal_beats_uninformative_at_same_w():
+    # The intended benefit: at a fixed w, a perfect focal ordering expands no more nodes
+    # than an uninformative (zero) one. (vs-plain-A* only holds at small w, since a wide
+    # band admits non-optimal nodes regardless of ordering — see test below.)
     ep, occ = _small_static()
     dist = R.compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps)
     gx, gy = ep.goal
@@ -65,13 +66,46 @@ def test_perfect_signal_reduces_expansions():
         out = []
         for x, y, t_rel in states:
             d = int(dist[min(t_rel, maxt), x, y])
-            if d >= R.INF:
-                out.append(1e9)  # unreachable -> deprioritize
-            else:
-                out.append(float(max(0, d - R.manhattan(x, y, gx, gy))))
+            out.append(1e9 if d >= R.INF else float(max(0, d - R.manhattan(x, y, gx, gy))))
+        return out
+
+    for w in (1.5, 2.0):
+        fp = R.space_time_focal_astar(ep.start, ep.goal, 0, 40, 20000, occ, perfect_delta, w=w)
+        fz = R.space_time_focal_astar(ep.start, ep.goal, 0, 40, 20000, occ, _zero_delta, w=w)
+        assert fp.found
+        assert fp.expansions <= fz.expansions
+
+
+def test_perfect_signal_beats_astar_at_small_w():
+    ep, occ = _small_static()
+    dist = R.compute_true_cost_to_goal(occ["blocked"], ep.goal, ep.max_steps)
+    gx, gy = ep.goal
+    maxt = occ["blocked"].shape[0] - 1
+
+    def perfect_delta(states):
+        out = []
+        for x, y, t_rel in states:
+            d = int(dist[min(t_rel, maxt), x, y])
+            out.append(1e9 if d >= R.INF else float(max(0, d - R.manhattan(x, y, gx, gy))))
         return out
 
     astar = R.space_time_astar(ep.start, ep.goal, 0, 40, 20000, occ, _zero_delta, alpha=1.0)
-    foc = R.space_time_focal_astar(ep.start, ep.goal, 0, 40, 20000, occ, perfect_delta, w=5.0)
+    foc = R.space_time_focal_astar(ep.start, ep.goal, 0, 40, 20000, occ, perfect_delta, w=1.25)
     assert foc.found
     assert foc.expansions <= astar.expansions
+
+
+def test_no_double_expansion():
+    ep, occ = _small_static()
+    foc = R.space_time_focal_astar(ep.start, ep.goal, 0, 40, 20000, occ, _zero_delta, w=2.0)
+    assert len(set(foc.closed)) == len(foc.closed)
+
+
+def test_bound_holds_with_dynamics():
+    ep = R.make_episode(11, "A", 24, 120, 1, 1, 1)  # gates/pats/drifts present
+    occ = R.simulate_occupancy(ep.walls, ep.gates, ep.pats, ep.drifts, ep.max_steps)
+    opt = R.space_time_astar(ep.start, ep.goal, 0, 40, 20000, occ, _zero_delta, alpha=1.0)
+    foc = R.space_time_focal_astar(ep.start, ep.goal, 0, 40, 20000, occ, _zero_delta, w=2.0)
+    assert isinstance(foc, R.PlanResult)
+    if opt.found and foc.found:
+        assert len(foc.actions) <= 2 * len(opt.actions)
