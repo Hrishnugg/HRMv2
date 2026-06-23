@@ -809,6 +809,121 @@ def space_time_astar(
     return PlanResult(found, actions, expansions, closed, path_states)
 
 
+def space_time_focal_astar(
+    start_xy: Tuple[int, int],
+    goal_xy: Tuple[int, int],
+    t0_abs: int,
+    plan_horizon: int,
+    max_expansions: int,
+    occ: Dict[str, np.ndarray],
+    heuristic_delta_batch_fn,
+    w: float = 2.0,
+) -> PlanResult:
+    # Focal search (A*_eps): OPEN is ordered by the admissible f = g + manhattan, which
+    # bounds suboptimality by w. Among OPEN nodes with f <= w * f_min (the focal band) we
+    # expand the one minimizing the learned focal key hf = manhattan + delta. The learned
+    # signal only orders within the bounded band -> it can never break admissibility or
+    # misdirect the search the way the additive heuristic did; a bad signal degrades to
+    # Manhattan ordering. Entry layout: (f, counter, g, state, hf).
+    gx, gy = goal_xy
+    max_t_abs = occ["blocked"].shape[0] - 1
+    n = occ["blocked"].shape[1]
+    w = max(1.0, float(w))
+    start_state = (start_xy[0], start_xy[1], 0)
+    start_h = manhattan(start_xy[0], start_xy[1], gx, gy)
+    counter = 0
+    open_heap: List[Tuple[float, int, int, Tuple[int, int, int], float]] = []
+    heapq.heappush(open_heap, (float(start_h), counter, 0, start_state, float(start_h)))
+    counter += 1
+    g_cost = {start_state: 0}
+    parent: Dict[Tuple[int, int, int], Optional[Tuple[int, int, int]]] = {start_state: None}
+    closed: List[Tuple[int, int, int]] = []
+    best_goal_state = start_state
+    best_goal_score = start_h
+    expansions = 0
+    while open_heap and expansions < max_expansions:
+        # drop stale entries (superseded by a cheaper path) from the OPEN top
+        while open_heap and g_cost.get(open_heap[0][3], INF) != open_heap[0][2]:
+            heapq.heappop(open_heap)
+        if not open_heap:
+            break
+        f_min = open_heap[0][0]
+        thresh = w * f_min
+        # extract the focal band: all valid OPEN entries with f <= thresh
+        band: List[Tuple[float, int, int, Tuple[int, int, int], float]] = []
+        while open_heap and open_heap[0][0] <= thresh:
+            e = heapq.heappop(open_heap)
+            if g_cost.get(e[3], INF) == e[2]:
+                band.append(e)
+        if not band:
+            break
+        # expand the band node with the smallest learned focal key (tiebreak by f then counter)
+        pick_idx = min(range(len(band)), key=lambda i: (band[i][4], band[i][0], band[i][1]))
+        pick = band[pick_idx]
+        for i, e in enumerate(band):
+            if i != pick_idx:
+                heapq.heappush(open_heap, e)
+        _, _, g, s, _ = pick
+        x, y, t_rel = s
+        t_abs = min(t0_abs + t_rel, max_t_abs)
+        closed.append(s)
+        expansions += 1
+        h_base = manhattan(x, y, gx, gy)
+        if h_base < best_goal_score:
+            best_goal_score = h_base
+            best_goal_state = s
+        if (x, y) == (gx, gy) and occ["blocked"][t_abs, x, y] == 0:
+            best_goal_state = s
+            break
+        if t_rel >= plan_horizon:
+            continue
+        next_states: List[Tuple[int, int, int]] = []
+        next_gs: List[int] = []
+        for dx, dy in ACTIONS:
+            nx, ny = x + dx, y + dy
+            nt_rel = t_rel + 1
+            nt_abs = min(t0_abs + nt_rel, max_t_abs)
+            if not (0 <= nx < n and 0 <= ny < n):
+                continue
+            if occ["blocked"][nt_abs, nx, ny] != 0:
+                continue
+            ns = (nx, ny, nt_rel)
+            ng = g + 1
+            if ng < g_cost.get(ns, INF):
+                next_states.append(ns)
+                next_gs.append(ng)
+        if not next_states:
+            continue
+        deltas = heuristic_delta_batch_fn(next_states)
+        for ns, ng, delta in zip(next_states, next_gs, deltas):
+            x2, y2, _ = ns
+            h_base2 = manhattan(x2, y2, gx, gy)
+            if ng < g_cost.get(ns, INF):
+                g_cost[ns] = ng
+                parent[ns] = s
+                f = float(ng) + float(h_base2)                 # admissible bound (no delta)
+                hf = float(h_base2) + max(0.0, float(delta))   # learned focal ordering key
+                heapq.heappush(open_heap, (f, counter, ng, ns, hf))
+                counter += 1
+                if h_base2 < best_goal_score:
+                    best_goal_score = h_base2
+                    best_goal_state = ns
+    path_states = _reconstruct_path_states(parent, best_goal_state)
+    actions: List[Action] = []
+    for a, b in zip(path_states[:-1], path_states[1:]):
+        ax, ay, _ = a
+        bx, by, _ = b
+        dx, dy = bx - ax, by - ay
+        try:
+            actions.append(ACTIONS.index((dx, dy)))
+        except ValueError:
+            actions.append(WAIT_ACTION)
+    if not actions:
+        actions = [WAIT_ACTION]
+    found = (best_goal_state[0], best_goal_state[1]) == (gx, gy) and occ["blocked"][min(t0_abs + best_goal_state[2], max_t_abs), gx, gy] == 0
+    return PlanResult(found, actions, expansions, closed, path_states)
+
+
 def make_episode(seed: int, family: str, n: int, max_steps: int, n_gates: int, n_pats: int, n_drifts: int) -> Episode:
     rng = random.Random(seed)
     walls = FAMILY_GENERATORS[family](rng, n)
