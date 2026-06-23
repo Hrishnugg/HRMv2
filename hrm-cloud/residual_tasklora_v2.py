@@ -64,6 +64,7 @@ vol = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 # EXCLUDED so data locations are never silently changed.
 _EVAL_FORWARD_VARS = [
     "EVAL_DIAG",
+    "PLANNER", "FOCAL_W",
     "EVAL_TORCH_THREADS", "EVAL_TORCH_INTEROP_THREADS",
     "EVAL_BUDGETS", "EVAL_SHARD_SIZE", "EVAL_CHECKPOINT_EVERY",
     "EVAL_ONLY_SUITES", "EVAL_SKIP_SUITES",
@@ -3502,6 +3503,12 @@ SANITIZE_NONFINITE_EVAL = (_env_int("SANITIZE_NONFINITE_EVAL", 1) == 1)
 # where only success/expansions are needed; that path also enables the per-replan
 # heuristic cache.
 EVAL_DIAG = (_env_int("EVAL_DIAG", 1) == 1)
+# Planner selection. PLANNER="focal" uses bounded-suboptimal focal search, where the
+# learned signal orders the focal band (robust to magnitude miscalibration) instead of
+# inflating the heuristic. FOCAL_W is the suboptimality factor (w>=1; larger = more
+# reliance on the learned ranking, fewer expansions, bounded-longer paths).
+PLANNER = (os.environ.get("PLANNER", "astar").strip().lower() or "astar")
+FOCAL_W = _env_float("FOCAL_W", 2.0)
 
 
 def _refresh_eval_diag_from_env() -> bool:
@@ -4822,7 +4829,10 @@ def run_policy_episode(suite: EvalSuite, seed: int, model: Optional[Any], alpha:
                     _diagnostics_update(diag_acc, target_deltas, pred, alpha, h_bases)
             return pred
 
-        plan = space_time_astar(agent_xy, ep.goal, t_abs, suite.plan_horizon, max_expansions, occ, heuristic_delta_batch_fn, alpha=alpha)
+        if PLANNER == "focal":
+            plan = space_time_focal_astar(agent_xy, ep.goal, t_abs, suite.plan_horizon, max_expansions, occ, heuristic_delta_batch_fn, w=FOCAL_W)
+        else:
+            plan = space_time_astar(agent_xy, ep.goal, t_abs, suite.plan_horizon, max_expansions, occ, heuristic_delta_batch_fn, alpha=alpha)
         total_expansions += int(plan.expansions)
         action = plan.actions[0] if plan.actions else WAIT_ACTION
         agent_xy, done, last_info = step_episode(ep, agent_xy, action)
