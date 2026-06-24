@@ -818,7 +818,7 @@ def space_time_focal_astar(
     max_expansions: int,
     occ: Dict[str, np.ndarray],
     heuristic_delta_batch_fn,
-    w: float = 2.0,
+    w: float = 1.0,
 ) -> PlanResult:
     # Focal search (A*_eps): OPEN is ordered by the admissible f = g + manhattan, which
     # bounds suboptimality by w. Among OPEN nodes with f <= w * f_min (the focal band) we
