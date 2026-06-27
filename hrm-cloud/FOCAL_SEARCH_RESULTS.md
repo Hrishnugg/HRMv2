@@ -74,13 +74,24 @@ The task-LoRA expert (`residtasklora__hrm__A32_static`) was compared head-to-hea
 
 **The expert ranks identically to the base** — no expansion advantage, matched success, on both suites. Mechanistically, the **bounded LoRA residual is too small to change the node *ordering***, so the expert's focal behavior collapses onto the base's. This corroborates — now under the focal integration — the earlier additive-eval result that the experts did not beat the pooled base (−0.010). **The expansion win is entirely the base model's ranking; the per-task specialization adds nothing.**
 
+## 4c. onlstm backbone — the win generalizes
+
+Same focal integration, the onlstm `avgbase` model as the focal ranker (4 seeds, budget 200, `w=1.0`):
+
+| Suite | exp_ratio (focal/Manhattan) | success (base / focal) |
+|---|---|---|
+| `OOD_A128_static` | 0.85 | 0.75 / 0.75 |
+| `OOD_A192_static` | 0.85 | 0.75 / 0.75 |
+
+The onlstm base reduces expansions ~15% at matched success — comparable to (slightly better than) the hrm base. **The learned-ranker win is not hrm-specific; it holds across both hierarchical backbones.**
+
 ## 5. Interpretation
 
 The model's static-probe ranking (ρ≈0.99) only *partially* translates to in-search guidance — good enough to help as a tie-breaker, not good enough to steer a wide focal band. The win is therefore modest but genuine and regression-free, and it is a **clean reversal** of the original additive approach (net-harmful → net-positive) using the *same* trained weights.
 
 ## 6. Caveats
 
-- HRM backbone. The `avgbase` base and one A32 expert were run through focal (§4/§4b); **onlstm not yet**.
+- Both **hrm and onlstm** `avgbase` bases validated under focal (§4 / §4c), plus the hrm A32 expert (§4b). Not yet run: the onlstm expert, A256 scale, and a full-suite Modal confirmation.
 - Budget 200 (base sweep, 8 seeds) / budget 150–200 (expert comparison, 3–4 seeds), large OOD suites. Success rates are coarse at these seed counts.
 - Local-only; no full-matrix Modal confirmation (deferred — billing).
 
