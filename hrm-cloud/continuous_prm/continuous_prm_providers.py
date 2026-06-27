@@ -164,9 +164,26 @@ def run_world_arms(world, roadmap, providers: dict, budgets, w_values, goal_idx:
         euclid_h = providers["euclid"].node_h(world, roadmap, goal_idx)
     else:
         euclid_h = euclid_to_goal(roadmap, goal_idx)
-    node_h = {name: prov.node_h(world, roadmap, goal_idx) for name, prov in providers.items()}
+    # Per-provider nonfinite robustness: a provider whose node_h raises
+    # FloatingPointError (its nonfinite guard) is recorded as nonfinite arms
+    # (found=False) for every budget/(budget,w) instead of crashing the world.
+    # euclid is pure geometry and won't raise, so it is computed above directly.
+    node_h: dict = {}
+    nonfinite: set = set()
+    for name, prov in providers.items():
+        try:
+            node_h[name] = prov.node_h(world, roadmap, goal_idx)
+        except FloatingPointError:
+            nonfinite.add(name)
+    not_found = {"found": False, "cost": float("nan"), "expansions": 0, "closed": 0}
     records = []
     for name in providers:
+        if name in nonfinite:
+            for b in budgets:
+                records.append(_arm_record(name, "astar", None, b, not_found, opt, nonfinite=1))
+                for w in w_values:
+                    records.append(_arm_record(name, "focal", float(w), b, not_found, opt, nonfinite=1))
+            continue
         h = node_h[name]
         for b in budgets:
             r = C.astar_search(roadmap.adj, h, budget=int(b), start_idx=start_idx, goal_idx=goal_idx)
@@ -178,12 +195,12 @@ def run_world_arms(world, roadmap, providers: dict, budgets, w_values, goal_idx:
     return records
 
 
-def _arm_record(provider, mode, w, budget, res, opt):
+def _arm_record(provider, mode, w, budget, res, opt, nonfinite: int = 0):
     found = bool(res["found"])
     cost = float(res["cost"]) if found else float("nan")
     sub = (cost / opt) if (found and opt > 0) else float("nan")
     return {
         "provider": provider, "mode": mode, "w": w, "budget": int(budget),
         "found": found, "expansions": int(res["expansions"]), "closed": int(res["closed"]), "cost": cost,
-        "optimal": opt, "suboptimality": sub,
+        "optimal": opt, "suboptimality": sub, "nonfinite": int(nonfinite),
     }

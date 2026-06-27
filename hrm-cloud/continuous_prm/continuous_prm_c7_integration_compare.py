@@ -20,6 +20,7 @@ full      — collect → train → calibrate → eval → analyze (Tasks 8-11)
 from __future__ import annotations
 
 import argparse
+import csv
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,7 @@ from continuous_prm_c6_heatmap_value_field import (  # noqa: F401
     ensure_dir,
     parse_csv,
     parse_int_csv,
+    write_csv,
     write_json,
     now_str,
 )
@@ -412,6 +414,144 @@ def run_train_all(out_dir: Path, cfg: C7Config, device) -> Dict[str, object]:
 
 
 # ---------------------------------------------------------------------------
+# Eval (Task 9): unified, matched, sharded multi-arm evaluation
+# ---------------------------------------------------------------------------
+
+def _load_eval_providers(out_dir: Path, cfg: C7Config, device) -> Dict[str, "P.HeuristicProvider"]:
+    """Build every arm's provider ONCE, keyed by provider.name.
+
+    Always present: euclid, oracle. Plus one scalar_<bb> per scalar backbone with
+    a trained avgbase checkpoint, and one field_<bb> per field backbone with a
+    trained C6 checkpoint. Missing checkpoints are skipped with a log line.
+    """
+    import torch
+    import continuous_prm_c6_heatmap_value_field as C6
+
+    # Ensure C7 suites + hard encoder are active before any model construction.
+    M7.install_c7_hard_maps(cfg.sector_tokens)
+
+    providers: Dict[str, "P.HeuristicProvider"] = {}
+    eu = P.EuclidProvider(); providers[eu.name] = eu        # "euclid"
+    orc = P.OracleProvider(); providers[orc.name] = orc     # "oracle"
+
+    for bb in parse_csv(cfg.scalar_backbones):
+        ckpt = C.model_checkpoint_path(out_dir, bb, "avgbase")
+        if not ckpt.exists():
+            print(f"[c7] skip scalar {bb}: no checkpoint {ckpt}", flush=True)
+            continue
+        payload = torch.load(ckpt, map_location="cpu")
+        bbcfg = C.BackboneConfig(**payload["backbone_cfg"])
+        fcfg = C.FeatureConfig(**payload["feature_cfg"])
+        tcfg = C.TrainingConfig(**payload["train_cfg"])
+        model = C.load_base_model(bbcfg, fcfg, tcfg, ckpt, device)
+        prov = P.ScalarResidualProvider(model, fcfg, device, bb, tcfg.max_norm_residual)
+        providers[prov.name] = prov                         # "scalar_<bb>"
+
+    for bb in parse_csv(cfg.field_backbones):
+        if bb == "oracle":
+            continue
+        ckpt = C6.checkpoint_path(out_dir, bb)
+        if not ckpt.exists():
+            print(f"[c7] skip field {bb}: no checkpoint {ckpt}", flush=True)
+            continue
+        model = C6.load_model(bb, ckpt, device)
+        prov = P.ValueFieldProvider(model, cfg.grid_size, device, bb)
+        providers[prov.name] = prov                         # "field_<bb>"
+
+    # Re-assert C7 maps defensively (model loading touches no runtime install, but
+    # keep parity with the plan in case a future loader path does).
+    M7.install_c7_hard_maps(cfg.sector_tokens)
+    return providers
+
+
+def _load_per_suite_budgets(out_dir: Path, cfg: C7Config):
+    """Return a callable suite -> list[int] of per-suite expansion budgets.
+
+    If out_dir/calibration.json exists (written by Task 10), per-suite budgets are
+    read from it. Expected shape (Task 10 must match this):
+        {"budgets": {suite: [b1, b2, ...]}, ...}
+    Suites absent from the calibration map fall back to parse_int_csv(cfg.budgets).
+    """
+    import json
+    fallback = [int(b) for b in parse_int_csv(cfg.budgets)]
+    calib_budgets: Dict[str, list] = {}
+    calib_path = Path(out_dir) / "calibration.json"
+    if calib_path.exists():
+        try:
+            calib = json.loads(calib_path.read_text())
+            calib_budgets = dict(calib.get("budgets", {}) or {})
+        except (ValueError, OSError) as exc:
+            print(f"[c7] eval: failed to read {calib_path} ({exc}); using fallback budgets", flush=True)
+
+    def per_suite_budgets(suite: str):
+        raw = calib_budgets.get(suite)
+        if raw:
+            return [int(b) for b in raw]
+        return list(fallback)
+
+    return per_suite_budgets
+
+
+def run_eval(out_dir: Path, cfg: C7Config, device) -> Path:
+    """Matched, sharded multi-arm eval across eval suites; write per-suite shard
+    CSVs + a merged raw CSV. Returns the merged-CSV path.
+
+    Worlds+PRMs are generated per suite from a seeded retry loop and shared across
+    ALL arms (matched). Records carry provider/mode/w/budget (from run_world_arms)
+    plus suite/world_index added here; world.meta is intentionally NOT spread in.
+    """
+    out_dir = Path(out_dir)
+    providers = _load_eval_providers(out_dir, cfg, device)
+    per_suite_budgets = _load_per_suite_budgets(out_dir, cfg)
+    print(
+        f"[{now_str()}] C7 eval: providers={sorted(providers)} "
+        f"eval_worlds={cfg.eval_worlds} w_values={cfg.w_values}",
+        flush=True,
+    )
+
+    roadmap_cfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    w_values = [float(x) for x in parse_csv(cfg.w_values)]
+    RETRY = 200
+    specs = C.build_anchor_specs()
+    for suite_idx, suite in enumerate(parse_csv(cfg.eval_suites)):
+        if suite not in specs:
+            raise KeyError(f"eval: unknown suite {suite!r}; have {sorted(specs)}")
+        spec = specs[suite]
+        budgets = per_suite_budgets(suite)  # list[int]
+        records = []
+        valid = 0
+        attempt = 0
+        while valid < cfg.eval_worlds and attempt < cfg.eval_worlds * RETRY:
+            attempt += 1
+            w_seed = int(cfg.seed) + 770_000 + 1_000_003 * (suite_idx + 1) + (valid + 1) * 7919 + attempt
+            world = C.build_world(spec, w_seed, roadmap_cfg.min_start_goal_dist_frac)
+            if world is None:
+                continue
+            rm = C.build_prm(world, roadmap_cfg, seed=w_seed + 17)
+            if rm is None or not rm.connected_to_goal[0]:
+                continue
+            recs = P.run_world_arms(world, rm, providers, budgets, w_values, goal_idx=1)
+            for r in recs:
+                r["suite"] = suite
+                r["world_index"] = valid
+            records.extend(recs)
+            valid += 1
+        shard = ensure_dir(Path(out_dir) / "results" / "_shards" / "c7" / suite) / "shard_0000.csv"
+        write_csv(shard, records)
+        print(f"[c7] eval {suite}: {valid} worlds, {len(records)} arm-records -> {shard}", flush=True)
+
+    # Merge all per-suite shards into one raw CSV (no stats; that is Task 11).
+    merged_rows: list = []
+    for shard_csv in sorted((Path(out_dir) / "results" / "_shards" / "c7").glob("*/*.csv")):
+        with open(shard_csv, newline="") as fh:
+            merged_rows.extend(csv.DictReader(fh))
+    merged_path = Path(out_dir) / "results" / "continuous_prm_c7_eval_raw.csv"
+    write_csv(merged_path, merged_rows)
+    print(f"[{now_str()}] C7 eval: merged {len(merged_rows)} rows -> {merged_path}", flush=True)
+    return merged_path
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -442,13 +582,21 @@ def main() -> None:
         print(f"[{now_str()}] C7 train: device={device}", flush=True)
         run_train_all(out_dir, cfg, device)
     elif cfg.mode == "eval":
-        raise NotImplementedError("C7 eval mode: implemented in Task 9")
+        device = _pick_device(cfg)
+        print(f"[{now_str()}] C7 eval: device={device}", flush=True)
+        run_eval(out_dir, cfg, device)
     elif cfg.mode == "calibrate":
         raise NotImplementedError("C7 calibrate mode: implemented in Task 10")
     elif cfg.mode == "analyze":
         raise NotImplementedError("C7 analyze mode: implemented in Task 11")
     elif cfg.mode == "full":
-        raise NotImplementedError("C7 full mode: implemented in Tasks 8-11")
+        # full = collect -> train -> calibrate -> eval -> analyze. calibrate (Task 10)
+        # and analyze (Task 11) are not yet implemented, so do not half-wire full;
+        # run the individual modes until those land.
+        raise NotImplementedError(
+            "C7 full mode: pending calibrate (Task 10) + analyze (Task 11); "
+            "run --mode collect/train/eval individually for now"
+        )
     else:
         raise ValueError(f"unknown mode: {cfg.mode}")
 

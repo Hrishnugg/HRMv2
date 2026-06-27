@@ -48,6 +48,20 @@ def test_run_arm_records_shape_and_suboptimality():
             assert np.isfinite(r["optimal"]) and r["optimal"] > 0
 
 
+def test_run_world_arms_handles_nonfinite_provider():
+    world, rm = _world_prm()
+    class _BadProvider(P.HeuristicProvider):
+        name = "bad"
+        def node_h(self, world, roadmap, goal_idx=1):
+            raise FloatingPointError("boom")
+    providers = {"euclid": P.EuclidProvider(), "bad": _BadProvider()}
+    recs = P.run_world_arms(world, rm, providers, budgets=[200], w_values=[1.0], goal_idx=1)
+    bad = [r for r in recs if r["provider"] == "bad"]
+    assert bad and all(r["found"] is False and r["nonfinite"] == 1 for r in bad)
+    eu = [r for r in recs if r["provider"] == "euclid"]
+    assert eu and all(r.get("nonfinite", 0) == 0 for r in eu)
+
+
 def test_matched_worlds_identical_across_seeds():
     M.install_c7_hard_maps()
     spec = C.build_anchor_specs()["C_hard_spiral"]
