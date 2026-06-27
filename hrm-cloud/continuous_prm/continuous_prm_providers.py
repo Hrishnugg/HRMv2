@@ -24,6 +24,13 @@ def _finite_fill(vals: np.ndarray, fallback: float) -> np.ndarray:
     return np.maximum(out, 0.0)
 
 
+def euclid_to_goal(roadmap: "C.Roadmap", goal_idx: int = 1) -> np.ndarray:
+    """Per-node straight-line distance to the goal node (finite, >= 0)."""
+    goal = roadmap.points[goal_idx]
+    d = np.linalg.norm(roadmap.points - goal[None, :], axis=1)
+    return _finite_fill(d, fallback=0.0)
+
+
 class HeuristicProvider(abc.ABC):
     name: str = "base"
 
@@ -36,9 +43,7 @@ class EuclidProvider(HeuristicProvider):
     name = "euclid"
 
     def node_h(self, world, roadmap, goal_idx: int = 1) -> np.ndarray:
-        goal = roadmap.points[goal_idx]
-        d = np.linalg.norm(roadmap.points - goal[None, :], axis=1)
-        return _finite_fill(d, fallback=0.0)
+        return euclid_to_goal(roadmap, goal_idx)
 
 
 class OracleProvider(HeuristicProvider):
@@ -78,8 +83,7 @@ class ScalarResidualProvider(HeuristicProvider):
         feats = C5.make_hard_features_for_roadmap(world, roadmap, self.feature_cfg)
         yhat = C.predict_norm_residuals(self.model, feats, self.device)
         yhat = np.clip(np.asarray(yhat, dtype=np.float64), 0.0, self.max_norm_residual)
-        goal = roadmap.points[goal_idx]
-        euclid = np.linalg.norm(roadmap.points - goal[None, :], axis=1)
+        euclid = euclid_to_goal(roadmap, goal_idx)
         h = euclid + world.side_len * yhat
         if not np.all(np.isfinite(h)):
             raise FloatingPointError("ScalarResidualProvider produced non-finite h")
