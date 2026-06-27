@@ -27,9 +27,10 @@ decide whether a spec is "ours"; all other modes fall through to C5/base.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import random
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -370,7 +371,24 @@ def build_c7_world(spec: C.AnchorSpec, seed: int, min_start_goal_dist_frac: floa
             continue
         if not C.is_point_free(start, side, obstacles) or not C.is_point_free(goal, side, obstacles):
             continue
-        desc = C.task_descriptor(spec, obstacles)
+        # Feature parity with the C5 hard suites. The C5 obstacle encoder branches
+        # on BOTH the world's encoder mode (the hard-mode indicator token, keyed on
+        # ``world.meta["mode"] == C5.HARD_MODE``) and on the task descriptor (the
+        # patched ``task_descriptor`` falls through to the BASE descriptor unless
+        # ``spec.mode == C5.HARD_MODE``). Because the scalar/value-field models are
+        # trained across a mix of C5-hard and C7 suites and evaluated on all of
+        # them, a C7 world must yield a feature vector that is identical in shape
+        # AND semantics to a C5-hard world. We therefore:
+        #   1. compute the descriptor through the C5 hard path (via a mode-substituted
+        #      spec, so ``task_descriptor`` produces the hard descriptor), and
+        #   2. stamp ``world.meta["mode"] = C5.HARD_MODE`` so the encoder emits the
+        #      hard-mode indicator.
+        # CRITICAL: this does NOT touch suite routing. ``generate_c7_obstacles`` /
+        # ``build_c7_world`` / ``build_anchor_specs_c7`` all dispatch on the ORIGINAL
+        # ``spec.mode`` (still ``C7_MODE``); the mode substitution below is local to
+        # the descriptor call and the stored ``meta`` only feeds the encoder.
+        hard_spec = dataclasses.replace(spec, mode=C5.HARD_MODE)
+        desc = C.task_descriptor(hard_spec, obstacles)
         return C.World(
             spec_name=spec.name,
             side_len=side,
@@ -380,7 +398,8 @@ def build_c7_world(spec: C.AnchorSpec, seed: int, min_start_goal_dist_frac: floa
             descriptor=desc,
             meta={
                 "seed": seed,
-                "mode": spec.mode,
+                "mode": C5.HARD_MODE,
+                "c7_spec_mode": spec.mode,
                 "suite": spec.name,
                 "obstacle_count": len(obstacles),
                 "free_fraction_est": C.approximate_free_fraction(side, obstacles),

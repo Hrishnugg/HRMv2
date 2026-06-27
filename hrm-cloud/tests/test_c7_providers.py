@@ -63,3 +63,25 @@ def test_oracle_fills_disconnected_finite():
     assert np.all(np.isfinite(h))
     assert h[1] == 0.0
     assert h[2] > h[0]  # disconnected node filled larger than any reachable cost
+
+
+def test_scalar_provider_additive_and_bounded():
+    import continuous_prm_c7_hard_maps as M
+    M.install_c7_hard_maps()
+    spec = C.build_anchor_specs()["C_hard_spiral"]
+    world = rm = None
+    for seed in range(60):
+        world = C.build_world(spec, seed=seed, min_start_goal_dist_frac=0.5)
+        if world is None:
+            continue
+        rm = C.build_prm(world, C.RoadmapConfig(n_nodes=128, k_neighbors=7), seed=seed)
+        if rm is not None and rm.connected_to_goal[0]:
+            break
+    assert world is not None and rm is not None
+    prov = P.ScalarResidualProvider.untrained_for_test(world)
+    h = prov.node_h(world, rm, goal_idx=1)
+    euclid = P.EuclidProvider().node_h(world, rm, goal_idx=1)
+    assert h.shape == euclid.shape
+    assert np.all(np.isfinite(h))
+    assert np.all(h >= euclid - 1e-6)  # additive, non-negative residual
+    assert np.all((h - euclid) <= world.side_len * prov.max_norm_residual + 1e-4)  # bounded

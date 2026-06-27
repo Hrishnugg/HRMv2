@@ -55,6 +55,39 @@ def test_install_idempotent_and_preserves_c5_routing():
     assert any(C.build_world(spec_spiral, seed=s, min_start_goal_dist_frac=0.5) is not None for s in range(10))
 
 
+def test_c7_world_feature_parity_with_c5_hard():
+    import continuous_prm_c5_hard_obstacle_encoder as C5
+    M.install_c7_hard_maps()
+    cfg = C.RoadmapConfig(n_nodes=96, k_neighbors=7)
+    fcfg = C.FeatureConfig()
+
+    def first_feat(suite):
+        spec = C.build_anchor_specs()[suite]
+        for seed in range(60):
+            w = C.build_world(spec, seed=seed, min_start_goal_dist_frac=0.5)
+            if w is None:
+                continue
+            rm = C.build_prm(w, cfg, seed=seed)
+            if rm is not None and rm.connected_to_goal[0]:
+                return w, C5.make_hard_features_for_roadmap(w, rm, fcfg)
+        raise RuntimeError(suite)
+
+    w_c5, f_c5 = first_feat("C_hard_maze")
+    w_c7, f_c7 = first_feat("C_hard_spiral")
+    assert f_c5.shape[1:] == f_c7.shape[1:]  # same per-node feature dims
+    # Encoder mode parity: C7 worlds must read as the C5 hard mode so the encoder
+    # emits the same hard-mode indicator token and the same (hard) task descriptor.
+    assert w_c7.meta.get("mode") == C5.HARD_MODE
+    assert w_c5.meta.get("mode") == C5.HARD_MODE
+    # The hard-mode indicator lives at seq[0, 15]; both families must set it to 1.0.
+    assert float(f_c5[0, 0, 15]) == 1.0
+    assert float(f_c7[0, 0, 15]) == 1.0
+    # Descriptor index 5 is the C5 hard-mode flag (1.0) rather than the base
+    # "narrow" flag (0.0); C7 worlds must carry the hard flag for descriptor parity.
+    assert float(w_c7.descriptor[5]) == 1.0
+    assert float(w_c5.descriptor[5]) == 1.0
+
+
 def test_new_suites_force_detours():
     M.install_c7_hard_maps()
     cfg = C.RoadmapConfig(n_nodes=192, k_neighbors=7)
