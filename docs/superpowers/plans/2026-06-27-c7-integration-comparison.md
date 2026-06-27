@@ -14,19 +14,20 @@
 
 ## Preconditions (read before Task 1)
 
-1. **Uncommitted WIP in `continuous_prm_common.py`.** The working tree has user edits to `hrm-cloud/continuous_prm/continuous_prm_common.py` (and `hrm-cloud/transfer_astar_heuristic_clean_parallel_fixed.py`). Task 1 edits `common.py`. **Before starting, ask the user to commit or stash their `continuous_prm_common.py` WIP** so our commits stay clean. Do not bundle their WIP into our commits. (Tasks 2–13 create new files and do not touch `common.py`, so only Task 1 is affected.)
+1. **Uncommitted WIP in `continuous_prm_common.py` — NOT touched by this plan.** The working tree has user edits to `hrm-cloud/continuous_prm/continuous_prm_common.py` (and `hrm-cloud/transfer_astar_heuristic_clean_parallel_fixed.py`). This plan is **new-files-only** — no task modifies `common.py` (focal lives in its own `continuous_prm_focal.py`). So the user's WIP is never staged. Never `git add continuous_prm_common.py` or the other WIP files in any task's commit; stage only the explicit new files each task lists.
 2. **Run location.** All commands assume CWD `C:/Users/hrish/Code Projects/HRMv2`. Tests live in `hrm-cloud/tests/`; mirror the import bootstrap used by `hrm-cloud/tests/test_c6_heatmap_value_field.py` (it inserts `hrm-cloud/continuous_prm` on `sys.path`). Check that file's first ~15 lines and copy the pattern verbatim into each new test.
 3. **GPU.** Provider/model tests run on CPU (tiny). The training + eval runs (Tasks 8–12) use the GPU; pass `--cpu` only for smoke.
 
 ## Deviations from spec (deliberate, faithful to existing patterns)
 
-- **New maps via runtime-install, not `common.py` edits.** The spec said "extend the C5 machinery in `common.py`"; the *actual* C5 mechanism (`continuous_prm_c5_hard_obstacle_encoder.py::install_runtime_extensions`) monkeypatches `common.py` at runtime from a separate module. We follow that real pattern (Task 3) — it matches the codebase and avoids the `common.py` WIP entanglement. `focal_astar_search` still lives in `common.py` per spec (Task 1), since it is a generic graph primitive beside `astar_search`.
+- **New maps via runtime-install, not `common.py` edits.** The spec said "extend the C5 machinery in `common.py`"; the *actual* C5 mechanism (`continuous_prm_c5_hard_obstacle_encoder.py::install_runtime_extensions`) monkeypatches `common.py` at runtime from a separate module. We follow that real pattern (Task 3) — it matches the codebase and avoids the `common.py` WIP entanglement.
+- **Focal in its own module, not `common.py`.** The spec placed `focal_astar_search` beside `astar_search` in `common.py`. It is a pure graph primitive (depends only on `adj` + arrays), so we put it in a new `continuous_prm_focal.py` (Task 1) instead. This keeps the whole plan new-files-only and leaves the user's uncommitted `common.py` WIP untouched — same code, cleaner integration.
 
 ## File structure
 
 | File | New/Mod | Responsibility |
 |---|---|---|
-| `hrm-cloud/continuous_prm/continuous_prm_common.py` | **Mod** | Add `focal_astar_search()` beside `astar_search()`. |
+| `hrm-cloud/continuous_prm/continuous_prm_focal.py` | **New** | `focal_astar_search()` — A*ε planner primitive (pure over `adj` + arrays; no `common.py` edit, keeps user WIP untouched). |
 | `hrm-cloud/continuous_prm/continuous_prm_c7_hard_maps.py` | **New** | Spiral / bugtrap / rooms_large specs + obstacle generators + `install_c7_hard_maps()` runtime extension. |
 | `hrm-cloud/continuous_prm/continuous_prm_providers.py` | **New** | `HeuristicProvider` ABC + `EuclidProvider`, `OracleProvider`, `ScalarResidualProvider`, `ValueFieldProvider`; `build_arms()` enumeration. |
 | `hrm-cloud/continuous_prm/continuous_prm_c7_integration_compare.py` | **New** | Orchestrator: CLI/config/scale presets; modes `collect/train/eval/analyze/full/calibrate`; unified sharded eval; metrics. |
@@ -38,13 +39,13 @@
 
 ---
 
-## Task 1: `focal_astar_search` in `common.py`
+## Task 1: `focal_astar_search` in a new `continuous_prm_focal.py`
 
 **Files:**
-- Modify: `hrm-cloud/continuous_prm/continuous_prm_common.py` (add after `astar_search`, ~line 754)
+- Create: `hrm-cloud/continuous_prm/continuous_prm_focal.py`
 - Test: `hrm-cloud/tests/test_c7_focal_prm.py`
 
-Context: `astar_search(adj, heuristic, budget, start_idx=0, goal_idx=1)` (common.py:729) uses heap tuples `(f, g, idx)`, returns `{"found", "cost", "expansions", "closed"}`. `dijkstra_to_goal(adj, goal_idx=1)` (common.py:712) gives exact cost-to-go. Euclid heuristic on a PRM is admissible+consistent (edge weights are straight-line lengths).
+Context: `astar_search(adj, heuristic, budget, start_idx=0, goal_idx=1)` (common.py:729) uses heap tuples `(f, g, idx)`, returns `{"found", "cost", "expansions", "closed"}`. `dijkstra_to_goal(adj, goal_idx=1)` (common.py:712) gives exact cost-to-go. Euclid heuristic on a PRM is admissible+consistent (edge weights are straight-line lengths). Focal is a pure graph primitive — it imports nothing from `common.py` (uses `float("inf")` for unreached `g`), so it lives in its own module and the tests/orchestrator import both.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -54,6 +55,7 @@ Create `hrm-cloud/tests/test_c7_focal_prm.py` (copy the sys.path bootstrap from 
 import math
 import numpy as np
 import continuous_prm_common as C
+import continuous_prm_focal as focal
 
 
 def _line_graph(n=6):
@@ -76,7 +78,7 @@ def test_focal_w1_matches_optimal_cost():
     adj, order = _line_graph()
     h = _euclid_like_admissible(adj)
     rank = np.zeros(len(adj))  # uninformative ranker
-    res = C.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.0)
+    res = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.0)
     opt = C.astar_search(adj, h, budget=1000)
     assert res["found"] and opt["found"]
     assert math.isclose(res["cost"], opt["cost"], rel_tol=1e-9)
@@ -88,7 +90,7 @@ def test_focal_bound_never_violated():
     rng = np.random.default_rng(0)
     rank = rng.random(len(adj))  # adversarial-ish ranker
     w = 2.0
-    res = C.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=w)
+    res = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=w)
     opt = C.astar_search(adj, h, budget=1000)
     assert res["found"]
     assert res["cost"] <= w * opt["cost"] + 1e-9
@@ -99,11 +101,11 @@ def test_focal_completeness_and_budget():
     h = _euclid_like_admissible(adj)
     rank = np.zeros(len(adj))
     # Budget too small to reach goal -> not found, expansions capped.
-    res = C.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1, w=1.5)
+    res = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1, w=1.5)
     assert res["expansions"] <= 1
     assert res["found"] is False
     # Ample budget -> found.
-    res2 = C.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.5)
+    res2 = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.5)
     assert res2["found"]
 
 
@@ -111,8 +113,8 @@ def test_focal_determinism():
     adj, _ = _line_graph()
     h = _euclid_like_admissible(adj)
     rank = np.linspace(0, 1, len(adj))
-    a = C.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.3)
-    b = C.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.3)
+    a = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.3)
+    b = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.3)
     assert a == b
 
 
@@ -121,7 +123,7 @@ def test_focal_constant_rank_degrades_to_astar_expansions():
     adj, _ = _line_graph()
     h = _euclid_like_admissible(adj)
     const_rank = np.full(len(adj), 3.14)
-    res = C.focal_astar_search(adj, euclid_h=h, rank_h=const_rank, budget=1000, w=1.0)
+    res = focal.focal_astar_search(adj, euclid_h=h, rank_h=const_rank, budget=1000, w=1.0)
     opt = C.astar_search(adj, h, budget=1000)
     assert res["found"]
     assert math.isclose(res["cost"], opt["cost"], rel_tol=1e-9)
@@ -131,13 +133,26 @@ def test_focal_constant_rank_degrades_to_astar_expansions():
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest hrm-cloud/tests/test_c7_focal_prm.py -v`
-Expected: FAIL with `AttributeError: module 'continuous_prm_common' has no attribute 'focal_astar_search'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'continuous_prm_focal'`.
 
 - [ ] **Step 3: Implement `focal_astar_search`**
 
-Add to `continuous_prm_common.py` immediately after `astar_search` (after line 754):
+Create `hrm-cloud/continuous_prm/continuous_prm_focal.py`:
 
 ```python
+"""Bounded-suboptimal focal A* (A*epsilon) for static weighted graphs (PRM).
+
+Pure graph primitive: depends only on an adjacency list + per-node arrays, so
+it imports nothing from continuous_prm_common. Mirrors astar_search's return
+shape: {"found", "cost", "expansions", "closed"}.
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
+
+
 def focal_astar_search(
     adj: List[List[Tuple[int, float]]],
     euclid_h: np.ndarray,
@@ -158,7 +173,7 @@ def focal_astar_search(
     if w < 1.0:
         raise ValueError(f"focal w must be >= 1.0, got {w}")
     n = len(adj)
-    g = np.full(n, INF, dtype=np.float64)
+    g = np.full(n, np.inf, dtype=np.float64)
     g[start_idx] = 0.0
     # OPEN entries: (f, g, node, counter). counter breaks ties deterministically.
     counter = 0
@@ -205,7 +220,7 @@ Expected: PASS (5 tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add hrm-cloud/continuous_prm/continuous_prm_common.py hrm-cloud/tests/test_c7_focal_prm.py
+git add hrm-cloud/continuous_prm/continuous_prm_focal.py hrm-cloud/tests/test_c7_focal_prm.py
 git commit -m "feat(c7): focal A*epsilon search on the PRM graph + tests"
 ```
 
@@ -827,7 +842,7 @@ Expected: FAIL (`AttributeError: ... run_world_arms`).
 
 - [ ] **Step 3: Implement `run_world_arms` + arm spec**
 
-Append to `continuous_prm_providers.py`:
+Append to `continuous_prm_providers.py` (add `import continuous_prm_focal as focal` to the module imports at the top of the file first):
 
 ```python
 def run_world_arms(world, roadmap, providers: dict, budgets, w_values, goal_idx: int = 1, start_idx: int = 0):
@@ -850,7 +865,7 @@ def run_world_arms(world, roadmap, providers: dict, budgets, w_values, goal_idx:
             r = C.astar_search(roadmap.adj, h, budget=int(b), start_idx=start_idx, goal_idx=goal_idx)
             records.append(_arm_record(name, "astar", None, b, r, opt))
             for w in w_values:
-                rf = C.focal_astar_search(roadmap.adj, euclid_h=euclid_h, rank_h=h,
+                rf = focal.focal_astar_search(roadmap.adj, euclid_h=euclid_h, rank_h=h,
                                           budget=int(b), w=float(w), start_idx=start_idx, goal_idx=goal_idx)
                 records.append(_arm_record(name, "focal", float(w), b, rf, opt))
     return records
