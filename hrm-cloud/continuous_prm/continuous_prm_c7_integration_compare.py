@@ -23,6 +23,7 @@ import argparse
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict
 
 import continuous_prm_common as C  # noqa: F401 — used by later tasks
 import continuous_prm_providers as P  # noqa: F401 — used by later tasks
@@ -184,6 +185,228 @@ def config_from_args(args: argparse.Namespace) -> C7Config:
 
 
 # ---------------------------------------------------------------------------
+# Collect / train (Task 8)
+# ---------------------------------------------------------------------------
+
+# Scalar collection node count. Mirrors the production C1/C2/C3 PRM training
+# runs (continuous_prm_modal defaults / config__c*.json all use 160).
+SCALAR_NODES_PER_WORLD = 160
+
+# Field datasets live under out_dir/"datasets" (C6.collect_all's own path). Scalar
+# datasets MUST live in a SEPARATE directory: C6 writes per-grid occupancy npz to
+# {name}_train.npz, while the scalar path writes per-node feature/residual npz —
+# same filename, incompatible format. Both early-return if the npz exists, so a
+# shared directory would silently load the wrong data. Keep them apart.
+SCALAR_DATASET_DIRNAME = "datasets_scalar"
+SCALAR_SPLIT = "train_scalar"
+
+
+def _pick_device(cfg: C7Config):
+    import torch
+    return torch.device("cpu" if cfg.cpu or not torch.cuda.is_available() else "cuda")
+
+
+def _scalar_backbone_cfg(name: str) -> "C.BackboneConfig":
+    """Build a scalar BackboneConfig from a backbone name.
+
+    Mirrors ScalarResidualProvider.untrained_for_test in continuous_prm_providers:
+    a minimal argparse.Namespace carrying exactly the fields build_backbone_configs
+    reads, then index by backbone name. We use the production-scale hidden dims
+    (the provider's test uses tiny dims; for real training we want the common.py
+    build_backbone_configs defaults, which read these Namespace fields).
+    """
+    ns = argparse.Namespace(
+        hrm_hidden=192,
+        hrm_layers=2,
+        hrm_k_step=2,
+        hrm_heads=4,
+        head_hidden=256,
+        onlstm_hidden=192,
+        onlstm_layers=2,
+        onlstm_chunk_size=8,
+    )
+    configs = C.build_backbone_configs(ns)
+    if name not in configs:
+        raise ValueError(f"unknown scalar backbone {name!r}; have {sorted(configs)}")
+    return configs[name]
+
+
+def _c6config_from_c7(cfg: C7Config) -> "object":
+    """Build a C6Config (field path) from the C7 config.
+
+    Field models only: cfg.field_backbones (NO 'oracle'). Eval-only C6Config
+    fields (eval_worlds/eval_suites/budgets) are irrelevant for collect/train and
+    keep their C6 defaults.
+    """
+    import continuous_prm_c6_heatmap_value_field as C6
+    return C6.C6Config(
+        grid_size=int(cfg.grid_size),
+        train_worlds=int(cfg.train_worlds),
+        roadmap_nodes=int(cfg.roadmap_nodes),
+        roadmap_k=int(cfg.roadmap_k),
+        epochs=int(cfg.epochs),
+        train_tasks=str(cfg.train_tasks),
+        models=str(cfg.field_backbones),
+        seed=int(cfg.seed),
+        sector_tokens=int(cfg.sector_tokens),
+        cpu=bool(cfg.cpu),
+        make_figures=False,
+    )
+
+
+def _collect_field(out_dir: Path, cfg: C7Config) -> Dict[str, Path]:
+    """Collect field (C6) datasets into out_dir/'datasets'.
+
+    We deliberately do NOT call C6.collect_all: it calls install_c5_hard_runtime
+    at its start (restoring the C5-only build_anchor_specs), so a C7-only suite
+    such as C_hard_spiral is no longer registered and the lookup KeyErrors.
+    Instead we replicate collect_all's loop (same datasets dir, "train" split,
+    seed = seed + 10_000*(idx+1)) using C6.collect_dataset, which performs no
+    runtime install. The C7 maps must already be installed by the caller so
+    C.build_anchor_specs returns all six suites.
+    """
+    import continuous_prm_c6_heatmap_value_field as C6
+    c6cfg = _c6config_from_c7(cfg)
+    M7.install_c7_hard_maps(cfg.sector_tokens)
+    specs = C.build_anchor_specs()
+    datasets_dir = ensure_dir(out_dir / "datasets")
+    paths: Dict[str, Path] = {}
+    tasks = parse_csv(cfg.train_tasks)
+    print(f"[{now_str()}] C7 collect: field datasets (tasks={cfg.train_tasks}) -> {datasets_dir}", flush=True)
+    for idx, task in enumerate(tasks):
+        if task not in specs:
+            raise KeyError(f"field collect: unknown task {task!r}; have {sorted(specs)}")
+        paths[task] = C6.collect_dataset(
+            specs[task],
+            datasets_dir,
+            "train",
+            int(cfg.train_worlds),
+            c6cfg,
+            seed=int(cfg.seed) + 10_000 * (idx + 1),
+        )
+    print(f"[{now_str()}] C7 collect: field datasets done -> {[str(p) for p in paths.values()]}", flush=True)
+    return paths
+
+
+def _collect_scalar(out_dir: Path, cfg: C7Config) -> Dict[str, Path]:
+    """Collect scalar (C5/common) per-node datasets into a SEPARATE directory.
+
+    Requires the C7 hard maps to be installed (so C.build_anchor_specs and the
+    hard feature encoder C.make_features_for_roadmap are active). Uses distinct
+    per-task seeds mirroring C6.collect_all's seed + 10_000*(idx+1) scheme.
+    """
+    scalar_dir = ensure_dir(out_dir / SCALAR_DATASET_DIRNAME)
+    specs = C.build_anchor_specs()
+    roadmap_cfg = C.RoadmapConfig(n_nodes=int(cfg.roadmap_nodes), k_neighbors=int(cfg.roadmap_k))
+    feature_cfg = C.FeatureConfig()
+    paths: Dict[str, Path] = {}
+    tasks = parse_csv(cfg.train_tasks)
+    print(
+        f"[{now_str()}] C7 collect: scalar datasets (tasks={cfg.train_tasks}, "
+        f"nodes_per_world={SCALAR_NODES_PER_WORLD}) -> {scalar_dir}",
+        flush=True,
+    )
+    for idx, task in enumerate(tasks):
+        if task not in specs:
+            raise KeyError(f"scalar collect: unknown task {task!r}; have {sorted(specs)}")
+        paths[task] = C.collect_task_dataset(
+            specs[task],
+            scalar_dir,
+            SCALAR_SPLIT,
+            int(cfg.train_worlds),
+            SCALAR_NODES_PER_WORLD,
+            roadmap_cfg,
+            feature_cfg,
+            seed=int(cfg.seed) + 10_000 * (idx + 1),
+        )
+    print(f"[{now_str()}] C7 collect: scalar datasets done -> {[str(p) for p in paths.values()]}", flush=True)
+    return paths
+
+
+def run_collect(out_dir: Path, cfg: C7Config) -> Dict[str, Dict[str, Path]]:
+    """Collect BOTH dataset families. Returns {'field': {...}, 'scalar': {...}}."""
+    field_paths = _collect_field(out_dir, cfg)
+    # Defensive: ensure the C7 suites + hard feature encoder are active before
+    # scalar collection (C_hard_spiral lives in the C7 runtime). install is idempotent.
+    M7.install_c7_hard_maps(cfg.sector_tokens)
+    scalar_paths = _collect_scalar(out_dir, cfg)
+    return {"field": field_paths, "scalar": scalar_paths}
+
+
+def _train_field(out_dir: Path, cfg: C7Config, dataset_paths: Dict[str, Path], device) -> Dict[str, Path]:
+    """Train each field backbone over the union of field datasets (C6 path)."""
+    import continuous_prm_c6_heatmap_value_field as C6
+    c6cfg = _c6config_from_c7(cfg)
+    print(f"[{now_str()}] C7 train: field backbones={cfg.field_backbones}", flush=True)
+    C6.run_train(out_dir, c6cfg, dataset_paths, device)
+    ckpts: Dict[str, Path] = {}
+    for name in parse_csv(cfg.field_backbones):
+        if name == "oracle":
+            continue
+        ckpts[name] = C6.checkpoint_path(out_dir, name)
+    return ckpts
+
+
+def _train_scalar(out_dir: Path, cfg: C7Config, dataset_paths: Dict[str, Path], device) -> Dict[str, Path]:
+    """Train each scalar avgbase backbone over the pooled scalar datasets."""
+    feature_cfg = C.FeatureConfig()
+    train_cfg = C.TrainingConfig(base_epochs=int(cfg.epochs))
+    ckpts: Dict[str, Path] = {}
+    print(f"[{now_str()}] C7 train: scalar avgbase backbones={cfg.scalar_backbones}", flush=True)
+    for name in parse_csv(cfg.scalar_backbones):
+        backbone_cfg = _scalar_backbone_cfg(name)
+        ckpts[name] = C.train_avgbase(
+            backbone_cfg,
+            dataset_paths,
+            out_dir,
+            feature_cfg,
+            train_cfg,
+            device,
+            seed=int(cfg.seed),
+        )
+    return ckpts
+
+
+def run_train_all(out_dir: Path, cfg: C7Config, device) -> Dict[str, object]:
+    """Collect (if needed) then train BOTH model families; write train_manifest.json."""
+    collected = run_collect(out_dir, cfg)
+    # Scalar training (above-collect) ran the C5 hard runtime via collect_all then
+    # we re-installed C7. C6.run_train does not touch suites, so order field-first.
+    field_ckpts = _train_field(out_dir, cfg, collected["field"], device)
+    scalar_ckpts = _train_scalar(out_dir, cfg, collected["scalar"], device)
+
+    manifest = {
+        "stage": "c7_train",
+        "timestamp": now_str(),
+        "train_tasks": parse_csv(cfg.train_tasks),
+        "field": {
+            "backbones": [m for m in parse_csv(cfg.field_backbones) if m != "oracle"],
+            "datasets": {task: str(p) for task, p in collected["field"].items()},
+            "checkpoints": {
+                name: str(p) for name, p in field_ckpts.items() if Path(p).exists()
+            },
+        },
+        "scalar": {
+            "backbones": parse_csv(cfg.scalar_backbones),
+            "nodes_per_world": SCALAR_NODES_PER_WORLD,
+            "datasets": {task: str(p) for task, p in collected["scalar"].items()},
+            "checkpoints": {
+                name: str(p) for name, p in scalar_ckpts.items() if Path(p).exists()
+            },
+        },
+    }
+    manifest_path = Path(out_dir) / "train_manifest.json"
+    write_json(manifest_path, manifest)
+    print(f"[{now_str()}] C7 train: wrote manifest -> {manifest_path}", flush=True)
+    print(
+        f"[{now_str()}] C7 train: field checkpoints={list(manifest['field']['checkpoints'].values())} "
+        f"scalar checkpoints={list(manifest['scalar']['checkpoints'].values())}",
+        flush=True,
+    )
+    return manifest
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -206,9 +429,13 @@ def main() -> None:
     )
 
     if cfg.mode in ("collect",):
-        raise NotImplementedError("C7 collect mode: implemented in Task 8")
+        device = _pick_device(cfg)
+        print(f"[{now_str()}] C7 collect: device={device}", flush=True)
+        run_collect(out_dir, cfg)
     elif cfg.mode == "train":
-        raise NotImplementedError("C7 train mode: implemented in Task 8")
+        device = _pick_device(cfg)
+        print(f"[{now_str()}] C7 train: device={device}", flush=True)
+        run_train_all(out_dir, cfg, device)
     elif cfg.mode == "eval":
         raise NotImplementedError("C7 eval mode: implemented in Task 9")
     elif cfg.mode == "calibrate":
