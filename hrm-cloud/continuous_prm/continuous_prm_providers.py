@@ -155,6 +155,11 @@ def run_world_arms(world, roadmap, providers: dict, budgets, w_values, goal_idx:
     Returns a flat list of record dicts with matched suboptimality vs the graph optimal.
     """
     opt = float(roadmap.dist_to_goal[start_idx])  # graph optimal cost from start
+    if not np.isfinite(opt) or opt >= C.INF / 10.0:
+        raise ValueError(
+            f"run_world_arms: start node {start_idx} not connected to goal (opt={opt}); "
+            "caller must pass a connected world/roadmap"
+        )
     if "euclid" in providers:
         euclid_h = providers["euclid"].node_h(world, roadmap, goal_idx)
     else:
@@ -179,6 +184,6 @@ def _arm_record(provider, mode, w, budget, res, opt):
     sub = (cost / opt) if (found and opt > 0) else float("nan")
     return {
         "provider": provider, "mode": mode, "w": w, "budget": int(budget),
-        "found": found, "expansions": int(res["expansions"]), "cost": cost,
+        "found": found, "expansions": int(res["expansions"]), "closed": int(res["closed"]), "cost": cost,
         "optimal": opt, "suboptimality": sub,
     }
