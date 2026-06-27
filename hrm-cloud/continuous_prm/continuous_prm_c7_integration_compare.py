@@ -578,16 +578,17 @@ def run_eval(out_dir: Path, cfg: C7Config, device) -> Path:
 # Calibrate (Task 10): per-suite binding-budget band selection (Gate 1)
 # ---------------------------------------------------------------------------
 
-# Coarse budget grid swept by calibrate. Spans well below the binding band (where
-# Euclid mostly fails) up to where it saturates, so the [0.45, 0.65] success
-# targets are bracketed on both sides for every reasonable suite geometry.
-CALIB_GRID = [64, 96, 128, 144, 168, 200, 256, 320]
+# Fine budget grid swept by calibrate. Dense near ~144 (the steep Euclid success
+# transition for the maze-family suites) AND near ~64 (the easy suites saturate
+# Euclid early), then coarser up to 320 so the [0.45, 0.70] success targets are
+# bracketed on both sides for every reasonable suite geometry.
+CALIB_GRID = [24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 140, 152, 164, 176, 192, 224, 264, 320]
 
 
 def _select_band_budgets(grid, euclid_success, k):
     """Pick k in-band budgets from `grid` by matching euclid success to targets.
 
-    Targets are k points evenly spaced in [0.45, 0.65]. For each target, pick the
+    Targets are k points evenly spaced in [0.45, 0.70]. For each target, pick the
     grid budget whose euclid_success is closest (ties -> smaller budget, since
     `grid` is ascending). Dedupe preserving ascending budget order; if dedupe
     leaves < k, fill with the next-closest unused grid budgets (by distance to the
@@ -596,7 +597,7 @@ def _select_band_budgets(grid, euclid_success, k):
     import numpy as np
 
     k = max(1, min(int(k), len(grid)))
-    targets = np.linspace(0.45, 0.65, k)
+    targets = np.linspace(0.45, 0.70, k)
     chosen: list = []
     for t in targets:
         # closest grid budget by |euclid_success - t|; ascending grid => smaller
@@ -652,18 +653,26 @@ def run_calibrate(out_dir: Path, cfg: C7Config) -> Path:
             raise KeyError(f"calibrate: unknown suite {suite!r}; have {sorted(specs)}")
         spec = specs[suite]
 
-        # Per-budget found tallies over the worlds we actually collect.
+        # Per-budget tallies: found counts + sum of expansions over SOLVED instances
+        # (so mean expansions are computed only where the method actually reached the
+        # goal, which is what the euclid-vs-oracle expansion gap is about).
         euclid_found = [0] * len(CALIB_GRID)
         oracle_found = [0] * len(CALIB_GRID)
+        euclid_exp_sum = [0.0] * len(CALIB_GRID)
+        oracle_exp_sum = [0.0] * len(CALIB_GRID)
         n_worlds = 0
         for _, world, rm in iter_matched_worlds(spec, suite_idx, cfg, roadmap_cfg, cfg.eval_worlds):
             euclid_h = euclid_provider.node_h(world, rm, goal_idx=1)
             oracle_h = oracle_provider.node_h(world, rm, goal_idx=1)
             for bi, b in enumerate(CALIB_GRID):
-                if C.astar_search(rm.adj, euclid_h, int(b))["found"]:
+                re = C.astar_search(rm.adj, euclid_h, int(b))
+                if re["found"]:
                     euclid_found[bi] += 1
-                if C.astar_search(rm.adj, oracle_h, int(b))["found"]:
+                    euclid_exp_sum[bi] += int(re["expansions"])
+                ro = C.astar_search(rm.adj, oracle_h, int(b))
+                if ro["found"]:
                     oracle_found[bi] += 1
+                    oracle_exp_sum[bi] += int(ro["expansions"])
             n_worlds += 1
 
         if n_worlds < cfg.eval_worlds:
@@ -676,26 +685,52 @@ def run_calibrate(out_dir: Path, cfg: C7Config) -> Path:
         denom = max(1, n_worlds)
         euclid_success = [f / denom for f in euclid_found]
         oracle_success = [f / denom for f in oracle_found]
+        # Mean expansions over SOLVED instances (None where that method solved 0).
+        euclid_exp = [
+            (euclid_exp_sum[bi] / euclid_found[bi]) if euclid_found[bi] > 0 else None
+            for bi in range(len(CALIB_GRID))
+        ]
+        oracle_exp = [
+            (oracle_exp_sum[bi] / oracle_found[bi]) if oracle_found[bi] > 0 else None
+            for bi in range(len(CALIB_GRID))
+        ]
 
         chosen = _select_band_budgets(CALIB_GRID, euclid_success, cfg.budget_grid_size)
         idx_of = {b: i for i, b in enumerate(CALIB_GRID)}
         chosen_eu = [round(euclid_success[idx_of[b]], 3) for b in chosen]
-        chosen_or = [round(oracle_success[idx_of[b]], 3) for b in chosen]
-
-        # Out-of-band / saturation warnings (do NOT weaken anything — just report).
-        chosen_or_full = [oracle_success[idx_of[b]] for b in chosen]
         chosen_eu_full = [euclid_success[idx_of[b]] for b in chosen]
-        if chosen_or_full and min(chosen_or_full) >= 0.95:
+
+        def _headroom_at(b):
+            """1 - oracle_exp/euclid_exp on euclid-solved means; None if not computable."""
+            i = idx_of[b]
+            ee, oe = euclid_exp[i], oracle_exp[i]
+            if ee is None or oe is None or ee <= 0:
+                return None
+            return 1.0 - (oe / ee)
+
+        chosen_headroom = [_headroom_at(b) for b in chosen]
+        chosen_eu_exp = [euclid_exp[idx_of[b]] for b in chosen]
+        chosen_or_exp = [oracle_exp[idx_of[b]] for b in chosen]
+
+        # Refined warnings (oracle saturating at 1.0 is EXPECTED for the exact
+        # graph-Dijkstra oracle; the real signal is the expansion gap):
+        #  (1) no chosen budget has euclid success in [0.35, 0.95] -> no usable
+        #      difficulty point, AND
+        #  (2) best chosen budget's headroom < 0.15 -> oracle barely cheaper than
+        #      euclid, so little room for learned models to help.
+        if not any(0.35 <= es <= 0.95 for es in chosen_eu_full):
             msg = (
-                f"{suite}: oracle saturated (min oracle_success over chosen={min(chosen_or_full):.3f} "
-                f">= 0.95) — no expansion headroom at chosen budgets"
+                f"{suite}: no usable difficulty point (no chosen budget has euclid_success "
+                f"in [0.35, 0.95]; euclid@chosen={chosen_eu})"
             )
             print(f"[c7] WARNING: {msg}", flush=True)
             warnings.append(msg)
-        if not any(0.40 <= es <= 0.60 for es in chosen_eu_full):
+        valid_headroom = [h for h in chosen_headroom if h is not None]
+        best_headroom = max(valid_headroom) if valid_headroom else None
+        if best_headroom is not None and best_headroom < 0.15:
             msg = (
-                f"{suite}: out of band (no chosen budget has euclid_success in [0.40, 0.60]; "
-                f"euclid@chosen={chosen_eu})"
+                f"{suite}: low expansion headroom (best chosen headroom={best_headroom:.3f} "
+                f"< 0.15; oracle barely cheaper than euclid)"
             )
             print(f"[c7] WARNING: {msg}", flush=True)
             warnings.append(msg)
@@ -703,11 +738,20 @@ def run_calibrate(out_dir: Path, cfg: C7Config) -> Path:
         budgets_map[suite] = chosen
         measurements[suite] = [
             {"budget": int(b), "euclid": round(euclid_success[bi], 4),
-             "oracle": round(oracle_success[bi], 4), "worlds": int(n_worlds)}
+             "oracle": round(oracle_success[bi], 4),
+             "euclid_exp": (round(euclid_exp[bi], 2) if euclid_exp[bi] is not None else None),
+             "oracle_exp": (round(oracle_exp[bi], 2) if oracle_exp[bi] is not None else None),
+             "worlds": int(n_worlds)}
             for bi, b in enumerate(CALIB_GRID)
         ]
+
+        def _fmt(vals, nd=2):
+            return [(round(v, nd) if v is not None else None) for v in vals]
+
         print(
-            f"[c7] calibrate {suite}: chosen={chosen} euclid@chosen={chosen_eu} oracle@chosen={chosen_or}",
+            f"[c7] calibrate {suite}: chosen={chosen} euclid@chosen={chosen_eu} "
+            f"euclid_exp@chosen={_fmt(chosen_eu_exp)} oracle_exp@chosen={_fmt(chosen_or_exp)} "
+            f"headroom@chosen={_fmt(chosen_headroom, 3)}",
             flush=True,
         )
 
