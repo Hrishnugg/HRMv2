@@ -30,6 +30,8 @@ def focal_astar_search(
     """
     if w < 1.0:
         raise ValueError(f"focal w must be >= 1.0, got {w}")
+    if not (np.all(np.isfinite(euclid_h)) and np.all(np.isfinite(rank_h))):
+        raise ValueError("euclid_h and rank_h must be fully finite")
     n = len(adj)
     g = np.full(n, np.inf, dtype=np.float64)
     g[start_idx] = 0.0
@@ -41,7 +43,7 @@ def focal_astar_search(
     closed = np.zeros(n, dtype=np.bool_)
     expansions = 0
     while open_entries and expansions < budget:
-        # Drop stale entries (node closed, or g superseded) from the front-set view.
+        # Rebuild live: discard entries for closed/superseded nodes (lazy deletion).
         live = [e for e in open_entries if not closed[e[2]] and e[1] == g[e[2]]]
         if not live:
             break

@@ -55,8 +55,7 @@ def test_focal_completeness_and_budget():
     rank = np.zeros(len(adj))
     # Budget too small to reach goal -> not found, expansions capped.
     res = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1, w=1.5)
-    assert res["expansions"] <= 1
-    assert res["found"] is False
+    assert (not res["found"]) and res["expansions"] == 1
     # Ample budget -> found.
     res2 = focal.focal_astar_search(adj, euclid_h=h, rank_h=rank, budget=1000, w=1.5)
     assert res2["found"]
@@ -81,3 +80,17 @@ def test_focal_constant_rank_degrades_to_astar_expansions():
     assert res["found"]
     assert math.isclose(res["cost"], opt["cost"], rel_tol=1e-9)
     assert res["expansions"] <= opt["expansions"] + 1
+
+
+def test_focal_rejects_nonfinite_inputs():
+    adj, _ = _line_graph()
+    h = _euclid_like_admissible(adj)
+    bad = h.copy(); bad[2] = np.inf
+    import pytest
+    with pytest.raises(ValueError):
+        focal.focal_astar_search(adj, euclid_h=bad, rank_h=np.zeros(len(adj)), budget=100, w=1.0)
+    with pytest.raises(ValueError):
+        focal.focal_astar_search(adj, euclid_h=h, rank_h=np.full(len(adj), np.nan), budget=100, w=1.0)
+    # w < 1 still rejected
+    with pytest.raises(ValueError):
+        focal.focal_astar_search(adj, euclid_h=h, rank_h=np.zeros(len(adj)), budget=100, w=0.9)
