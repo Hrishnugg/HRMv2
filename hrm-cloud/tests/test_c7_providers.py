@@ -36,7 +36,7 @@ def test_oracle_provider_equals_dijkstra():
     world, rm = _tiny_world_and_prm()
     h = P.OracleProvider().node_h(world, rm, goal_idx=1)
     dij = C.dijkstra_to_goal(rm.adj, goal_idx=1)
-    conn = np.isfinite(dij)
+    conn = dij < C.INF / 10.0
     assert np.allclose(h[conn], dij[conn], atol=1e-9)
     assert np.all(np.isfinite(h))  # disconnected nodes filled finite, not inf/nan
 
@@ -47,3 +47,19 @@ def test_oracle_makes_astar_optimal():
     res = C.astar_search(rm.adj, h, budget=10_000)
     assert res["found"]
     assert np.isclose(res["cost"], rm.dist_to_goal[0], rtol=1e-6)
+
+
+def test_oracle_fills_disconnected_finite():
+    adj = [[(1, 1.0)], [(0, 1.0)], []]  # node 2 disconnected from goal (idx 1)
+    pts = np.array([[0.0, 0.0], [1.0, 0.0], [0.5, 0.5]])
+    dist = C.dijkstra_to_goal(adj, goal_idx=1)
+    rm = C.Roadmap(points=pts, adj=adj, dist_to_goal=dist,
+                   connected_to_goal=(dist < C.INF / 10.0))
+
+    class _W:
+        side_len = 1.0
+
+    h = P.OracleProvider().node_h(_W(), rm, goal_idx=1)
+    assert np.all(np.isfinite(h))
+    assert h[1] == 0.0
+    assert h[2] > h[0]  # disconnected node filled larger than any reachable cost
