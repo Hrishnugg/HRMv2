@@ -41,6 +41,20 @@ def test_new_suites_build_valid_connected_worlds():
         assert built >= 5, f"{suite}: only built {built} connected worlds in 40 seeds"
 
 
+def test_install_idempotent_and_preserves_c5_routing():
+    M.install_c7_hard_maps()
+    spec_maze = C.build_anchor_specs()["C_hard_maze"]
+    w1 = C.build_world(spec_maze, seed=3, min_start_goal_dist_frac=0.5)
+    M.install_c7_hard_maps()  # second install must not double-wrap or lose C5 routing
+    w2 = C.build_world(spec_maze, seed=3, min_start_goal_dist_frac=0.5)
+    assert (w1 is None) == (w2 is None)
+    if w1 is not None:
+        assert len(w1.obstacles) == len(w2.obstacles)  # identical C5 geometry, no stacking
+    # C7 suite still builds after the double install
+    spec_spiral = C.build_anchor_specs()["C_hard_spiral"]
+    assert any(C.build_world(spec_spiral, seed=s, min_start_goal_dist_frac=0.5) is not None for s in range(10))
+
+
 def test_new_suites_force_detours():
     M.install_c7_hard_maps()
     cfg = C.RoadmapConfig(n_nodes=192, k_neighbors=7)

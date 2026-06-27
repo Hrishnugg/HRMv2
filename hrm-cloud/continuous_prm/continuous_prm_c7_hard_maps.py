@@ -100,10 +100,10 @@ def build_c7_anchor_specs() -> Dict[str, C.AnchorSpec]:
             mode=C7_MODE,
             obstacle_count_range=(0, 0),
             radius_range=(0.020, 0.040),
-            gap_width_frac=0.24,
+            gap_width_frac=0.13,
             barrier_radius_frac=0.016,
             extra_clutter_range=(2, 4),
-            rectangle_count_range=(1, 1),  # interior grid lines per axis (2x2 rooms)
+            rectangle_count_range=(1, 1),  # 1 interior grid line per axis (2x2 rooms)
             is_ood=True,
         ),
     }
@@ -120,43 +120,78 @@ def _wall_segment(
     thickness: float,
     gaps: Sequence[float] = (),
     gap_width: float = 0.0,
+    side_len: Optional[float] = None,
 ) -> None:
-    """Emit a chain of thin rect obstacles approximating the wall p0->p1.
+    """Emit ONE thin rect per solid sub-segment of the axis-aligned wall p0->p1.
 
-    The wall is built as a row of small rects laid along the segment so the C5
-    feature/encoder code (which understands axis-aligned rects) keeps working.
-    ``gaps`` are positions along the wall (as fractions in [0, 1]) where a
-    doorway of width ``gap_width`` is carved out (no rects placed there).
+    All C7 walls are axis-aligned (horizontal or vertical). Rather than tiling a
+    wall with many tiny squares (slow + endpoint overshoot), we mirror C5's
+    ``generate_hard_obstacles`` and build each *solid* span as a single rect
+    ``Obstacle`` with the correct half-width / half-height, clamped inside
+    ``[0, side_len]``.
 
-    Walls are axis-aligned in practice (we only build horizontal / vertical
-    walls), but this works for any segment by approximating it with small
-    square-ish rects.
+    ``gaps`` are doorway centre positions along the wall as fractions in [0, 1];
+    each carves out an opening of width ``gap_width`` (in world units). A wall
+    with one doorway therefore yields two rects (before / after the gap); a wall
+    with no doorway yields one rect. Gap geometry is identical to the previous
+    tiled version so detours are preserved.
     """
     a = np.asarray(p0, dtype=np.float64)
     b = np.asarray(p1, dtype=np.float64)
     length = float(np.linalg.norm(b - a))
     if length <= 1e-9:
         return
-    half = 0.5 * thickness
-    # Step so adjacent rects overlap a little -> no pinholes the planner sneaks
-    # through. Each rect has half-extent `half` along the wall too.
-    step = max(1e-4, thickness * 0.9)
-    n = max(1, int(math.ceil(length / step)))
-    direction = (b - a) / length
-    for i in range(n + 1):
-        t = i / n  # fraction along [0, 1]
-        # Skip if this position falls inside any doorway gap.
-        in_gap = False
-        for g in gaps:
-            gap_lo = g - 0.5 * gap_width / length
-            gap_hi = g + 0.5 * gap_width / length
-            if gap_lo <= t <= gap_hi:
-                in_gap = True
-                break
-        if in_gap:
+    half = 0.5 * thickness  # half-thickness across the wall
+
+    # Determine the wall axis. axis 0 -> horizontal (varies in x), axis 1 -> vertical.
+    horizontal = abs(b[0] - a[0]) >= abs(b[1] - a[1])
+    axis = 0 if horizontal else 1
+    perp = 1 - axis
+    lo = float(min(a[axis], b[axis]))
+    hi = float(max(a[axis], b[axis]))
+    perp_coord = float(0.5 * (a[perp] + b[perp]))
+
+    # Build the list of solid spans [start, end] along the wall axis by removing
+    # the doorway intervals from [lo, hi].
+    blocked: List[Tuple[float, float]] = []
+    for g in gaps:
+        gc = lo + g * length
+        blocked.append((gc - 0.5 * gap_width, gc + 0.5 * gap_width))
+    blocked.sort()
+
+    spans: List[Tuple[float, float]] = []
+    cursor = lo
+    for g_lo, g_hi in blocked:
+        g_lo = max(lo, g_lo)
+        g_hi = min(hi, g_hi)
+        if g_lo > cursor:
+            spans.append((cursor, g_lo))
+        cursor = max(cursor, g_hi)
+    if cursor < hi:
+        spans.append((cursor, hi))
+
+    for s_lo, s_hi in spans:
+        if s_hi - s_lo <= 1e-6:
             continue
-        center = a + direction * (t * length)
-        obstacles.append(C.Obstacle("rect", float(center[0]), float(center[1]), hw=half, hh=half))
+        center_along = 0.5 * (s_lo + s_hi)
+        half_along = 0.5 * (s_hi - s_lo)
+        if axis == 0:  # horizontal wall: extent along x, thickness along y
+            cx, cy = center_along, perp_coord
+            hw, hh = half_along, half
+        else:           # vertical wall: extent along y, thickness along x
+            cx, cy = perp_coord, center_along
+            hw, hh = half, half_along
+        if side_len is not None:
+            # Clamp the rect to stay fully inside [0, side_len] on both axes.
+            x_lo = max(0.0, cx - hw)
+            x_hi = min(side_len, cx + hw)
+            y_lo = max(0.0, cy - hh)
+            y_hi = min(side_len, cy + hh)
+            if x_hi - x_lo <= 1e-6 or y_hi - y_lo <= 1e-6:
+                continue
+            cx, cy = 0.5 * (x_lo + x_hi), 0.5 * (y_lo + y_hi)
+            hw, hh = 0.5 * (x_hi - x_lo), 0.5 * (y_hi - y_lo)
+        obstacles.append(C.Obstacle("rect", float(cx), float(cy), hw=float(hw), hh=float(hh)))
 
 
 def _clip(v: float, lo: float, hi: float) -> float:
@@ -191,6 +226,7 @@ def _generate_spiral(spec: C.AnchorSpec, rng: random.Random) -> List[C.Obstacle]
             thickness=thick,
             gaps=(g_frac,),
             gap_width=gap_w,
+            side_len=side,
         )
     C5._add_random_circles(spec, rng, obstacles, rng.randint(*spec.extra_clutter_range))
     return obstacles
@@ -226,49 +262,51 @@ def _generate_bugtrap(spec: C.AnchorSpec, rng: random.Random) -> List[C.Obstacle
     x_mouth = _clip(cx - depth, 0.10 * side, x_back - 0.22 * side)  # arm tips (left)
 
     # Solid back wall (no gap) -> the trap. Goal will sit just left of it.
-    _wall_segment(obstacles, (x_back, y_bot), (x_back, y_top), thickness=thick)
+    _wall_segment(obstacles, (x_back, y_bot), (x_back, y_top), thickness=thick, side_len=side)
     # Top + bottom arms reaching back toward the start.
-    _wall_segment(obstacles, (x_mouth, y_top), (x_back, y_top), thickness=thick)
-    _wall_segment(obstacles, (x_mouth, y_bot), (x_back, y_bot), thickness=thick)
+    _wall_segment(obstacles, (x_mouth, y_top), (x_back, y_top), thickness=thick, side_len=side)
+    _wall_segment(obstacles, (x_mouth, y_bot), (x_back, y_bot), thickness=thick, side_len=side)
     # Mouth "lip": a vertical wall at the mouth that closes the CENTRE of the
     # opening (covering y_mid), leaving only narrow lanes hugging each arm tip.
     # This is the crux of the trap -- a straight horizontal shot from the start
     # hits the lip, so the planner must climb to a tip lane and curl back in.
     lip_gap = max(0.06 * side, 0.10 * side)  # opening height at each tip
-    _wall_segment(obstacles, (x_mouth, y_bot + lip_gap), (x_mouth, y_top - lip_gap), thickness=thick)
+    _wall_segment(obstacles, (x_mouth, y_bot + lip_gap), (x_mouth, y_top - lip_gap), thickness=thick, side_len=side)
 
     C5._add_random_circles(spec, rng, obstacles, rng.randint(*spec.extra_clutter_range))
     return obstacles
 
 
 def _generate_rooms_large(spec: C.AnchorSpec, rng: random.Random) -> List[C.Obstacle]:
-    """Grid of rooms: vertical + horizontal partition walls, one doorway each.
+    """2x2 rooms: one vertical + one horizontal partition wall, one doorway each.
 
-    The doorways are deliberately staggered (not aligned) so traversing the box
-    means weaving between rooms rather than going straight.
+    The two interior walls cross near the centre, splitting the box into four
+    rooms. Each wall has a single doorway, and both doorways are biased toward
+    the bottom / left corner of the box. Combined with diagonally opposite
+    start/goal corners (set in ``build_c7_world``), this forces the path to
+    weave away from the straight diagonal -> a large detour relative to the
+    Euclidean heuristic.
     """
     side = spec.side_len
     obstacles: List[C.Obstacle] = []
     thick = max(0.014 * side, spec.barrier_radius_frac * side)
     gap_w = max(0.060 * side, spec.gap_width_frac * side)
-    n_interior = max(2, int(spec.rectangle_count_range[0]))  # interior lines per axis
+    n_interior = max(1, int(spec.rectangle_count_range[0]))  # 1 interior grid line per axis (2x2 rooms)
 
     xs = np.linspace(0.0, side, n_interior + 2)[1:-1]
     ys = np.linspace(0.0, side, n_interior + 2)[1:-1]
 
-    # Vertical interior walls (each spans full height, one staggered doorway).
-    for vi, x in enumerate(xs):
-        xj = float(x + rng.uniform(-0.012 * side, 0.012 * side))
-        base = 0.30 if vi % 2 == 0 else 0.70
-        g = _clip(base + rng.uniform(-0.10, 0.10), gap_w / side, 1.0 - gap_w / side)
-        _wall_segment(obstacles, (xj, 0.0), (xj, side), thickness=thick, gaps=(g,), gap_width=gap_w)
+    # Vertical interior wall(s): doorway biased LOW (near the bottom edge).
+    for x in xs:
+        xj = float(x + rng.uniform(-0.025 * side, 0.025 * side))
+        g = _clip(0.22 + rng.uniform(-0.05, 0.05), gap_w / side, 1.0 - gap_w / side)
+        _wall_segment(obstacles, (xj, 0.0), (xj, side), thickness=thick, gaps=(g,), gap_width=gap_w, side_len=side)
 
-    # Horizontal interior walls (each spans full width, one staggered doorway).
-    for hi, y in enumerate(ys):
-        yj = float(y + rng.uniform(-0.012 * side, 0.012 * side))
-        base = 0.70 if hi % 2 == 0 else 0.30
-        g = _clip(base + rng.uniform(-0.10, 0.10), gap_w / side, 1.0 - gap_w / side)
-        _wall_segment(obstacles, (0.0, yj), (side, yj), thickness=thick, gaps=(g,), gap_width=gap_w)
+    # Horizontal interior wall(s): doorway biased LEFT (near the left edge).
+    for y in ys:
+        yj = float(y + rng.uniform(-0.025 * side, 0.025 * side))
+        g = _clip(0.22 + rng.uniform(-0.05, 0.05), gap_w / side, 1.0 - gap_w / side)
+        _wall_segment(obstacles, (0.0, yj), (side, yj), thickness=thick, gaps=(g,), gap_width=gap_w, side_len=side)
 
     C5._add_random_circles(spec, rng, obstacles, rng.randint(*spec.extra_clutter_range))
     return obstacles
@@ -313,6 +351,13 @@ def build_c7_world(spec: C.AnchorSpec, seed: int, min_start_goal_dist_frac: floa
         # wall, forcing a detour around an arm tip.
         start_region = (0.03 * side, 0.13 * side, 0.30 * side, 0.70 * side)
         goal_region = (0.52 * side, 0.62 * side, 0.42 * side, 0.58 * side)
+    elif spec.name == ROOMS_LARGE:
+        # Diagonally opposite corners (bottom-right <-> top-left). Both doorways
+        # are biased low/left, so the BR<->TL diagonal is blocked and the path
+        # must weave through the offset doorways -> a large detour.
+        bottom_right = (0.70 * side, 0.96 * side, 0.04 * side, 0.30 * side)
+        top_left = (0.04 * side, 0.30 * side, 0.70 * side, 0.96 * side)
+        start_region, goal_region = (bottom_right, top_left) if rng.random() < 0.5 else (top_left, bottom_right)
     else:
         start_region, goal_region = (left, right) if rng.random() < 0.5 else (right, left)
 
