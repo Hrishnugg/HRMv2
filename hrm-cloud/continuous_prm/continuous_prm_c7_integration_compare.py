@@ -87,7 +87,7 @@ class C7Config:
     out_dir: str = "runs/c7_local"
     cpu: bool = False
     sector_tokens: int = 16
-    budget_grid_size: int = 2
+    budget_grid_size: int = 0
     make_figures: bool = True
 
 
@@ -101,13 +101,13 @@ def apply_scale_preset(cfg: C7Config) -> C7Config:
         cfg.train_worlds = cfg.train_worlds or 96
         cfg.epochs = cfg.epochs or 16
         cfg.w_values = cfg.w_values or "1.0,1.1"
-        cfg.budget_grid_size = 2
+        cfg.budget_grid_size = cfg.budget_grid_size or 2
     else:  # cluster
         cfg.eval_worlds = cfg.eval_worlds or 120
         cfg.train_worlds = cfg.train_worlds or 160
         cfg.epochs = cfg.epochs or 24
         cfg.w_values = cfg.w_values or "1.0,1.05,1.1,1.25"
-        cfg.budget_grid_size = 3
+        cfg.budget_grid_size = cfg.budget_grid_size or 3
     return cfg
 
 
@@ -153,6 +153,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=1234)
     p.add_argument("--cpu", action="store_true")
     p.add_argument("--sector-tokens", type=int, default=16)
+    p.add_argument("--budget-grid-size", type=int, default=0)
     p.add_argument("--no-figures", action="store_true")
     return p.parse_args()
 
@@ -177,6 +178,7 @@ def config_from_args(args: argparse.Namespace) -> C7Config:
         out_dir=str(args.out_dir),
         cpu=bool(args.cpu),
         sector_tokens=int(args.sector_tokens),
+        budget_grid_size=int(args.budget_grid_size),
         make_figures=not bool(args.no_figures),
     )
 
