@@ -492,6 +492,30 @@ def _load_per_suite_budgets(out_dir: Path, cfg: C7Config):
     return per_suite_budgets
 
 
+def iter_matched_worlds(spec, suite_idx, cfg, roadmap_cfg, n_worlds, retry=200):
+    """Yield (world_index, world, roadmap) for up to n_worlds connected worlds,
+    using the deterministic eval seed formula. Shared by eval and calibrate.
+
+    The seed formula and skip rules (invalid world / disconnected PRM) match the
+    original run_eval loop EXACTLY so that eval and calibrate observe identical
+    worlds for a given (suite, world_index). Callers that need under-fill
+    detection should count yielded worlds and compare against n_worlds.
+    """
+    valid = 0
+    attempt = 0
+    while valid < n_worlds and attempt < n_worlds * retry:
+        attempt += 1
+        w_seed = int(cfg.seed) + 770_000 + 1_000_003 * (suite_idx + 1) + (valid + 1) * 7919 + attempt
+        world = C.build_world(spec, w_seed, roadmap_cfg.min_start_goal_dist_frac)
+        if world is None:
+            continue
+        rm = C.build_prm(world, roadmap_cfg, seed=w_seed + 17)
+        if rm is None or not rm.connected_to_goal[0]:
+            continue
+        yield valid, world, rm
+        valid += 1
+
+
 def run_eval(out_dir: Path, cfg: C7Config, device) -> Path:
     """Matched, sharded multi-arm eval across eval suites; write per-suite shard
     CSVs + a merged raw CSV. Returns the merged-CSV path.
@@ -511,7 +535,6 @@ def run_eval(out_dir: Path, cfg: C7Config, device) -> Path:
 
     roadmap_cfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
     w_values = [float(x) for x in parse_csv(cfg.w_values)]
-    RETRY = 200
     specs = C.build_anchor_specs()
     for suite_idx, suite in enumerate(parse_csv(cfg.eval_suites)):
         if suite not in specs:
@@ -520,24 +543,17 @@ def run_eval(out_dir: Path, cfg: C7Config, device) -> Path:
         budgets = per_suite_budgets(suite)  # list[int]
         records = []
         valid = 0
-        attempt = 0
-        while valid < cfg.eval_worlds and attempt < cfg.eval_worlds * RETRY:
-            attempt += 1
-            w_seed = int(cfg.seed) + 770_000 + 1_000_003 * (suite_idx + 1) + (valid + 1) * 7919 + attempt
-            world = C.build_world(spec, w_seed, roadmap_cfg.min_start_goal_dist_frac)
-            if world is None:
-                continue
-            rm = C.build_prm(world, roadmap_cfg, seed=w_seed + 17)
-            if rm is None or not rm.connected_to_goal[0]:
-                continue
+        for world_index, world, rm in iter_matched_worlds(
+            spec, suite_idx, cfg, roadmap_cfg, cfg.eval_worlds
+        ):
             recs = P.run_world_arms(world, rm, providers, budgets, w_values, goal_idx=1)
             for r in recs:
                 r["suite"] = suite
-                r["world_index"] = valid
+                r["world_index"] = world_index
             records.extend(recs)
-            valid += 1
+            valid = world_index + 1
         if valid < cfg.eval_worlds:
-            print(f"[c7] WARNING: {suite} under-filled: {valid}/{cfg.eval_worlds} worlds after {attempt} attempts", flush=True)
+            print(f"[c7] WARNING: {suite} under-filled: {valid}/{cfg.eval_worlds} worlds", flush=True)
         shard = ensure_dir(Path(out_dir) / "results" / "_shards" / "c7" / suite) / "shard_0000.csv"
         write_csv(shard, records)
         print(f"[c7] eval {suite}: {valid} worlds, {len(records)} arm-records -> {shard}", flush=True)
@@ -556,6 +572,159 @@ def run_eval(out_dir: Path, cfg: C7Config, device) -> Path:
     write_csv(merged_path, merged_rows)
     print(f"[{now_str()}] C7 eval: merged {len(merged_rows)} rows -> {merged_path}", flush=True)
     return merged_path
+
+
+# ---------------------------------------------------------------------------
+# Calibrate (Task 10): per-suite binding-budget band selection (Gate 1)
+# ---------------------------------------------------------------------------
+
+# Coarse budget grid swept by calibrate. Spans well below the binding band (where
+# Euclid mostly fails) up to where it saturates, so the [0.45, 0.65] success
+# targets are bracketed on both sides for every reasonable suite geometry.
+CALIB_GRID = [64, 96, 128, 144, 168, 200, 256, 320]
+
+
+def _select_band_budgets(grid, euclid_success, k):
+    """Pick k in-band budgets from `grid` by matching euclid success to targets.
+
+    Targets are k points evenly spaced in [0.45, 0.65]. For each target, pick the
+    grid budget whose euclid_success is closest (ties -> smaller budget, since
+    `grid` is ascending). Dedupe preserving ascending budget order; if dedupe
+    leaves < k, fill with the next-closest unused grid budgets (by distance to the
+    nearest target). Returns a sorted ascending list of length min(k, len(grid)).
+    """
+    import numpy as np
+
+    k = max(1, min(int(k), len(grid)))
+    targets = np.linspace(0.45, 0.65, k)
+    chosen: list = []
+    for t in targets:
+        # closest grid budget by |euclid_success - t|; ascending grid => smaller
+        # budget wins ties because argmin returns the first minimum.
+        best = int(np.argmin([abs(euclid_success[i] - t) for i in range(len(grid))]))
+        if grid[best] not in chosen:
+            chosen.append(grid[best])
+    if len(chosen) < k:
+        # rank unused grid budgets by distance to the NEAREST target, fill ascending.
+        def nearest_target_dist(i):
+            return min(abs(euclid_success[i] - t) for t in targets)
+        remaining = sorted(
+            (i for i in range(len(grid)) if grid[i] not in chosen),
+            key=lambda i: (nearest_target_dist(i), grid[i]),
+        )
+        for i in remaining:
+            if len(chosen) >= k:
+                break
+            chosen.append(grid[i])
+    return sorted(chosen)
+
+
+def run_calibrate(out_dir: Path, cfg: C7Config) -> Path:
+    """Gate 1: sweep CALIB_GRID with ONLY Euclid + Oracle A* per suite and pick the
+    binding-budget band. Writes out_dir/calibration.json (the per-suite "budgets"
+    map T9's run_eval consumes) plus diagnostics.
+
+    No learned models are loaded — euclid + oracle are pure geometry/graph, so this
+    runs fast on CPU. Worlds come from iter_matched_worlds, so the budgets are
+    calibrated on the SAME worlds eval will later score.
+    """
+    import numpy as np
+
+    out_dir = Path(out_dir)
+    M7.install_c7_hard_maps(cfg.sector_tokens)
+    specs = C.build_anchor_specs()
+    roadmap_cfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    euclid_provider = P.EuclidProvider()
+    oracle_provider = P.OracleProvider()
+
+    print(
+        f"[{now_str()}] C7 calibrate: grid={CALIB_GRID} eval_worlds={cfg.eval_worlds} "
+        f"budget_grid_size={cfg.budget_grid_size} suites={cfg.eval_suites}",
+        flush=True,
+    )
+
+    budgets_map: Dict[str, list] = {}
+    measurements: Dict[str, list] = {}
+    warnings: list = []
+
+    for suite_idx, suite in enumerate(parse_csv(cfg.eval_suites)):
+        if suite not in specs:
+            raise KeyError(f"calibrate: unknown suite {suite!r}; have {sorted(specs)}")
+        spec = specs[suite]
+
+        # Per-budget found tallies over the worlds we actually collect.
+        euclid_found = [0] * len(CALIB_GRID)
+        oracle_found = [0] * len(CALIB_GRID)
+        n_worlds = 0
+        for _, world, rm in iter_matched_worlds(spec, suite_idx, cfg, roadmap_cfg, cfg.eval_worlds):
+            euclid_h = euclid_provider.node_h(world, rm, goal_idx=1)
+            oracle_h = oracle_provider.node_h(world, rm, goal_idx=1)
+            for bi, b in enumerate(CALIB_GRID):
+                if C.astar_search(rm.adj, euclid_h, int(b))["found"]:
+                    euclid_found[bi] += 1
+                if C.astar_search(rm.adj, oracle_h, int(b))["found"]:
+                    oracle_found[bi] += 1
+            n_worlds += 1
+
+        if n_worlds < cfg.eval_worlds:
+            print(
+                f"[c7] WARNING: calibrate {suite} under-filled: {n_worlds}/{cfg.eval_worlds} worlds",
+                flush=True,
+            )
+            warnings.append(f"{suite}: under-filled {n_worlds}/{cfg.eval_worlds} worlds")
+
+        denom = max(1, n_worlds)
+        euclid_success = [f / denom for f in euclid_found]
+        oracle_success = [f / denom for f in oracle_found]
+
+        chosen = _select_band_budgets(CALIB_GRID, euclid_success, cfg.budget_grid_size)
+        idx_of = {b: i for i, b in enumerate(CALIB_GRID)}
+        chosen_eu = [round(euclid_success[idx_of[b]], 3) for b in chosen]
+        chosen_or = [round(oracle_success[idx_of[b]], 3) for b in chosen]
+
+        # Out-of-band / saturation warnings (do NOT weaken anything — just report).
+        chosen_or_full = [oracle_success[idx_of[b]] for b in chosen]
+        chosen_eu_full = [euclid_success[idx_of[b]] for b in chosen]
+        if chosen_or_full and min(chosen_or_full) >= 0.95:
+            msg = (
+                f"{suite}: oracle saturated (min oracle_success over chosen={min(chosen_or_full):.3f} "
+                f">= 0.95) — no expansion headroom at chosen budgets"
+            )
+            print(f"[c7] WARNING: {msg}", flush=True)
+            warnings.append(msg)
+        if not any(0.40 <= es <= 0.60 for es in chosen_eu_full):
+            msg = (
+                f"{suite}: out of band (no chosen budget has euclid_success in [0.40, 0.60]; "
+                f"euclid@chosen={chosen_eu})"
+            )
+            print(f"[c7] WARNING: {msg}", flush=True)
+            warnings.append(msg)
+
+        budgets_map[suite] = chosen
+        measurements[suite] = [
+            {"budget": int(b), "euclid": round(euclid_success[bi], 4),
+             "oracle": round(oracle_success[bi], 4), "worlds": int(n_worlds)}
+            for bi, b in enumerate(CALIB_GRID)
+        ]
+        print(
+            f"[c7] calibrate {suite}: chosen={chosen} euclid@chosen={chosen_eu} oracle@chosen={chosen_or}",
+            flush=True,
+        )
+
+    calib = {
+        "budgets": budgets_map,
+        "grid": CALIB_GRID,
+        "measurements": measurements,
+        "warnings": warnings,
+    }
+    calib_path = out_dir / "calibration.json"
+    write_json(calib_path, calib)
+    print(
+        f"[{now_str()}] C7 calibrate: wrote {calib_path} "
+        f"({len(budgets_map)} suites, {len(warnings)} warnings)",
+        flush=True,
+    )
+    return calib_path
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +762,9 @@ def main() -> None:
         print(f"[{now_str()}] C7 eval: device={device}", flush=True)
         run_eval(out_dir, cfg, device)
     elif cfg.mode == "calibrate":
-        raise NotImplementedError("C7 calibrate mode: implemented in Task 10")
+        # Euclid + Oracle only (pure geometry/graph); no neural nets, no device.
+        print(f"[{now_str()}] C7 calibrate: euclid+oracle sweep (CPU)", flush=True)
+        run_calibrate(out_dir, cfg)
     elif cfg.mode == "analyze":
         raise NotImplementedError("C7 analyze mode: implemented in Task 11")
     elif cfg.mode == "full":

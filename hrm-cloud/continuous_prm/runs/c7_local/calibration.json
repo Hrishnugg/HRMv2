@@ -1,0 +1,353 @@
+{
+  "budgets": {
+    "C_hard_bugtrap": [
+      64,
+      96
+    ],
+    "C_hard_maze": [
+      128,
+      144
+    ],
+    "C_hard_maze_dense": [
+      144,
+      168
+    ],
+    "C_hard_rooms": [
+      144,
+      168
+    ],
+    "C_hard_rooms_large": [
+      64,
+      96
+    ],
+    "C_hard_spiral": [
+      144,
+      168
+    ]
+  },
+  "grid": [
+    64,
+    96,
+    128,
+    144,
+    168,
+    200,
+    256,
+    320
+  ],
+  "measurements": {
+    "C_hard_bugtrap": [
+      {
+        "budget": 64,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 96,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 128,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 144,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 168,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 200,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 256,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 320,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      }
+    ],
+    "C_hard_maze": [
+      {
+        "budget": 64,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 96,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 128,
+        "euclid": 0.1667,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 144,
+        "euclid": 0.6667,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 168,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 200,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 256,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 320,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      }
+    ],
+    "C_hard_maze_dense": [
+      {
+        "budget": 64,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 96,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 128,
+        "euclid": 0.0417,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 144,
+        "euclid": 0.3333,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 168,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 200,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 256,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 320,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      }
+    ],
+    "C_hard_rooms": [
+      {
+        "budget": 64,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 96,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 128,
+        "euclid": 0.0833,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 144,
+        "euclid": 0.5417,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 168,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 200,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 256,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 320,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      }
+    ],
+    "C_hard_rooms_large": [
+      {
+        "budget": 64,
+        "euclid": 0.7917,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 96,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 128,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 144,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 168,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 200,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 256,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 320,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      }
+    ],
+    "C_hard_spiral": [
+      {
+        "budget": 64,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 96,
+        "euclid": 0.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 128,
+        "euclid": 0.0833,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 144,
+        "euclid": 0.375,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 168,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 200,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 256,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      },
+      {
+        "budget": 320,
+        "euclid": 1.0,
+        "oracle": 1.0,
+        "worlds": 24
+      }
+    ]
+  },
+  "warnings": [
+    "C_hard_maze: oracle saturated (min oracle_success over chosen=1.000 >= 0.95) \u2014 no expansion headroom at chosen budgets",
+    "C_hard_maze: out of band (no chosen budget has euclid_success in [0.40, 0.60]; euclid@chosen=[0.167, 0.667])",
+    "C_hard_maze_dense: oracle saturated (min oracle_success over chosen=1.000 >= 0.95) \u2014 no expansion headroom at chosen budgets",
+    "C_hard_maze_dense: out of band (no chosen budget has euclid_success in [0.40, 0.60]; euclid@chosen=[0.333, 1.0])",
+    "C_hard_rooms: oracle saturated (min oracle_success over chosen=1.000 >= 0.95) \u2014 no expansion headroom at chosen budgets",
+    "C_hard_spiral: oracle saturated (min oracle_success over chosen=1.000 >= 0.95) \u2014 no expansion headroom at chosen budgets",
+    "C_hard_spiral: out of band (no chosen budget has euclid_success in [0.40, 0.60]; euclid@chosen=[0.375, 1.0])",
+    "C_hard_bugtrap: oracle saturated (min oracle_success over chosen=1.000 >= 0.95) \u2014 no expansion headroom at chosen budgets",
+    "C_hard_bugtrap: out of band (no chosen budget has euclid_success in [0.40, 0.60]; euclid@chosen=[1.0, 1.0])",
+    "C_hard_rooms_large: oracle saturated (min oracle_success over chosen=1.000 >= 0.95) \u2014 no expansion headroom at chosen budgets",
+    "C_hard_rooms_large: out of band (no chosen budget has euclid_success in [0.40, 0.60]; euclid@chosen=[0.792, 1.0])"
+  ]
+}
