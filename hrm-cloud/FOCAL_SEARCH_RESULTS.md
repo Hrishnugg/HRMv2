@@ -69,10 +69,11 @@ The task-LoRA expert (`residtasklora__hrm__A32_static`) was compared head-to-hea
 
 | Suite | base exp_ratio | expert exp_ratio | success (base / expert) |
 |---|---|---|---|
-| `OOD_A128_static` (budget 200) | 0.85 | **0.85** | 0.75 / 0.75 |
-| `OOD_A192_static` (budget 150) | 0.82 | **0.82** | 0.67 / 0.67 |
+| `OOD_A128_static` (budget 200, hrm) | 0.85 | **0.85** | 0.75 / 0.75 |
+| `OOD_A192_static` (budget 150, hrm) | 0.82 | **0.82** | 0.67 / 0.67 |
+| `OOD_A128_static` (budget 200, onlstm) | 0.78 | **0.78** | 0.67 / 0.67 |
 
-**The expert ranks identically to the base** — no expansion advantage, matched success, on both suites. Mechanistically, the **bounded LoRA residual is too small to change the node *ordering***, so the expert's focal behavior collapses onto the base's. This corroborates — now under the focal integration — the earlier additive-eval result that the experts did not beat the pooled base (−0.010). **The expansion win is entirely the base model's ranking; the per-task specialization adds nothing.**
+**The expert ranks identically to the base** — no expansion advantage, matched success — on every suite tested, for **both the hrm and onlstm experts**. Mechanistically, the **bounded LoRA residual is too small to change the node *ordering***, so the expert's focal behavior collapses onto the base's. This corroborates — now under the focal integration — the earlier additive-eval result that the experts did not beat the pooled base (−0.010). **The expansion win is entirely the base model's ranking; the per-task specialization adds nothing.**
 
 ## 4c. onlstm backbone — the win generalizes
 
@@ -91,7 +92,7 @@ The model's static-probe ranking (ρ≈0.99) only *partially* translates to in-s
 
 ## 6. Caveats
 
-- Both **hrm and onlstm** `avgbase` bases validated under focal (§4 / §4c), plus the hrm A32 expert (§4b). Not yet run: the onlstm expert, A256 scale, and a full-suite Modal confirmation.
+- Both **hrm and onlstm** `avgbase` bases *and* A32 experts validated under focal (§4 / §4b / §4c). Not yet run: A256 scale and a full-suite Modal confirmation.
 - Budget 200 (base sweep, 8 seeds) / budget 150–200 (expert comparison, 3–4 seeds), large OOD suites. Success rates are coarse at these seed counts.
 - Local-only; no full-matrix Modal confirmation (deferred — billing).
 
