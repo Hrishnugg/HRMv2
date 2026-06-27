@@ -309,6 +309,9 @@ def _collect_scalar(out_dir: Path, cfg: C7Config) -> Dict[str, Path]:
     for idx, task in enumerate(tasks):
         if task not in specs:
             raise KeyError(f"scalar collect: unknown task {task!r}; have {sorted(specs)}")
+        # NOTE: collect_task_dataset early-returns if the npz+meta already exist and writes
+        # the npz non-atomically; if a collection is interrupted after both land, delete the
+        # datasets_scalar dir before re-running to avoid reusing a truncated file.
         paths[task] = C.collect_task_dataset(
             specs[task],
             scalar_dir,
@@ -370,8 +373,10 @@ def _train_scalar(out_dir: Path, cfg: C7Config, dataset_paths: Dict[str, Path], 
 def run_train_all(out_dir: Path, cfg: C7Config, device) -> Dict[str, object]:
     """Collect (if needed) then train BOTH model families; write train_manifest.json."""
     collected = run_collect(out_dir, cfg)
-    # Scalar training (above-collect) ran the C5 hard runtime via collect_all then
-    # we re-installed C7. C6.run_train does not touch suites, so order field-first.
+    # Runtime-install ordering: install_c7_hard_maps() (called in run_collect / main)
+    # composes on top of install_c5_hard_runtime and re-applies the C7 suite wrappers.
+    # Neither C6.run_train nor C.train_avgbase calls install_c5_hard_runtime, so the
+    # C7 suites stay registered for the whole train run; field-then-scalar order is safe.
     field_ckpts = _train_field(out_dir, cfg, collected["field"], device)
     scalar_ckpts = _train_scalar(out_dir, cfg, collected["scalar"], device)
 
