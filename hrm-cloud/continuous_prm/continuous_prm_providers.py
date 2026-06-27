@@ -171,6 +171,9 @@ def run_world_arms(world, roadmap, providers: dict, budgets, w_values, goal_idx:
     node_h: dict = {}
     nonfinite: set = set()
     for name, prov in providers.items():
+        if name == "euclid":
+            node_h[name] = euclid_h  # reuse; pure geometry, already computed
+            continue
         try:
             node_h[name] = prov.node_h(world, roadmap, goal_idx)
         except FloatingPointError:

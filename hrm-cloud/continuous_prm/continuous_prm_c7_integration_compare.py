@@ -536,15 +536,22 @@ def run_eval(out_dir: Path, cfg: C7Config, device) -> Path:
                 r["world_index"] = valid
             records.extend(recs)
             valid += 1
+        if valid < cfg.eval_worlds:
+            print(f"[c7] WARNING: {suite} under-filled: {valid}/{cfg.eval_worlds} worlds after {attempt} attempts", flush=True)
         shard = ensure_dir(Path(out_dir) / "results" / "_shards" / "c7" / suite) / "shard_0000.csv"
         write_csv(shard, records)
         print(f"[c7] eval {suite}: {valid} worlds, {len(records)} arm-records -> {shard}", flush=True)
 
-    # Merge all per-suite shards into one raw CSV (no stats; that is Task 11).
+    # Merge into one raw CSV (no stats; that is Task 11). Bound the merge to EXACTLY
+    # the suites this run evaluated — a glob would silently pull in stale shards from
+    # prior runs with different --eval-suites (or an interrupted run), corrupting the
+    # comparison.
     merged_rows: list = []
-    for shard_csv in sorted((Path(out_dir) / "results" / "_shards" / "c7").glob("*/*.csv")):
-        with open(shard_csv, newline="") as fh:
-            merged_rows.extend(csv.DictReader(fh))
+    for suite in parse_csv(cfg.eval_suites):
+        shard_csv = Path(out_dir) / "results" / "_shards" / "c7" / suite / "shard_0000.csv"
+        if shard_csv.exists():
+            with open(shard_csv, newline="") as fh:
+                merged_rows.extend(csv.DictReader(fh))
     merged_path = Path(out_dir) / "results" / "continuous_prm_c7_eval_raw.csv"
     write_csv(merged_path, merged_rows)
     print(f"[{now_str()}] C7 eval: merged {len(merged_rows)} rows -> {merged_path}", flush=True)
