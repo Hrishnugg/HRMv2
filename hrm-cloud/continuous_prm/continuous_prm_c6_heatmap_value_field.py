@@ -924,6 +924,28 @@ def spearman_corr(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.corrcoef(ra, rb)[0, 1])
 
 
+def field_node_heuristic(
+    model: "nn.Module",
+    x: np.ndarray,
+    world: "C.World",
+    roadmap: "C.Roadmap",
+    euclid_h: np.ndarray,
+    device: "torch.device",
+) -> "Tuple[np.ndarray, np.ndarray]":
+    """Convert a field model's predicted residual grid into a per-node A* heuristic.
+
+    h = euclid_h + side_len * clip(interp(clip(pred_resid, 0)), 0).  This IS the
+    learned-field integration used in evaluate_shard.  Returns (h, pred_resid_norm).
+    """
+    pred_resid_norm = predict_residual_grid(model, x, device)
+    pred_resid_norm = np.nan_to_num(pred_resid_norm, nan=0.0, posinf=10.0, neginf=0.0)
+    pred_resid_norm = np.maximum(0.0, pred_resid_norm)
+    node_resid = interpolate_grid_values(pred_resid_norm, world, roadmap.points)
+    node_resid = np.nan_to_num(node_resid, nan=0.0, posinf=10.0, neginf=0.0)
+    h = euclid_h + np.maximum(0.0, node_resid) * float(world.side_len)
+    return h, pred_resid_norm
+
+
 def make_oracle_heuristic(world: C.World, roadmap: C.Roadmap, grid_distance: np.ndarray, euclid_h: np.ndarray) -> np.ndarray:
     vals = interpolate_grid_values(grid_distance, world, roadmap.points)
     finite = np.isfinite(vals)
@@ -1009,12 +1031,7 @@ def evaluate_shard(
             methods.append(("grid_oracle", oracle_h, ex["grid_distance_world"]))
             maybe_save_heatmap_figure(out_dir, suite, logical_world_idx, "grid_oracle", ex["x"], ex["grid_distance_world"], cfg.make_figures)
         for name, model in models.items():
-            pred_resid_norm = predict_residual_grid(model, ex["x"], device)
-            pred_resid_norm = np.nan_to_num(pred_resid_norm, nan=0.0, posinf=10.0, neginf=0.0)
-            pred_resid_norm = np.maximum(0.0, pred_resid_norm)
-            node_resid = interpolate_grid_values(pred_resid_norm, world, roadmap.points)
-            node_resid = np.nan_to_num(node_resid, nan=0.0, posinf=10.0, neginf=0.0)
-            h = euclid_h + np.maximum(0.0, node_resid) * float(world.side_len)
+            h, pred_resid_norm = field_node_heuristic(model, ex["x"], world, roadmap, euclid_h, device)
             methods.append((name, h, pred_resid_norm))
             maybe_save_heatmap_figure(out_dir, suite, logical_world_idx, name, ex["x"], pred_resid_norm, cfg.make_figures)
         valid_worlds += 1

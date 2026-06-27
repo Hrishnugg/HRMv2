@@ -118,3 +118,28 @@ class ScalarResidualProvider(HeuristicProvider):
         train_cfg = C.TrainingConfig()
         model = C.build_model(bb, feature_cfg, train_cfg, device).eval()
         return cls(model, feature_cfg, device, backbone="hrm", max_norm_residual=train_cfg.max_norm_residual)
+
+
+class ValueFieldProvider(HeuristicProvider):
+    """C6 value-field integration: h = euclid + side_len * interp(field residual).
+
+    Uses the same ``field_node_heuristic`` shared helper that ``evaluate_shard``
+    calls, guaranteeing numerical parity with the C6 offline benchmark.
+    Covers learned backbones (unet / onlstm / hrm); oracle/graph-dijkstra ceiling
+    is handled separately by ``OracleProvider``.
+    """
+
+    def __init__(self, model, grid_size: int, device, backbone: str):
+        self.model = model
+        self.grid_size = int(grid_size)
+        self.device = device
+        self.name = f"field_{backbone}"
+
+    def node_h(self, world, roadmap, goal_idx: int = 1) -> np.ndarray:
+        import continuous_prm_c6_heatmap_value_field as C6
+        euclid = euclid_to_goal(roadmap, goal_idx)
+        x = C6.make_heatmap_example(world, self.grid_size)["x"]
+        h, _ = C6.field_node_heuristic(self.model, x, world, roadmap, euclid, self.device)
+        if not np.all(np.isfinite(h)):
+            raise FloatingPointError("ValueFieldProvider produced non-finite h")
+        return np.maximum(h, 0.0)
