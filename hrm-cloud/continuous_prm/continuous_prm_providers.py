@@ -14,6 +14,7 @@ import torch
 
 import continuous_prm_common as C
 import continuous_prm_c5_hard_obstacle_encoder as C5
+import continuous_prm_focal as focal
 
 
 def _finite_fill(vals: np.ndarray, fallback: float) -> np.ndarray:
@@ -143,3 +144,41 @@ class ValueFieldProvider(HeuristicProvider):
         if not np.all(np.isfinite(h)):
             raise FloatingPointError("ValueFieldProvider produced non-finite h")
         return np.maximum(h, 0.0)
+
+
+def run_world_arms(world, roadmap, providers: dict, budgets, w_values, goal_idx: int = 1, start_idx: int = 0):
+    """Run every (provider, mode, budget[, w]) arm on one shared world+roadmap.
+
+    - astar mode for all providers (additive/direct integration).
+    - focal mode for all providers, for each w in w_values (Euclid + collapsed
+      signals degrade to A* automatically).
+    Returns a flat list of record dicts with matched suboptimality vs the graph optimal.
+    """
+    opt = float(roadmap.dist_to_goal[start_idx])  # graph optimal cost from start
+    if "euclid" in providers:
+        euclid_h = providers["euclid"].node_h(world, roadmap, goal_idx)
+    else:
+        euclid_h = euclid_to_goal(roadmap, goal_idx)
+    node_h = {name: prov.node_h(world, roadmap, goal_idx) for name, prov in providers.items()}
+    records = []
+    for name in providers:
+        h = node_h[name]
+        for b in budgets:
+            r = C.astar_search(roadmap.adj, h, budget=int(b), start_idx=start_idx, goal_idx=goal_idx)
+            records.append(_arm_record(name, "astar", None, b, r, opt))
+            for w in w_values:
+                rf = focal.focal_astar_search(roadmap.adj, euclid_h=euclid_h, rank_h=h,
+                                              budget=int(b), w=float(w), start_idx=start_idx, goal_idx=goal_idx)
+                records.append(_arm_record(name, "focal", float(w), b, rf, opt))
+    return records
+
+
+def _arm_record(provider, mode, w, budget, res, opt):
+    found = bool(res["found"])
+    cost = float(res["cost"]) if found else float("nan")
+    sub = (cost / opt) if (found and opt > 0) else float("nan")
+    return {
+        "provider": provider, "mode": mode, "w": w, "budget": int(budget),
+        "found": found, "expansions": int(res["expansions"]), "cost": cost,
+        "optimal": opt, "suboptimality": sub,
+    }
