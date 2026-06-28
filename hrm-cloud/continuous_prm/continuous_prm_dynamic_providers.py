@@ -188,6 +188,88 @@ class ScalarTemporalProvider(SpaceTimeHeuristicProvider):
         return cls(model, device, "hrm", window_w, k_patrollers, train_cfg.max_norm_residual, time_blind)
 
 
+# -----------------------------------------------------------------------------
+# Value-field temporal provider (occupancy-stack C6 fields, recurrence over space)
+# -----------------------------------------------------------------------------
+def _render_patrollers_occupancy(world, dyn, grid_size, t_real) -> np.ndarray:
+    """Boolean (G, G) grid of cells whose center lies within any patroller circle
+    at real time ``t_real`` (cell-center test against center_at(t_real))."""
+    import continuous_prm_c6_heatmap_value_field as C6
+    side = float(world.side_len)
+    G = int(grid_size)
+    xx, yy = C6.grid_centers(side, G)  # (G, G) cell centers (indexing="ij")
+    occ = np.zeros((G, G), dtype=np.bool_)
+    for c in dyn.circles:
+        cx, cy = c.center_at(float(t_real))
+        d2 = (xx - float(cx)) ** 2 + (yy - float(cy)) ** 2
+        occ |= d2 <= float(c.radius) ** 2
+    return occ
+
+
+def build_field_occupancy_stack(world, dyn, grid_size, t, window_w, dt) -> np.ndarray:
+    """Render a (8 + W, G, G) occupancy-stack field input for time-step ``t``.
+
+    Channels:
+      0 .. W : (W+1) occupancy frames, frame i (i=0..W) at real time (t+i)*dt =
+               static_occupancy OR patrollers_rendered_at((t+i)*dt).
+      W+1 .. W+7 : the 7 static C6 channels (reachable_free, clearance, goal_g,
+               start_g, x_norm, y_norm, eu_norm) unchanged from make_heatmap_example.
+    W=0 -> 8 channels = the original C6 input (occupancy at time t only).
+    """
+    import continuous_prm_c6_heatmap_value_field as C6
+    G = int(grid_size)
+    W = int(window_w)
+    base = C6.make_heatmap_example(world, G)["x"]  # (8, G, G); channel 0 is static occupancy
+    static_occ = base[0] > 0.5                      # boolean static walls
+    frames = np.empty((W + 1, G, G), dtype=np.float32)
+    for i in range(W + 1):
+        t_real = float(t + i) * float(dt)
+        occ = static_occ | _render_patrollers_occupancy(world, dyn, G, t_real)
+        frames[i] = occ.astype(np.float32)
+    x = np.concatenate([frames, base[1:8]], axis=0)  # (W+1) frames ++ 7 static = (8+W, G, G)
+    return x.astype(np.float32)
+
+
+class ValueFieldTemporalProvider(SpaceTimeHeuristicProvider):
+    """Renders a (W+1)-frame occupancy stack per time-step and runs a C6 field
+    model (in_channels = 8+W) to predict a cost-to-go residual field at t, then
+    samples node residuals and adds a clamped residual onto the euclid-time row."""
+
+    def __init__(self, model, grid_size, device, backbone, window_w, max_norm_residual=4.0, time_blind=False):
+        self.model = model
+        self.grid_size = int(grid_size)
+        self.device = device
+        self.window_w = int(window_w)
+        self.max_norm_residual = float(max_norm_residual)
+        self.time_blind = bool(time_blind)
+        self.name = f"field_{backbone}" + ("_blind" if time_blind else "")
+
+    def h_table(self, world, roadmap, dyn, v_agent, dt, t_max, goal_idx=1):
+        import continuous_prm_c6_heatmap_value_field as C6
+        W = 0 if self.time_blind else self.window_w
+        euclid_t = euclid_time_row(roadmap, v_agent, goal_idx) / float(dt)
+        T_scale = float(world.side_len) / float(v_agent) / float(dt)
+        H = np.zeros((roadmap.points.shape[0], t_max + 1), dtype=np.float64)
+        for t in range(t_max + 1):
+            x_t = build_field_occupancy_stack(world, dyn, self.grid_size, t, W, dt)
+            grid = C6.predict_residual_grid(self.model, x_t, self.device)
+            grid = np.nan_to_num(grid, nan=0.0, posinf=10.0, neginf=0.0)
+            node_resid = C6.interpolate_grid_values(np.maximum(0.0, grid), world, roadmap.points)
+            node_resid = np.clip(np.nan_to_num(node_resid, nan=0.0, posinf=10.0, neginf=0.0), 0.0, self.max_norm_residual)
+            H[:, t] = euclid_t + T_scale * node_resid
+        if not np.all(np.isfinite(H)):
+            raise FloatingPointError("ValueFieldTemporalProvider produced non-finite h")
+        return np.maximum(H, 0.0)
+
+    @classmethod
+    def untrained_for_test(cls, grid_size=32, window_w=2, time_blind=False, device=None):
+        import torch, continuous_prm_c6_heatmap_value_field as C6
+        device = device or torch.device("cpu")
+        W = 0 if time_blind else window_w
+        model = C6.build_model("unet", in_channels=8 + W).to(device).eval()
+        return cls(model, grid_size, device, "unet", window_w, time_blind=time_blind)
+
+
 def run_world_arms_spacetime(world, roadmap, dyn, providers: dict, budgets, w_values,
                              v_agent, dt, t_max, goal_idx=1, start_idx=0):
     """Run every (provider, mode, budget[, w]) arm on one shared world+roadmap+dynamics.

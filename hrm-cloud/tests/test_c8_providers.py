@@ -90,3 +90,49 @@ def test_scalar_temporal_table_additive_bounded_and_temporal():
     assert np.all((h - et) <= prov.max_norm_residual + 1e-4)           # bounded (T_scale=1 here)
     assert not np.allclose(h, hb)                                       # time-aware != time-blind
     assert prov.name == "scalar_hrm" and prov_blind.name == "scalar_hrm_blind"
+
+
+def test_c6_build_model_in_channels():
+    import continuous_prm_c6_heatmap_value_field as C6
+    m8 = C6.build_model("unet")            # default 8
+    m12 = C6.build_model("unet", in_channels=12)
+    assert m8 is not None and m12 is not None
+
+
+def _small_world_and_prm():
+    spec = C.build_anchor_specs()["C_open"]
+    for seed in range(40):
+        w = C.build_world(spec, seed=seed, min_start_goal_dist_frac=0.5)
+        if w is None:
+            continue
+        rm = C.build_prm(w, C.RoadmapConfig(n_nodes=48, k_neighbors=8), seed=seed)
+        if rm is not None and rm.connected_to_goal[0]:
+            return w, rm
+    raise RuntimeError("no world")
+
+
+def test_value_field_temporal_table_additive_bounded():
+    import continuous_prm_dynamic_providers as P
+    world, rm = _small_world_and_prm()
+    mc = D.MovingCircle(ax=0.3, ay=0.3, bx=0.7, by=0.7, period=4.0, radius=0.08)
+    dyn = D.Dynamics([mc])
+    prov = P.ValueFieldTemporalProvider.untrained_for_test(grid_size=32, window_w=2, time_blind=False)
+    h = prov.h_table(world, rm, dyn, v_agent=0.1, dt=1.0, t_max=8, goal_idx=1)
+    et = P.EuclidTimeProvider().h_table(world, rm, dyn, 0.1, 1.0, 8, 1)
+    N = rm.points.shape[0]
+    assert h.shape == (N, 9)
+    assert np.all(np.isfinite(h)) and np.all(h >= et - 1e-6)
+    T_scale = world.side_len / 0.1 / 1.0
+    assert np.all((h - et) <= T_scale * prov.max_norm_residual + 1e-3)
+    assert prov.name == "field_unet"
+
+
+def test_field_occupancy_stack_shape_and_motion():
+    import continuous_prm_dynamic_providers as P
+    world, rm = _small_world_and_prm()
+    mc = D.MovingCircle(ax=0.2, ay=0.5, bx=0.8, by=0.5, period=4.0, radius=0.1)
+    dyn = D.Dynamics([mc])
+    x = P.build_field_occupancy_stack(world, dyn, grid_size=32, t=0, window_w=2, dt=1.0)
+    assert x.shape == (8 + 2, 32, 32)
+    # the W+1 occupancy frames (channels 0..2) should differ across frames (patroller moves)
+    assert not np.allclose(x[0], x[2])

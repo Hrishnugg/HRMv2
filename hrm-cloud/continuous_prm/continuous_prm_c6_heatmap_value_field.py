@@ -753,13 +753,13 @@ class HRMField(nn.Module):
         return self.decoder.residual_head(feat), self.decoder.path_head(feat)
 
 
-def build_model(name: str) -> nn.Module:
+def build_model(name: str, in_channels: int = INPUT_CHANNELS) -> nn.Module:
     if name == "unet":
-        return UNetField()
+        return UNetField(in_channels=in_channels)
     if name == "onlstm":
-        return ONLSTMField()
+        return ONLSTMField(in_channels=in_channels)
     if name == "hrm":
-        return HRMField()
+        return HRMField(in_channels=in_channels)
     raise ValueError(f"unknown learned C6 model {name!r}")
 
 
