@@ -53,3 +53,40 @@ def test_oracle_makes_search_minimal():
 def test_provider_names():
     assert P.EuclidTimeProvider().name == "euclid"
     assert P.OracleProvider().name == "oracle"
+
+
+def test_scalar_temporal_features_capture_motion():
+    import continuous_prm_dynamic_providers as P
+    rm = _toy_roadmap()
+    mc = D.MovingCircle(ax=1.0, ay=-1.0, bx=1.0, by=1.0, period=4.0, radius=0.3)
+    dyn = D.Dynamics([mc])
+    X = P.build_scalar_temporal_features(_W(), rm, dyn, t_max=20, dt=1.0, window_w=4, k_patrollers=4, goal_idx=1)
+    assert X.shape == (3, 21, 5, 4 + 4 * 4)
+    # the dynamics block (cols >=4) must change across frames for a query where the patroller moves
+    node0 = X[0, 0]  # (W+1, token_dim) at node 0, t=0
+    dyn_block = node0[:, 4:]
+    # NOTE: this patroller has period 4.0 and the window spans 4 frames (i=0..4 at
+    # dt=1), so frame 0 and frame -1 alias to the same triangle-wave endpoint. The
+    # property under test ("motion captured across the window") is that the block is
+    # not constant across frames -- assert against an interior frame (the wave peak).
+    assert not np.allclose(dyn_block[0], dyn_block[2])  # motion captured across the window
+    # static block (cols <4) constant across frames
+    assert np.allclose(node0[:, :4], node0[0:1, :4])
+
+
+def test_scalar_temporal_table_additive_bounded_and_temporal():
+    import torch
+    import continuous_prm_dynamic_providers as P
+    rm = _toy_roadmap()
+    mc = D.MovingCircle(ax=1.0, ay=-1.0, bx=1.0, by=1.0, period=4.0, radius=0.3)
+    dyn = D.Dynamics([mc])
+    prov = P.ScalarTemporalProvider.untrained_for_test(window_w=4, time_blind=False)
+    prov_blind = P.ScalarTemporalProvider.untrained_for_test(window_w=4, time_blind=True)
+    et = P.EuclidTimeProvider().h_table(_W(), rm, dyn, 1.0, 1.0, 20, 1)
+    h = prov.h_table(_W(), rm, dyn, 1.0, 1.0, 20, 1)
+    hb = prov_blind.h_table(_W(), rm, dyn, 1.0, 1.0, 20, 1)
+    assert h.shape == (3, 21)
+    assert np.all(np.isfinite(h)) and np.all(h >= et - 1e-6)            # additive on euclid_time
+    assert np.all((h - et) <= prov.max_norm_residual + 1e-4)           # bounded (T_scale=1 here)
+    assert not np.allclose(h, hb)                                       # time-aware != time-blind
+    assert prov.name == "scalar_hrm" and prov_blind.name == "scalar_hrm_blind"

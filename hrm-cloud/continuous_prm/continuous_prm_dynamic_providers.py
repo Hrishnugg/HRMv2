@@ -1,7 +1,11 @@
 """Time-aware heuristic providers returning h[node, t] tables in time-step units (C8)."""
 from __future__ import annotations
 import abc
+import argparse
+
 import numpy as np
+
+import continuous_prm_common as C
 import continuous_prm_spacetime as ST
 from continuous_prm_spacetime import (
     space_time_astar_prm,
@@ -51,6 +55,137 @@ class OracleProvider(SpaceTimeHeuristicProvider):
         finite = np.isfinite(ttg)
         fill = float(ttg[finite].max() + (t_max + 1)) if finite.any() else float(2 * (t_max + 1))
         return _finite_fill(ttg, fill)
+
+
+# -----------------------------------------------------------------------------
+# Scalar temporal provider (model-adaptation begins here)
+# -----------------------------------------------------------------------------
+def build_scalar_temporal_features(world, roadmap, dyn, t_max, dt, window_w,
+                                   k_patrollers, goal_idx=1) -> np.ndarray:
+    """Per (node n, time-step t) rollout-window frame-token sequence for the
+    recurrent ContinuousHeuristicModel.
+
+    Returns X of shape (N, t_max+1, W+1, token_dim) with token_dim = 4 + 4*K
+    (K = k_patrollers). Each of the W+1 frames is at real time (t+i)*dt, i=0..W,
+    and is a vector [static_geom(4) ++ dynamics(K*4)]:
+      static_geom (constant across the window, per node n):
+        goal_dx, goal_dy, euclid_to_goal, node_clearance   (all /side_len)
+      dynamics (per frame i): for the K nearest patroller circles to n at time
+        (t+i)*dt (ranked by center distance), [dx, dy, dist, radius] all /side_len;
+        zero-padded if fewer than K circles exist.
+    """
+    s = float(world.side_len)
+    W = int(window_w)
+    K = int(k_patrollers)
+    token_dim = 4 + 4 * K
+    pts = np.asarray(roadmap.points, dtype=np.float64)  # (N, 2)
+    N = pts.shape[0]
+    goal = pts[goal_idx]
+    obstacles = getattr(world, "obstacles", [])
+    circles = list(dyn.circles)
+
+    # static_geom per node (constant across t and across the window).
+    static = np.zeros((N, 4), dtype=np.float64)
+    diff_goal = (goal[None, :] - pts) / s          # (g - n)/s
+    static[:, 0] = diff_goal[:, 0]
+    static[:, 1] = diff_goal[:, 1]
+    static[:, 2] = np.linalg.norm(goal[None, :] - pts, axis=1) / s
+    for n in range(N):
+        static[n, 3] = C.obstacle_clearance(pts[n], s, obstacles) / s
+
+    X = np.zeros((N, t_max + 1, W + 1, token_dim), dtype=np.float64)
+    X[:, :, :, :4] = static[:, None, None, :]
+
+    if not circles:
+        return X
+
+    # Cache patroller centers per distinct real frame time. Frame real time for a
+    # query (t, i) is (t+i)*dt; over t in [0,t_max] and i in [0,W] the distinct
+    # frame indices f = t+i span [0, t_max+W].
+    f_max = t_max + W
+    centers = np.empty((f_max + 1, len(circles), 2), dtype=np.float64)
+    radii = np.array([c.radius for c in circles], dtype=np.float64)
+    for f in range(f_max + 1):
+        tf = float(f) * float(dt)
+        for j, c in enumerate(circles):
+            centers[f, j] = c.center_at(tf)
+
+    for t in range(t_max + 1):
+        for i in range(W + 1):
+            f = t + i
+            ctr = centers[f]                       # (C, 2)
+            for n in range(N):
+                rel = (ctr - pts[n][None, :])      # (C, 2)
+                dist = np.linalg.norm(rel, axis=1)
+                order = np.argsort(dist, kind="stable")[:K]
+                base = 4
+                for slot, j in enumerate(order):
+                    off = base + 4 * slot
+                    X[n, t, i, off + 0] = rel[j, 0] / s
+                    X[n, t, i, off + 1] = rel[j, 1] / s
+                    X[n, t, i, off + 2] = dist[j] / s
+                    X[n, t, i, off + 3] = radii[j] / s
+                # remaining slots (if fewer than K circles) already zero.
+    return X
+
+
+class ScalarTemporalProvider(SpaceTimeHeuristicProvider):
+    """Feeds the recurrent ContinuousHeuristicModel a per-(node,t) rollout-window
+    frame sequence (recurrence over TIME) and adds a clamped time-to-go residual
+    onto the admissible euclid-time row."""
+
+    def __init__(self, model, device, backbone, window_w, k_patrollers, max_norm_residual, time_blind=False):
+        import torch  # noqa: F401  (kept for parity with provider construction site)
+        self.model = model
+        self.device = device
+        self.window_w = int(window_w)
+        self.k_patrollers = int(k_patrollers)
+        self.max_norm_residual = float(max_norm_residual)
+        self.time_blind = bool(time_blind)
+        self.name = f"scalar_{backbone}" + ("_blind" if time_blind else "")
+
+    def h_table(self, world, roadmap, dyn, v_agent, dt, t_max, goal_idx=1):
+        W = 0 if self.time_blind else self.window_w
+        X = build_scalar_temporal_features(world, roadmap, dyn, t_max, dt, W, self.k_patrollers, goal_idx)
+        N = X.shape[0]
+        flat = X.reshape(N * (t_max + 1), W + 1, X.shape[-1]).astype(np.float32)
+        resid = C.predict_norm_residuals(self.model, flat, self.device)  # (N*(t_max+1),)
+        resid = np.clip(np.asarray(resid, dtype=np.float64), 0.0, self.max_norm_residual).reshape(N, t_max + 1)
+        euclid_t = euclid_time_row(roadmap, v_agent, goal_idx) / float(dt)  # time-steps
+        T_scale = float(world.side_len) / float(v_agent) / float(dt)        # map-crossing time in steps
+        h = euclid_t[:, None] + T_scale * resid
+        if not np.all(np.isfinite(h)):
+            raise FloatingPointError("ScalarTemporalProvider produced non-finite h")
+        return np.maximum(h, 0.0)
+
+    @classmethod
+    def untrained_for_test(cls, window_w=4, k_patrollers=4, time_blind=False, device=None, seed=0):
+        import torch
+        device = device or torch.device("cpu")
+        token_dim = 4 + 4 * int(k_patrollers)
+        # Minimal argparse.Namespace with exactly the fields build_backbone_configs
+        # reads; we only use the "hrm" entry. Same pattern as
+        # ScalarResidualProvider.untrained_for_test in continuous_prm_providers.py.
+        ns = argparse.Namespace(
+            hrm_hidden=32,
+            hrm_layers=1,
+            hrm_k_step=2,
+            hrm_heads=4,
+            head_hidden=48,
+            onlstm_hidden=32,
+            onlstm_layers=1,
+            onlstm_chunk_size=8,
+        )
+        bb = C.build_backbone_configs(ns)["hrm"]
+        train_cfg = C.TrainingConfig()
+        model = C.ContinuousHeuristicModel(bb, token_dim=token_dim,
+                                           max_norm_residual=train_cfg.max_norm_residual).to(device).eval()
+        # The head inits to constant output (weight 0, bias -2) -> softplus(-2) for
+        # ALL inputs. Randomize the last layer's weight so the model is
+        # input-dependent (so time-aware vs time-blind can differ in tests).
+        torch.manual_seed(seed)
+        torch.nn.init.normal_(model.head[-1].weight, std=0.3)
+        return cls(model, device, "hrm", window_w, k_patrollers, train_cfg.max_norm_residual, time_blind)
 
 
 def run_world_arms_spacetime(world, roadmap, dyn, providers: dict, budgets, w_values,
