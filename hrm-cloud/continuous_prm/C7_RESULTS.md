@@ -71,7 +71,7 @@ Success / mean expansions / **expansion ratio vs Euclid** (median, matched-solve
 2. **Representation lever (scalar vs field)** — **neither dominates.** scalar_hrm is competitive or slightly better on maze/dense/rooms/rooms_large; field_hrm is better on spiral. **The C5 scalar-HRM collapse does not reproduce** — with proper hard-suite training the per-node scalar residual is a strong heuristic. This revises the C5→C6 "representation rescues HRM" story: C5's failure was training/setup-specific, not intrinsic to the scalar representation.
 3. **Integration lever (focal vs additive, scalar)** — **additive wins decisively.** scalar_hrm/astar ratios are 0.43–0.82; the best focal-w (1.1) only reaches ~0.95–0.98 (and focal w=1.0 ≡ Euclid). Focal does *not* recover what additive already captures.
 4. **Integration lever (focal vs additive, field)** — same verdict across all field models: astar 0.52–0.91 vs focal ~0.94–0.97.
-5. **Gap-to-ceiling** — learned arms capture **15–68%** of the Euclid→oracle expansion gap (uncaptured fraction 0.32–0.99; best on maze, where field_hrm/scalar_hrm leave ~0.42/0.32). Substantial room remains toward the oracle.
+5. **Gap-to-ceiling** — learned arms capture **~1–79%** of the Euclid→oracle expansion gap (uncaptured fraction 0.21–0.99 across the 30 learned arms; best on bugtrap/maze — e.g. on maze field_hrm/scalar_hrm leave ~0.42/0.32). Substantial room remains toward the oracle.
 6. **In-dist vs held-out** — field_hrm reduces expansions and improves success on **both** groups: in-dist ratios 0.52–0.85, held-out 0.71–0.84, with success gains on every held-out suite. Transfer holds across all three OOD axes (near/structural/scale).
 
 ## 5. Why additive wins here but focal won in the discrete grid
@@ -98,7 +98,7 @@ This is the key scientific finding. Focal A\*ε only *re-orders within the admis
 **Next:**
 - **Cluster-scale confirmation** (`--scale cluster`) for publication-grade CIs and the full w-sweep.
 - **Harder held-out suites** (raise bugtrap/rooms_large detour) to strengthen the transfer claim.
-- **Close the gap-to-ceiling** — learned arms leave 30–90% of the Euclid→oracle gap; a ranking/path-loss objective or better-calibrated magnitude could recover more.
+- **Close the gap-to-ceiling** — learned arms leave ~20–99% of the Euclid→oracle gap (best ~21%); a ranking/path-loss objective or better-calibrated magnitude could recover more.
 - **Phase 2 — dynamics:** bring time-varying obstacles into the continuous value-field line (separate spec/plan cycle). The provider/planner interface is designed for a dynamics-aware provider to drop in.
 
 ## 8. Reproduce

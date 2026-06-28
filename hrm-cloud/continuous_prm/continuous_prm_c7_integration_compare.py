@@ -26,9 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
 
-import continuous_prm_common as C  # noqa: F401 — used by later tasks
-import continuous_prm_providers as P  # noqa: F401 — used by later tasks
-import continuous_prm_focal as focal  # noqa: F401 — used by later tasks
+import continuous_prm_common as C
+import continuous_prm_providers as P
 import continuous_prm_c7_hard_maps as M7
 
 # Lazy imports for heavy modules (torch, C6 helpers) go inside functions to
@@ -47,7 +46,6 @@ from continuous_prm_c6_heatmap_value_field import (  # noqa: F401
     write_csv,
     write_json,
     read_csv,
-    finite_mean,
     now_str,
     mcnemar_exact_p,
     bh_q_values,
