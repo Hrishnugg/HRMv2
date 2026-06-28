@@ -109,6 +109,8 @@ Success @ B144 (Euclid in-band):
 
 C6 value-field framing is **validated locally and generalizes**: learned heuristics (HRM best, near the oracle ceiling) **significantly beat Euclidean** on in-distribution hard maps, and **multi-suite training closes the OOD gap** (rooms 0.70→0.875; held-out dense variant 0.825→1.0). This is the decisive reversal of the C5 per-node-residual failure (where HRM collapsed). Focal integration is not needed here — the field framing + adequate, diverse training is the fix.
 
+> **Continuation (2026-06-27) → [`C7_RESULTS.md`](C7_RESULTS.md).** The integration comparison (additive scalar vs value field vs focal ranker, × HRM/ON-LSTM/U-Net, matched). Findings that refine the C6 story: additive learned heuristics cut A\* expansions ~15–48% over Euclidean across six hard suites and generalize OOD; **the per-node scalar (C5-style) does *not* reproduce its C5 collapse when trained properly** (so C5's failure was training-specific, not a representation limit); and **additive beats focal** here because Euclidean is a weak admissible baseline (the opposite of the discrete-grid focal result — the better integration depends on baseline tightness).
+
 ## Open questions / next steps
 
 - **Scale + confirm:** full 160/80-world, more-epoch, all-suite run; eventually a Modal full-suite confirmation for publication-grade numbers (current runs are 40 eval-worlds, local).
