@@ -107,6 +107,10 @@ class C8Config:
     # k_patrollers: number of nearest patrollers used in scalar feature vectors.
     k_patrollers: int = 4
 
+    # Scalar dataset cap: subsample to at most this many REACHABLE samples for
+    # tractable local training. 0 = no cap (use all reachable samples).
+    scalar_max_samples: int = 250000
+
     # NOTE: per-suite v_agent / dt / t_max are NOT global config — they come
     # from M8.dynamics_params(suite) and are read per suite in eval/calibrate/
     # train modes. They vary by suite geometry and patroller density, so a
@@ -323,6 +327,21 @@ def _build_scalar_dataset(labelsets: List[dict], cfg: C8Config, window_w: Option
     X = np.concatenate(Xs, axis=0)
     y = np.concatenate(ys, axis=0)
     mask = np.concatenate(ms, axis=0)
+
+    # Seeded subsample cap: restrict to at most scalar_max_samples REACHABLE
+    # entries so that scalar training epochs are tractable on local machines.
+    cap = int(cfg.scalar_max_samples)
+    if cap > 0:
+        idx_reachable = np.where(mask)[0]
+        n_reachable = len(idx_reachable)
+        if n_reachable > cap:
+            rng = np.random.default_rng(int(cfg.seed))
+            idx_keep = np.sort(rng.choice(idx_reachable, cap, replace=False))
+            X = X[idx_keep]
+            y = y[idx_keep]
+            mask = np.ones(cap, dtype=np.bool_)
+            print(f"[c8] scalar dataset capped: kept {cap}/{n_reachable}", flush=True)
+
     return X, y, mask
 
 
@@ -2213,6 +2232,15 @@ def parse_args() -> argparse.Namespace:
         default=4,
         help="Number of nearest patrollers included in scalar feature vectors.",
     )
+    p.add_argument(
+        "--scalar-max-samples",
+        type=int,
+        default=250000,
+        help=(
+            "Cap on REACHABLE scalar training samples (seeded subsample). "
+            "0 = no cap (use all reachable samples)."
+        ),
+    )
     return p.parse_args()
 
 
@@ -2239,6 +2267,7 @@ def config_from_args(args: argparse.Namespace) -> C8Config:
         make_figures=not bool(args.no_figures),
         window_w=int(args.window_w),
         k_patrollers=int(args.k_patrollers),
+        scalar_max_samples=int(args.scalar_max_samples),
     )
 
 
