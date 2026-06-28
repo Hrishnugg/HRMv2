@@ -797,6 +797,180 @@ def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
 
 
 # ---------------------------------------------------------------------------
+# Task 11 — eval mode (matched, sharded space-time arm evaluation)
+# ---------------------------------------------------------------------------
+#
+# Mirrors C7's run_eval (continuous_prm_c7_integration_compare.run_eval): build
+# every arm's provider ONCE, generate matched dynamic worlds per suite from a
+# seeded retry loop, run all arms on each shared world via
+# P.run_world_arms_spacetime, write per-suite shard CSVs, then merge bounded to
+# exactly the suites this run evaluated.
+
+
+def _load_eval_providers(cfg: C8Config, out_dir: Path, device) -> Dict[str, "P.SpaceTimeHeuristicProvider"]:
+    """Build every arm's provider ONCE, keyed by provider.name.
+
+    Always present: euclid, oracle. Plus, for each scalar/field backbone, the
+    time-aware ("") and time-blind ("_blind") variants whose checkpoints exist
+    under out_dir/'checkpoints' (saved by T10a/b/c). Missing checkpoints are
+    skipped with a log line. The provider's .name already encodes "_blind", so
+    keys are unique (scalar_<bb>, scalar_<bb>_blind, field_<bb>, field_<bb>_blind).
+    """
+    import torch
+    import continuous_prm_c6_heatmap_value_field as C6
+
+    providers: Dict[str, "P.SpaceTimeHeuristicProvider"] = {}
+    eu = P.EuclidTimeProvider(); providers[eu.name] = eu     # "euclid"
+    orc = P.OracleProvider(); providers[orc.name] = orc      # "oracle"
+
+    ckdir = Path(out_dir) / "checkpoints"
+
+    # Scalar temporal models (T10a + T10c blind).
+    for bb in parse_csv(cfg.scalar_backbones):
+        for suffix, blind in (("", False), ("_blind", True)):
+            ck = ckdir / f"c8_scalar__{bb}{suffix}.pt"
+            if not ck.exists():
+                print(f"[c8] skip scalar {bb}{suffix}: {ck} missing", flush=True)
+                continue
+            pl = torch.load(ck, map_location="cpu")
+            bbcfg = C.BackboneConfig(**pl["backbone_cfg"])
+            model = C.ContinuousHeuristicModel(
+                bbcfg, token_dim=pl["token_dim"], max_norm_residual=pl["max_norm_residual"]
+            )
+            model.load_state_dict(pl["model"]); model.to(device).eval()
+            # NOTE: a "_blind" checkpoint stores window_w=0 AND we pass time_blind=True;
+            # both are consistent (W=0). The provider name encodes "_blind".
+            prov = P.ScalarTemporalProvider(
+                model, device, bb, pl["window_w"], pl["k_patrollers"],
+                pl["max_norm_residual"], time_blind=blind,
+            )
+            providers[prov.name] = prov                      # scalar_<bb> / scalar_<bb>_blind
+
+    # Value-field temporal models (T10b + T10c blind).
+    for bb in parse_csv(cfg.field_backbones):
+        for suffix, blind in (("", False), ("_blind", True)):
+            ck = ckdir / f"c8_field__{bb}{suffix}.pt"
+            if not ck.exists():
+                print(f"[c8] skip field {bb}{suffix}: {ck} missing", flush=True)
+                continue
+            pl = torch.load(ck, map_location="cpu")
+            model = C6.build_model(bb, in_channels=pl["in_channels"])
+            model.load_state_dict(pl["model"]); model.to(device).eval()
+            prov = P.ValueFieldTemporalProvider(
+                model, pl["grid_size"], device, bb, pl["window_w"], time_blind=blind,
+            )
+            providers[prov.name] = prov                      # field_<bb> / field_<bb>_blind
+
+    return providers
+
+
+def _load_calibration(out_dir: Path) -> dict:
+    """Read out_dir/calibration.json (written by T12), or {} if absent/unreadable.
+
+    Expected shape: {"budgets": {suite: [b1, b2, ...]}, ...}. run_eval falls back
+    to parse_int_csv(cfg.budgets) for any suite absent from the calibration map.
+    """
+    import json
+    calib_path = Path(out_dir) / "calibration.json"
+    if not calib_path.exists():
+        return {}
+    try:
+        return json.loads(calib_path.read_text())
+    except (ValueError, OSError) as exc:
+        print(f"[c8] eval: failed to read {calib_path} ({exc}); using fallback budgets", flush=True)
+        return {}
+
+
+def iter_dynamic_worlds(suite, suite_idx, cfg: C8Config, n_worlds, retry=30):
+    """Yield (world_index, world, dyn, rm) for up to n_worlds connected dynamic
+    worlds, using a deterministic eval seed formula. Shared by eval (and reused by
+    T12 calibrate) so both observe identical worlds for a given (suite, world_idx).
+
+    Skip rules: invalid dynamic world (build returns None), disconnected PRM (start
+    node 0 not connected to goal). Space-time solvability is NOT pre-checked here:
+    run_world_arms_spacetime reports suboptimality=nan for unsolvable worlds via its
+    own backward Dijkstra, so we rely on that rather than an extra DP pass.
+    """
+    roadmap_cfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    valid = 0
+    attempt = 0
+    while valid < n_worlds and attempt < n_worlds * retry:
+        seed = int(cfg.seed) + 880_000 + 1_000_003 * (suite_idx + 1) + (valid + 1) * 7919 + attempt
+        attempt += 1
+        res = M8.build_dynamic_world(suite, seed)
+        if res is None:
+            continue
+        world, dyn = res
+        rm = C.build_prm(world, roadmap_cfg, seed=seed)
+        if rm is None or not bool(rm.connected_to_goal[0]):
+            continue
+        yield valid, world, dyn, rm
+        valid += 1
+
+
+def run_eval(cfg: C8Config, out_dir: Path, device, providers: Dict[str, "P.SpaceTimeHeuristicProvider"]) -> Path:
+    """Matched, sharded multi-arm space-time eval across eval suites; write per-suite
+    shard CSVs + a merged raw CSV. Returns the merged-CSV path.
+
+    Worlds+PRMs+dynamics are generated per suite from a seeded retry loop and shared
+    across ALL arms (matched). Per-suite budgets come from calibration.json (T12) if
+    present, else parse_int_csv(cfg.budgets). Records carry provider/mode/w/budget/
+    found/expansions/arrival/optimal_arrival/suboptimality/closed/nonfinite (from
+    run_world_arms_spacetime) plus suite/world_index added here; world.meta is NOT
+    spread in (segment by suite).
+    """
+    import csv
+
+    out_dir = Path(out_dir)
+    w_values = [float(x) for x in parse_csv(cfg.w_values)]
+    calib = _load_calibration(out_dir)
+    print(
+        f"[{now_str()}] C8 eval: providers={sorted(providers)} "
+        f"eval_worlds={cfg.eval_worlds} w_values={w_values} suites={cfg.eval_suites}",
+        flush=True,
+    )
+
+    for suite_idx, suite in enumerate(parse_csv(cfg.eval_suites)):
+        params = M8.dynamics_params(suite)
+        v_agent = float(params["v_agent"])
+        dt = float(params["dt"])
+        t_max = int(params["t_max"])
+        budgets = calib.get("budgets", {}).get(suite) or parse_int_csv(cfg.budgets)
+        budgets = [int(b) for b in budgets]
+        records = []
+        valid = 0
+        for wi, world, dyn, rm in iter_dynamic_worlds(suite, suite_idx, cfg, cfg.eval_worlds):
+            recs = P.run_world_arms_spacetime(
+                world, rm, dyn, providers, budgets, w_values,
+                v_agent, dt, t_max, goal_idx=1, start_idx=0,
+            )
+            for r in recs:
+                r["suite"] = suite
+                r["world_index"] = wi
+            records.extend(recs)
+            valid = wi + 1
+        if valid < cfg.eval_worlds:
+            print(f"[c8] WARNING: {suite} under-filled: {valid}/{cfg.eval_worlds} worlds", flush=True)
+        shard = ensure_dir(Path(out_dir) / "results" / "_shards" / "c8" / suite) / "shard_0000.csv"
+        write_csv(shard, records)
+        print(f"[c8] eval {suite}: {valid} worlds, {len(records)} arm-records -> {shard}", flush=True)
+
+    # Merge into one raw CSV. Bound the merge to EXACTLY the suites this run
+    # evaluated — a glob would silently pull in stale shards from prior runs with
+    # different --eval-suites (or an interrupted run), corrupting the comparison.
+    merged_rows: list = []
+    for suite in parse_csv(cfg.eval_suites):
+        shard_csv = Path(out_dir) / "results" / "_shards" / "c8" / suite / "shard_0000.csv"
+        if shard_csv.exists():
+            with open(shard_csv, newline="") as fh:
+                merged_rows.extend(csv.DictReader(fh))
+    merged_path = Path(out_dir) / "results" / "continuous_prm_c8_eval_raw.csv"
+    write_csv(merged_path, merged_rows)
+    print(f"[{now_str()}] C8 eval: merged {len(merged_rows)} rows -> {merged_path}", flush=True)
+    return merged_path
+
+
+# ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
 
@@ -914,7 +1088,10 @@ def main() -> None:
     elif cfg.mode == "train":
         run_train(cfg, out_dir)
     elif cfg.mode == "eval":
-        raise NotImplementedError("C8 eval: Task 11")
+        device = _pick_device(cfg)
+        print(f"[{now_str()}] C8 eval: device={device}", flush=True)
+        providers = _load_eval_providers(cfg, out_dir, device)
+        run_eval(cfg, out_dir, device, providers)
     elif cfg.mode == "calibrate":
         raise NotImplementedError("C8 calibrate: Task 12")
     elif cfg.mode == "analyze":
