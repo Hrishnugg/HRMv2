@@ -15,6 +15,13 @@ def _tri(x: float) -> float:
     return float(2.0 * x if x < 0.5 else 2.0 * (1.0 - x))
 
 
+def _tri_vec(x: np.ndarray) -> np.ndarray:
+    """Vectorized triangle wave (period 1, range [0,1]); matches ``_tri`` elementwise."""
+    x = np.asarray(x, dtype=np.float64)
+    x = x - np.floor(x)
+    return np.where(x < 0.5, 2.0 * x, 2.0 * (1.0 - x))
+
+
 @dataclass
 class MovingCircle:
     ax: float
@@ -29,6 +36,22 @@ class MovingCircle:
         return np.array([self.ax + (self.bx - self.ax) * frac,
                          self.ay + (self.by - self.ay) * frac], dtype=np.float64)
 
+    def centers_at(self, ts: np.ndarray) -> np.ndarray:
+        """Vectorized ``center_at`` over an array of times ``ts`` (S,) -> (S, 2).
+
+        Triangle-wave interpolation between endpoints A and B; ``period <= 0``
+        yields ``frac == 0`` (stationary at A), matching ``center_at``.
+        """
+        ts = np.asarray(ts, dtype=np.float64)
+        if self.period > 0:
+            fracs = _tri_vec(ts / self.period)
+        else:
+            fracs = np.zeros(ts.shape, dtype=np.float64)
+        out = np.empty(ts.shape + (2,), dtype=np.float64)
+        out[..., 0] = self.ax + (self.bx - self.ax) * fracs
+        out[..., 1] = self.ay + (self.by - self.ay) * fracs
+        return out
+
 
 class Dynamics:
     def __init__(self, circles: Sequence[MovingCircle]):
@@ -41,15 +64,30 @@ class Dynamics:
         return True
 
     def node_free(self, p: np.ndarray, t0: float, t1: float, samples: int = 8) -> bool:
+        if not self.circles:
+            return True
+        p = np.asarray(p, dtype=np.float64)
         ts = np.linspace(t0, t1, max(2, samples))
-        return all(self.point_free(p, float(t)) for t in ts)
+        for c in self.circles:
+            centers = c.centers_at(ts)  # (S, 2)
+            d = np.linalg.norm(p[None, :] - centers, axis=1)  # (S,)
+            if (d <= c.radius).any():
+                return False
+        return True
 
     def edge_free(self, a: np.ndarray, b: np.ndarray, t0: float, t1: float, samples: int = 16) -> bool:
+        if not self.circles:
+            return True
         a = np.asarray(a, dtype=np.float64); b = np.asarray(b, dtype=np.float64)
         ts = np.linspace(t0, t1, max(2, samples))
-        for t in ts:
-            frac = 0.0 if t1 <= t0 else (float(t) - t0) / (t1 - t0)
-            pos = a + (b - a) * frac
-            if not self.point_free(pos, float(t)):
+        if t1 <= t0:
+            fracs = np.zeros(ts.shape, dtype=np.float64)
+        else:
+            fracs = (ts - t0) / (t1 - t0)
+        pos = a[None, :] + (b - a)[None, :] * fracs[:, None]  # (S, 2)
+        for c in self.circles:
+            centers = c.centers_at(ts)  # (S, 2)
+            d = np.linalg.norm(pos - centers, axis=1)  # (S,)
+            if (d <= c.radius).any():
                 return False
         return True
