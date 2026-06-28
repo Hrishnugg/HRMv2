@@ -1178,6 +1178,926 @@ def run_calibrate(cfg: C8Config, out_dir: Path, device=None) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Task 13 — analyze mode (summary CSV + significance MD + six pre-registered
+# comparisons MD + figures)
+# ---------------------------------------------------------------------------
+#
+# Mirrors C7's analyze (continuous_prm_c7_integration_compare.run_analyze) but
+# adapts to the C8 record schema (arrival/optimal_arrival instead of cost/optimal)
+# and to the SIX C8-specific comparisons (spotlight: time-aware vs time-blind).
+#
+# DRY: the schema-agnostic stat helpers are IMPORTED from C7 (battle-tested) —
+# wilcoxon_signed_rank_p, bootstrap_median_ci, _fmt_p, _fmt_num, _fmt_w. The
+# C8-specific summary/significance/comparison BUILDERS are written here (the
+# comparison logic is schema- and hypothesis-specific). mcnemar_exact_p /
+# bh_q_values are already imported from C6 at the top of this module.
+
+from continuous_prm_c7_integration_compare import (  # noqa: E402
+    wilcoxon_signed_rank_p,
+    bootstrap_median_ci,
+    _fmt_p,
+    _fmt_num,
+    _fmt_w,
+)
+
+# An "arm" is (provider, mode, w). The euclid-time baseline arm is always astar.
+EUCLID_BASELINE = ("euclid", "astar", None)
+# Baseline/ceiling providers, NOT "learned arms": `euclid` is the reference
+# baseline and `oracle` is the (exact space-time-Dijkstra) ceiling. Neither is a
+# hypothesis under test, so both are EXCLUDED from the McNemar/BH/Wilcoxon
+# significance family (oracle "beats" euclid trivially and would inflate the BH
+# test count m, making learned-arm q-values overly conservative). Oracle still
+# appears in the summary CSV and the gap-to-ceiling comparison.
+NON_LEARNED = {"euclid", "oracle"}
+# Below this n, a p-value is not trustworthy: print "n/a (n<6)" instead of a number
+# (still report the counts / median / CI). Applies to McNemar discordant count and
+# the expansion matched-set n.
+MIN_N_FOR_P = 6
+# In-distribution (trained) vs held-out (OOD) dynamic suites for comparison 6.
+IN_DIST_SUITES = ("C_dyn_maze", "C_dyn_rooms", "C_dyn_spiral")
+HELD_OUT_SUITES = ("C_dyn_maze_dense", "C_dyn_crossing", "C_dyn_rooms_large")
+
+
+def _coerce_bool(v) -> bool:
+    """Robustly coerce a CSV cell to bool (handles 'True'/'1'/'true'/True/1)."""
+    return str(v).strip().lower() in ("1", "true", "yes")
+
+
+def _coerce_float(v):
+    """Coerce a CSV cell to float; '' / None / 'none' / 'nan' -> nan."""
+    if v is None:
+        return float("nan")
+    s = str(v).strip()
+    if s == "" or s.lower() in ("none", "nan"):
+        return float("nan")
+    try:
+        return float(s)
+    except ValueError:
+        return float("nan")
+
+
+def _coerce_w(v):
+    """Coerce a w cell to float, or None for astar rows (blank/None)."""
+    if v is None:
+        return None
+    s = str(v).strip()
+    if s == "" or s.lower() == "none":
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def load_raw_rows(out_dir: Path):
+    """Read continuous_prm_c8_eval_raw.csv and coerce CSV strings to typed fields.
+
+    Returns a list of dicts with: suite, world_index(int), provider, mode,
+    w(float|None), budget(int), found(bool), expansions(int), arrival(float),
+    optimal_arrival(float), suboptimality(float), closed(int), nonfinite(bool).
+    """
+    raw_path = Path(out_dir) / "results" / "continuous_prm_c8_eval_raw.csv"
+    if not raw_path.exists():
+        raise FileNotFoundError(
+            f"analyze: missing raw eval CSV {raw_path}; run --mode eval first"
+        )
+    rows = read_csv(raw_path)
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "suite": str(r.get("suite", "")),
+                "world_index": int(float(r.get("world_index", 0))),
+                "provider": str(r.get("provider", "")),
+                "mode": str(r.get("mode", "")),
+                "w": _coerce_w(r.get("w")),
+                "budget": int(float(r.get("budget", 0) or 0)),
+                "found": _coerce_bool(r.get("found")),
+                "expansions": int(float(r.get("expansions", 0) or 0)),
+                "arrival": _coerce_float(r.get("arrival")),
+                "optimal_arrival": _coerce_float(r.get("optimal_arrival")),
+                "suboptimality": _coerce_float(r.get("suboptimality")),
+                "closed": int(float(r.get("closed", 0) or 0)),
+                "nonfinite": _coerce_bool(r.get("nonfinite")),
+            }
+        )
+    return out
+
+
+def _load_calib_budgets(out_dir: Path):
+    """Return {suite: [budgets]} from out_dir/calibration.json, or {} if absent."""
+    import json
+    calib_path = Path(out_dir) / "calibration.json"
+    if not calib_path.exists():
+        return {}
+    try:
+        calib = json.loads(calib_path.read_text())
+        return dict(calib.get("budgets", {}) or {})
+    except (ValueError, OSError):
+        return {}
+
+
+def _binding_budget(suite: str, suite_budgets, calib_budgets) -> int:
+    """Binding budget for a suite: the LOWER of the suite's calibrated band if
+    calibration.json has it, else the first budget seen in the data."""
+    raw = calib_budgets.get(suite)
+    if raw:
+        try:
+            return int(min(int(b) for b in raw))
+        except (TypeError, ValueError):
+            pass
+    seen = sorted(suite_budgets.get(suite, []))
+    return int(seen[0]) if seen else 0
+
+
+# ---------------------------------------------------------------------------
+# Indexing helpers over the typed raw rows
+# ---------------------------------------------------------------------------
+
+def _index_rows(rows):
+    """Index typed raw rows: returns (arms_sorted, lookup, suite_budgets_sorted)
+    where suite_budgets_sorted maps suite -> ascending budget list. (arms/lookup
+    mirror C7 for parity; analyze uses suite_budgets + the per-arm row maps below.)
+    """
+    arms: Dict = {}
+    lookup: Dict = {}
+    suite_budgets: Dict = {}
+    for r in rows:
+        suite, budget = r["suite"], r["budget"]
+        arm = (r["provider"], r["mode"], r["w"])
+        arms.setdefault(suite, {}).setdefault(budget, set()).add(arm)
+        lookup[(suite, budget, r["provider"], r["mode"], r["w"], r["world_index"])] = r
+        suite_budgets.setdefault(suite, set()).add(budget)
+    arms_sorted = {
+        s: {b: sorted(v, key=lambda a: (a[0], a[1], (a[2] if a[2] is not None else -1.0)))
+            for b, v in bd.items()}
+        for s, bd in arms.items()
+    }
+    suite_budgets_sorted = {s: sorted(bs) for s, bs in suite_budgets.items()}
+    return arms_sorted, lookup, suite_budgets_sorted
+
+
+def _arm_rows_by_world(rows, suite, budget, provider, mode, w):
+    """Map world_index -> row for one arm at (suite, budget)."""
+    out = {}
+    for r in rows:
+        if (r["suite"] == suite and r["budget"] == budget and r["provider"] == provider
+                and r["mode"] == mode and r["w"] == w):
+            out[r["world_index"]] = r
+    return out
+
+
+def _present_arms(rows):
+    """Set of providers present in the data."""
+    return {r["provider"] for r in rows}
+
+
+# ---------------------------------------------------------------------------
+# 1. Summary CSV
+# ---------------------------------------------------------------------------
+
+def build_summary(rows, cfg: C8Config):
+    """One row per (suite, provider, mode, w, budget): success_rate, n,
+    expansions_mean/median (solved), suboptimality_mean/p95 (solved),
+    exp_ratio_vs_euclid_median (matched-solved vs euclid/astar), matched_n."""
+    import numpy as np
+
+    groups: Dict = {}
+    for r in rows:
+        key = (r["suite"], r["provider"], r["mode"], r["w"], r["budget"])
+        groups.setdefault(key, []).append(r)
+
+    # euclid/astar expansions per (suite, budget, world) for the matched ratio.
+    euclid_exp: Dict = {}
+    for r in rows:
+        if r["provider"] == "euclid" and r["mode"] == "astar" and r["found"]:
+            euclid_exp[(r["suite"], r["budget"], r["world_index"])] = float(r["expansions"])
+
+    out = []
+    for key in sorted(groups, key=lambda k: (k[0], k[1], k[2], (k[3] if k[3] is not None else -1.0), k[4])):
+        suite, provider, mode, w, budget = key
+        grp = groups[key]
+        n = len({r["world_index"] for r in grp})
+        solved = [r for r in grp if r["found"]]
+        succ = (len(solved) / n) if n else float("nan")
+        exps = [float(r["expansions"]) for r in solved]
+        subs = [float(r["suboptimality"]) for r in solved if np.isfinite(r["suboptimality"])]
+        ratios = []
+        for r in solved:
+            eu = euclid_exp.get((suite, budget, r["world_index"]))
+            if eu is not None and eu > 0:
+                ratios.append(float(r["expansions"]) / eu)
+        out.append(
+            {
+                "suite": suite,
+                "provider": provider,
+                "mode": mode,
+                "w": _fmt_w(w),
+                "budget": int(budget),
+                "n": int(n),
+                "success_rate": round(succ, 4) if np.isfinite(succ) else "",
+                "expansions_mean": round(float(np.mean(exps)), 3) if exps else "",
+                "expansions_median": round(float(np.median(exps)), 3) if exps else "",
+                "suboptimality_mean": round(float(np.mean(subs)), 5) if subs else "",
+                "suboptimality_p95": round(float(np.percentile(subs, 95)), 5) if subs else "",
+                "exp_ratio_vs_euclid_median": round(float(np.median(ratios)), 4) if ratios else "",
+                "matched_n": int(len(ratios)),
+            }
+        )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 2. Significance MD (McNemar/BH success + Wilcoxon/bootstrap expansions)
+# ---------------------------------------------------------------------------
+
+def _success_significance(rows, suite_budgets):
+    """McNemar paired (learned arm vs euclid/astar) on SUCCESS per (suite, budget),
+    BH-corrected across the whole grid over LEARNED arms only (NON_LEARNED — euclid
+    reference + oracle ceiling — excluded from the arm list AND the BH family)."""
+    import numpy as np
+
+    comparisons = []
+    pvals = []
+    for suite in sorted(suite_budgets):
+        for budget in suite_budgets[suite]:
+            eu_by_world = _arm_rows_by_world(rows, suite, budget, "euclid", "astar", None)
+            if not eu_by_world:
+                continue
+            arm_keys = sorted(
+                {(r["provider"], r["mode"], r["w"]) for r in rows
+                 if r["suite"] == suite and r["budget"] == budget
+                 and r["provider"] not in NON_LEARNED},
+                key=lambda a: (a[0], a[1], (a[2] if a[2] is not None else -1.0)),
+            )
+            for (provider, mode, w) in arm_keys:
+                arm_by_world = _arm_rows_by_world(rows, suite, budget, provider, mode, w)
+                shared = sorted(set(eu_by_world) & set(arm_by_world))
+                if not shared:
+                    continue
+                gain = sum(1 for wi in shared if arm_by_world[wi]["found"] and not eu_by_world[wi]["found"])
+                loss = sum(1 for wi in shared if eu_by_world[wi]["found"] and not arm_by_world[wi]["found"])
+                eu_succ = float(np.mean([1.0 if eu_by_world[wi]["found"] else 0.0 for wi in shared]))
+                arm_succ = float(np.mean([1.0 if arm_by_world[wi]["found"] else 0.0 for wi in shared]))
+                p = mcnemar_exact_p(gain, loss)
+                pvals.append(p)
+                comparisons.append(
+                    {
+                        "suite": suite, "budget": int(budget),
+                        "provider": provider, "mode": mode, "w": w,
+                        "n": len(shared),
+                        "euclid_success": eu_succ, "arm_success": arm_succ,
+                        "delta": arm_succ - eu_succ,
+                        "gain": gain, "loss": loss,
+                        "discordant": gain + loss, "mcnemar_p": p,
+                    }
+                )
+    qvals = bh_q_values(pvals)
+    for row, q in zip(comparisons, qvals):
+        row["bh_q"] = q
+    return comparisons
+
+
+def _expansion_significance(rows, suite_budgets, cfg: C8Config):
+    """For each LEARNED arm vs euclid/astar at (suite, budget): on the matched set
+    (worlds euclid/astar solved AND the arm solved), report median exp_ratio, paired
+    Wilcoxon signed-rank p IN RATIO-SPACE (ratio - 1.0), and bootstrap 95% CI on the
+    median ratio. Exploratory + UNcorrected (disclosed in the MD)."""
+    out = []
+    for suite in sorted(suite_budgets):
+        for budget in suite_budgets[suite]:
+            eu_by_world = _arm_rows_by_world(rows, suite, budget, "euclid", "astar", None)
+            if not eu_by_world:
+                continue
+            arm_keys = sorted(
+                {(r["provider"], r["mode"], r["w"]) for r in rows
+                 if r["suite"] == suite and r["budget"] == budget
+                 and r["provider"] not in NON_LEARNED},
+                key=lambda a: (a[0], a[1], (a[2] if a[2] is not None else -1.0)),
+            )
+            for (provider, mode, w) in arm_keys:
+                arm_by_world = _arm_rows_by_world(rows, suite, budget, provider, mode, w)
+                matched = sorted(
+                    wi for wi in (set(eu_by_world) & set(arm_by_world))
+                    if eu_by_world[wi]["found"] and arm_by_world[wi]["found"]
+                    and float(eu_by_world[wi]["expansions"]) > 0
+                )
+                if not matched:
+                    out.append(
+                        {"suite": suite, "budget": int(budget), "provider": provider,
+                         "mode": mode, "w": w, "n_matched": 0,
+                         "median_ratio": None, "wilcoxon_p": float("nan"),
+                         "ci_lo": None, "ci_hi": None}
+                    )
+                    continue
+                ratios = [float(arm_by_world[wi]["expansions"]) / float(eu_by_world[wi]["expansions"])
+                          for wi in matched]
+                wp = wilcoxon_signed_rank_p([rt - 1.0 for rt in ratios])
+                med, ci_lo, ci_hi = bootstrap_median_ci(ratios, seed=int(cfg.seed))
+                out.append(
+                    {"suite": suite, "budget": int(budget), "provider": provider,
+                     "mode": mode, "w": w, "n_matched": len(matched),
+                     "median_ratio": med, "wilcoxon_p": wp,
+                     "ci_lo": ci_lo, "ci_hi": ci_hi}
+                )
+    return out
+
+
+def write_significance_md(out_dir: Path, success_rows, expansion_rows):
+    def arm_label(r):
+        base = f"{r['provider']}/{r['mode']}"
+        return base + (f"/w={_fmt_w(r['w'])}" if r["w"] is not None else "")
+
+    lines = ["# C8 Dynamics Comparison — Significance", ""]
+    lines += [
+        "## Success: McNemar (learned arm vs euclid-time/astar), BH-corrected across the grid",
+        "",
+        "_Family: learned arms only (oracle ceiling and euclid-time reference excluded). "
+        "BH correction is applied to THIS success/McNemar grid only._",
+        "",
+        "|Suite|Budget|Arm|n|Euclid succ|Arm succ|Delta|Gain|Loss|Discordant|McNemar p|BH q|",
+        "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    if not success_rows:
+        lines.append("|<none>|-|-|-|-|-|-|-|-|-|-|-|")
+    for r in sorted(success_rows, key=lambda x: (x["suite"], x["budget"], arm_label(x))):
+        disc = int(r.get("discordant", r["gain"] + r["loss"]))
+        lines.append(
+            f"|{r['suite']}|{r['budget']}|{arm_label(r)}|{r['n']}|"
+            f"{_fmt_num(r['euclid_success'])}|{_fmt_num(r['arm_success'])}|{_fmt_num(r['delta'])}|"
+            f"{r['gain']}|{r['loss']}|{disc}|{_fmt_p(r['mcnemar_p'], n=disc)}|{_fmt_num(r['bh_q'])}|"
+        )
+    lines += [
+        "",
+        "## Expansions: matched-set median ratio (arm/euclid) + Wilcoxon p + bootstrap 95% CI",
+        "",
+        "_Exploratory and UNcorrected: the Wilcoxon p-values below are NOT BH-corrected. "
+        "Treat the bootstrap 95% CI on the median ratio as the primary inference._",
+        "",
+        "|Suite|Budget|Arm|n matched|Median ratio|95% CI|Wilcoxon p|",
+        "|---|---:|---|---:|---:|---|---:|",
+    ]
+    if not expansion_rows:
+        lines.append("|<none>|-|-|-|-|-|-|")
+    for r in sorted(expansion_rows, key=lambda x: (x["suite"], x["budget"], arm_label(x))):
+        ci = (f"[{_fmt_num(r['ci_lo'])}, {_fmt_num(r['ci_hi'])}]"
+              if r["ci_lo"] is not None else "n/a")
+        lines.append(
+            f"|{r['suite']}|{r['budget']}|{arm_label(r)}|{r['n_matched']}|"
+            f"{_fmt_num(r['median_ratio'])}|{ci}|{_fmt_p(r['wilcoxon_p'], n=r['n_matched'])}|"
+        )
+    lines += [
+        "",
+        "## Notes",
+        "",
+        "- McNemar pairs each LEARNED arm against `euclid/astar` on success over shared worlds;",
+        "  gain = arm found & euclid not, loss = euclid found & arm not. `oracle` (space-time ceiling)",
+        "  and `euclid` (time-aware reference) are NOT hypotheses under test and are excluded.",
+        "- BH q-values correct ONLY across this success/McNemar grid. The expansion-Wilcoxon",
+        "  p-values are UNcorrected; the bootstrap CIs are the primary expansion inference.",
+        "- The expansion ratio uses the *matched set* (worlds euclid AND the arm both solved).",
+        "  Median ratio < 1 means the arm expands fewer nodes than euclid-time. The Wilcoxon p tests",
+        "  paired (ratio - 1) in ratio-space (matching the median ratio + CI estimand).",
+        f"- A p-value is shown as `n/a (n<{MIN_N_FOR_P})` when the McNemar discordant count or the",
+        f"  expansion matched-set n is below {MIN_N_FOR_P} (too few pairs for a trustworthy p).",
+    ]
+    md_path = Path(out_dir) / "results" / "continuous_prm_c8_significance.md"
+    ensure_dir(md_path.parent)
+    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return md_path
+
+
+# ---------------------------------------------------------------------------
+# 3. Pre-registered comparisons MD (the SIX C8 comparisons)
+# ---------------------------------------------------------------------------
+
+def _matched_ratio_and_success(rows, suite, budget, provider, mode, w, cfg):
+    """For one arm vs euclid/astar at (suite, budget): median exp_ratio (matched),
+    Wilcoxon p (ratio-1), bootstrap CI, success delta, McNemar p, and n. Returns
+    None if euclid is absent at this (suite, budget) or the arm has no rows."""
+    import numpy as np
+    eu_by_world = _arm_rows_by_world(rows, suite, budget, "euclid", "astar", None)
+    arm_by_world = _arm_rows_by_world(rows, suite, budget, provider, mode, w)
+    if not eu_by_world or not arm_by_world:
+        return None
+    shared = sorted(set(eu_by_world) & set(arm_by_world))
+    if not shared:
+        return None
+    gain = sum(1 for wi in shared if arm_by_world[wi]["found"] and not eu_by_world[wi]["found"])
+    loss = sum(1 for wi in shared if eu_by_world[wi]["found"] and not arm_by_world[wi]["found"])
+    eu_succ = float(np.mean([1.0 if eu_by_world[wi]["found"] else 0.0 for wi in shared]))
+    arm_succ = float(np.mean([1.0 if arm_by_world[wi]["found"] else 0.0 for wi in shared]))
+    mp = mcnemar_exact_p(gain, loss)
+    matched = sorted(
+        wi for wi in shared
+        if eu_by_world[wi]["found"] and arm_by_world[wi]["found"]
+        and float(eu_by_world[wi]["expansions"]) > 0
+    )
+    if matched:
+        ratios = [float(arm_by_world[wi]["expansions"]) / float(eu_by_world[wi]["expansions"]) for wi in matched]
+        med, ci_lo, ci_hi = bootstrap_median_ci(ratios, seed=int(cfg.seed))
+        wp = wilcoxon_signed_rank_p([rt - 1.0 for rt in ratios])
+    else:
+        med = ci_lo = ci_hi = None
+        wp = float("nan")
+    return {
+        "n": len(shared), "n_matched": len(matched),
+        "euclid_success": eu_succ, "arm_success": arm_succ, "success_delta": arm_succ - eu_succ,
+        "gain": gain, "loss": loss, "discordant": gain + loss, "mcnemar_p": mp,
+        "median_ratio": med, "ci_lo": ci_lo, "ci_hi": ci_hi, "wilcoxon_p": wp,
+    }
+
+
+def _aware_vs_blind(rows, suite, budget, aware, blind, cfg):
+    """Spotlight stat: matched median ratio of aware/blind expansions + Wilcoxon p
+    on (ratio-1) over worlds BOTH the aware and blind arms (astar) solved, plus the
+    success delta (aware_succ - blind_succ) over shared worlds. Returns None if
+    either arm is absent / has no shared worlds."""
+    import numpy as np
+    aw = _arm_rows_by_world(rows, suite, budget, aware, "astar", None)
+    bl = _arm_rows_by_world(rows, suite, budget, blind, "astar", None)
+    if not aw or not bl:
+        return None
+    shared = sorted(set(aw) & set(bl))
+    if not shared:
+        return None
+    aw_succ = float(np.mean([1.0 if aw[wi]["found"] else 0.0 for wi in shared]))
+    bl_succ = float(np.mean([1.0 if bl[wi]["found"] else 0.0 for wi in shared]))
+    matched = sorted(
+        wi for wi in shared
+        if aw[wi]["found"] and bl[wi]["found"] and float(bl[wi]["expansions"]) > 0
+    )
+    if matched:
+        ratios = [float(aw[wi]["expansions"]) / float(bl[wi]["expansions"]) for wi in matched]
+        med, ci_lo, ci_hi = bootstrap_median_ci(ratios, seed=int(cfg.seed))
+        wp = wilcoxon_signed_rank_p([rt - 1.0 for rt in ratios])
+    else:
+        med = ci_lo = ci_hi = None
+        wp = float("nan")
+    return {
+        "n": len(shared), "n_matched": len(matched),
+        "aware_success": aw_succ, "blind_success": bl_succ, "success_delta": aw_succ - bl_succ,
+        "median_ratio": med, "ci_lo": ci_lo, "ci_hi": ci_hi, "wilcoxon_p": wp,
+    }
+
+
+def _gap_to_ceiling_fracs(eu_by_world, or_by_world, arm_by_world):
+    """List of (arm_exp - oracle_exp)/(euclid_exp - oracle_exp) over worlds where
+    euclid, oracle, and arm all solved and the euclid->oracle gap is positive
+    (0 = matches oracle, 1 = no better than euclid)."""
+    fracs = []
+    shared = set(eu_by_world) & set(or_by_world) & set(arm_by_world)
+    for wi in shared:
+        e, o, a = eu_by_world[wi], or_by_world[wi], arm_by_world[wi]
+        if not (e["found"] and o["found"] and a["found"]):
+            continue
+        eu_exp = float(e["expansions"]); or_exp = float(o["expansions"]); arm_exp = float(a["expansions"])
+        denom = eu_exp - or_exp
+        if denom <= 0:
+            continue
+        fracs.append((arm_exp - or_exp) / denom)
+    return fracs
+
+
+def _best_learned_arm(rows, binding, cfg, present):
+    """Pick the 'best learned arm' (provider) for comparison 6: the learned provider
+    (astar) with the lowest pooled-over-suites matched-median exp_ratio vs euclid at
+    each suite's binding budget. Returns provider name or None."""
+    import numpy as np
+    learned = sorted(p for p in present if p not in NON_LEARNED)
+    best = None
+    for prov in learned:
+        ratios = []
+        for s, b in binding.items():
+            eu = _arm_rows_by_world(rows, s, b, "euclid", "astar", None)
+            arm = _arm_rows_by_world(rows, s, b, prov, "astar", None)
+            for wi in (set(eu) & set(arm)):
+                if eu[wi]["found"] and arm[wi]["found"] and float(eu[wi]["expansions"]) > 0:
+                    ratios.append(float(arm[wi]["expansions"]) / float(eu[wi]["expansions"]))
+        if not ratios:
+            continue
+        med = float(np.median(ratios))
+        if best is None or med < best[1]:
+            best = (prov, med)
+    return best[0] if best is not None else None
+
+
+def _ratio_cell(st):
+    if st is None or st.get("median_ratio") is None:
+        return "n/a"
+    ci = f"[{_fmt_num(st['ci_lo'])}, {_fmt_num(st['ci_hi'])}]"
+    return f"{_fmt_num(st['median_ratio'])} {ci}"
+
+
+def _aware_blind_pairs(present, cfg):
+    """Build the list of (aware, blind) provider name pairs present in the data.
+    For each scalar/field backbone, pair scalar_<bb> with scalar_<bb>_blind (and
+    field likewise) when BOTH are present."""
+    pairs = []
+    for bb in parse_csv(cfg.scalar_backbones):
+        aware, blind = f"scalar_{bb}", f"scalar_{bb}_blind"
+        if aware in present and blind in present:
+            pairs.append((aware, blind))
+    for bb in parse_csv(cfg.field_backbones):
+        aware, blind = f"field_{bb}", f"field_{bb}_blind"
+        if aware in present and blind in present:
+            pairs.append((aware, blind))
+    return pairs
+
+
+def write_preregistered_md(out_dir: Path, rows, cfg: C8Config, binding):
+    """Write the SIX pre-registered C8 comparison sections. `binding` maps suite ->
+    binding budget. Each section degrades gracefully (notes when an arm/suite is
+    absent) instead of crashing."""
+    import numpy as np
+    present = _present_arms(rows)
+    suites = sorted(binding)
+    learned = sorted(p for p in present if p not in NON_LEARNED)
+    # learned, time-aware (non-blind) arms for the time-aware-vs-euclid comparison.
+    time_aware_learned = sorted(p for p in learned if not p.endswith("_blind"))
+
+    lines = ["# C8 Dynamics Comparison — Pre-registered Comparisons", ""]
+    lines.append(
+        "Binding budget per suite (lower of the calibrated band, else first budget seen): "
+        + ", ".join(f"{s}={binding[s]}" for s in suites)
+    )
+    lines.append("")
+    lines += [
+        "_Multiplicity: BH correction is applied ONLY to the success/McNemar grid over learned "
+        "arms (see `continuous_prm_c8_significance.md`). The p-values in THESE six pre-registered "
+        "comparisons are UNcorrected; treat the bootstrap 95% CIs as the primary inference._",
+        "",
+        f"_Small-n: a p shown as `n/a (n<{MIN_N_FOR_P})` had too few discordant/matched pairs to "
+        "trust (counts / median / CI are still reported)._",
+        "",
+    ]
+
+    # --- Comparison 1: time-aware learned vs euclid-time ---------------------
+    lines += ["## 1. Time-aware learned vs euclid-time (expansions + success), per suite", ""]
+    lines += [
+        "Each time-aware learned arm (field_<bb>/astar, scalar_<bb>/astar) vs `euclid/astar`.",
+        "",
+    ]
+    if not time_aware_learned:
+        lines += ["_no time-aware learned arms present — skipped._", ""]
+    else:
+        lines += [
+            "|Suite|Budget|Arm|n|Euclid succ|Arm succ|Succ delta|McNemar p|n matched|Median ratio (95% CI)|Wilcoxon p|",
+            "|---|---:|---|---:|---:|---:|---:|---:|---:|---|---:|",
+        ]
+        for s in suites:
+            b = binding[s]
+            for prov in time_aware_learned:
+                st = _matched_ratio_and_success(rows, s, b, prov, "astar", None, cfg)
+                if st is None:
+                    lines.append(f"|{s}|{b}|{prov}/astar|_arm/euclid absent_|||||||")
+                    continue
+                lines.append(
+                    f"|{s}|{b}|{prov}/astar|{st['n']}|{_fmt_num(st['euclid_success'])}|"
+                    f"{_fmt_num(st['arm_success'])}|{_fmt_num(st['success_delta'])}|"
+                    f"{_fmt_p(st['mcnemar_p'], n=st['discordant'])}|{st['n_matched']}|"
+                    f"{_ratio_cell(st)}|{_fmt_p(st['wilcoxon_p'], n=st['n_matched'])}|"
+                )
+        lines.append("")
+
+    # --- Comparison 2: time-aware vs time-blind (THE SPOTLIGHT) --------------
+    lines += ["## 2. Time-aware vs time-blind — THE SPOTLIGHT: does the future window help?", ""]
+    lines += [
+        "Matched expansion ratio of the time-AWARE arm vs its time-BLIND (W=0) twin "
+        "(e.g. `scalar_hrm` vs `scalar_hrm_blind`, `field_unet` vs `field_unet_blind`), both astar.",
+        "Median ratio < 1 means the aware model expands fewer nodes than its blind twin "
+        "(the future window helps). Success delta = aware - blind over shared worlds.",
+        "",
+    ]
+    pairs = _aware_blind_pairs(present, cfg)
+    if not pairs:
+        lines += ["_no aware/blind pairs present (need both `<arm>` and `<arm>_blind`) — skipped._", ""]
+    else:
+        lines += [
+            "|Suite|Budget|Aware|Blind|n|Aware succ|Blind succ|Succ delta|n matched|Median ratio aware/blind (95% CI)|Wilcoxon p|",
+            "|---|---:|---|---|---:|---:|---:|---:|---:|---|---:|",
+        ]
+        for s in suites:
+            b = binding[s]
+            for aware, blind in pairs:
+                st = _aware_vs_blind(rows, s, b, aware, blind, cfg)
+                if st is None:
+                    lines.append(f"|{s}|{b}|{aware}|{blind}|_absent/no shared worlds_||||||")
+                    continue
+                lines.append(
+                    f"|{s}|{b}|{aware}|{blind}|{st['n']}|{_fmt_num(st['aware_success'])}|"
+                    f"{_fmt_num(st['blind_success'])}|{_fmt_num(st['success_delta'])}|"
+                    f"{st['n_matched']}|{_ratio_cell(st)}|{_fmt_p(st['wilcoxon_p'], n=st['n_matched'])}|"
+                )
+        lines.append("")
+
+    # --- Comparison 3: additive (astar) vs focal for learned arms -----------
+    lines += ["## 3. Additive (astar) vs focal — does C7's additive-wins hold under dynamics?", ""]
+    lines += [
+        "For each learned arm: its astar (additive) ratio vs euclid, and its best-w focal ratio "
+        "vs euclid, side by side. Best w = lowest matched-median exp_ratio (post-hoc; the focal p "
+        "is optimistic — treat the CI as primary).",
+        "",
+    ]
+    if not learned:
+        lines += ["_no learned arms present — skipped._", ""]
+    else:
+        lines += [
+            "|Suite|Budget|Arm|astar ratio (CI)|best w|focal ratio (CI)|focal Wilcoxon p|",
+            "|---|---:|---|---|---:|---|---:|",
+        ]
+        for s in suites:
+            b = binding[s]
+            for prov in learned:
+                st_a = _matched_ratio_and_success(rows, s, b, prov, "astar", None, cfg)
+                ws = sorted({r["w"] for r in rows
+                             if r["suite"] == s and r["budget"] == b and r["provider"] == prov
+                             and r["mode"] == "focal" and r["w"] is not None})
+                bw, st_f = None, None
+                for w in ws:
+                    cand = _matched_ratio_and_success(rows, s, b, prov, "focal", w, cfg)
+                    if cand is None or cand["median_ratio"] is None:
+                        continue
+                    if st_f is None or cand["median_ratio"] < st_f["median_ratio"]:
+                        bw, st_f = w, cand
+                focal_p = _fmt_p(st_f["wilcoxon_p"], n=st_f["n_matched"]) if st_f else "n/a"
+                lines.append(
+                    f"|{s}|{b}|{prov}|{_ratio_cell(st_a)}|{_fmt_w(bw) if bw is not None else 'n/a'}|"
+                    f"{_ratio_cell(st_f)}|{focal_p}|"
+                )
+        lines.append("")
+
+    # --- Comparison 4: recurrent/hierarchical vs field U-Net ----------------
+    lines += ["## 4. Recurrent/hierarchical vs field U-Net — do temporal models win when timing matters?", ""]
+    lines += [
+        "exp_ratio vs euclid (astar) side by side: the recurrent/hierarchical arms "
+        "(scalar_hrm, scalar_onlstm, field_hrm, field_onlstm) vs the convolutional `field_unet`.",
+        "",
+    ]
+    rec_provs = [p for p in ("scalar_hrm", "scalar_onlstm", "field_hrm", "field_onlstm", "field_unet")
+                 if p in present]
+    if not rec_provs:
+        lines += ["_none of the recurrent/hierarchical/U-Net arms present — skipped._", ""]
+    else:
+        lines += [
+            "|Suite|Budget|Arm|n matched|Median ratio vs euclid (95% CI)|Wilcoxon p|",
+            "|---|---:|---|---:|---|---:|",
+        ]
+        for s in suites:
+            b = binding[s]
+            for prov in rec_provs:
+                st = _matched_ratio_and_success(rows, s, b, prov, "astar", None, cfg)
+                if st is None:
+                    lines.append(f"|{s}|{b}|{prov}|_arm/euclid absent_|-|-|")
+                    continue
+                lines.append(
+                    f"|{s}|{b}|{prov}|{st['n_matched']}|{_ratio_cell(st)}|"
+                    f"{_fmt_p(st['wilcoxon_p'], n=st['n_matched'])}|"
+                )
+        lines.append("")
+
+    # --- Comparison 5: learned vs oracle gap-to-ceiling ---------------------
+    lines += ["## 5. Learned vs oracle — gap-to-ceiling", ""]
+    if "oracle" not in present:
+        lines += ["_oracle absent — skipped._", ""]
+    else:
+        lines += [
+            "Median over the triple-matched set (euclid, oracle, arm all solved) of",
+            "`(arm_exp - oracle_exp) / (euclid_exp - oracle_exp)` — the fraction of the",
+            "euclid->oracle expansion gap left *uncaptured* (0 = matches oracle, 1 = no better than euclid).",
+            "",
+            "|Suite|Budget|Arm|n triple-matched|Median uncaptured-gap fraction|",
+            "|---|---:|---|---:|---:|",
+        ]
+        any_row = False
+        for s in suites:
+            b = binding[s]
+            eu_by_world = _arm_rows_by_world(rows, s, b, "euclid", "astar", None)
+            or_by_world = _arm_rows_by_world(rows, s, b, "oracle", "astar", None)
+            for prov in learned:
+                arm_by_world = _arm_rows_by_world(rows, s, b, prov, "astar", None)
+                fracs = _gap_to_ceiling_fracs(eu_by_world, or_by_world, arm_by_world)
+                if not fracs:
+                    lines.append(f"|{s}|{b}|{prov}/astar|0|n/a|")
+                    continue
+                lines.append(f"|{s}|{b}|{prov}/astar|{len(fracs)}|{_fmt_num(float(np.median(fracs)))}|")
+                any_row = True
+        if not any_row:
+            lines.append("|<none>|-|-|-|-|")
+        lines.append("")
+
+    # --- Comparison 6: in-dist vs held-out for the best learned arm ---------
+    lines += ["## 6. In-distribution vs held-out — best learned arm exp_ratio + success vs euclid", ""]
+    best_arm = _best_learned_arm(rows, binding, cfg, present)
+    if best_arm is None:
+        lines += ["_no learned arm with a computable matched ratio — skipped._", ""]
+    else:
+        lines += [
+            f"Best learned arm (lowest pooled matched-median exp_ratio vs euclid): **{best_arm}**/astar.  "
+            f"In-distribution (trained): {', '.join(IN_DIST_SUITES)}.  "
+            f"Held-out (OOD): {', '.join(HELD_OUT_SUITES)}.",
+            "",
+            "|Group|Suite|Budget|n matched|Median ratio (95% CI)|Succ delta vs euclid|",
+            "|---|---|---:|---:|---|---:|",
+        ]
+        for group_name, group in (("in-dist", IN_DIST_SUITES), ("held-out", HELD_OUT_SUITES)):
+            present_in_group = [s for s in group if s in binding]
+            if not present_in_group:
+                lines.append(f"|{group_name}|_no suites in this run_|-|-|-|-|")
+                continue
+            for s in present_in_group:
+                b = binding[s]
+                st = _matched_ratio_and_success(rows, s, b, best_arm, "astar", None, cfg)
+                if st is None:
+                    lines.append(f"|{group_name}|{s}|{b}|_arm/euclid absent_|-|-|")
+                    continue
+                lines.append(
+                    f"|{group_name}|{s}|{b}|{st['n_matched']}|{_ratio_cell(st)}|"
+                    f"{_fmt_num(st['success_delta'])}|"
+                )
+        lines.append("")
+
+    lines += [
+        "## Notes",
+        "",
+        "- Each comparison uses the per-suite binding budget. Arms or suites absent from this run",
+        "  are skipped with a note rather than crashing.",
+        "- Comparison 2 (the spotlight) pairs each time-aware arm with its W=0 time-blind twin;",
+        "  median ratio < 1 means the future window reduces expansions.",
+        "- Comparison 3 picks the focal `w` with the lowest matched-median exp_ratio vs euclid;",
+        "  reporting that winner's p on the same data is optimistic — the CI is the primary inference.",
+        "- These six p-values are UNcorrected (BH applies only to the success/McNemar grid).",
+        "- The Wilcoxon p tests paired (ratio - 1) in ratio-space, matching the median ratio + CI.",
+        "- Bootstrap CIs are seeded (`np.random.default_rng(cfg.seed)`), so this analysis is reproducible.",
+    ]
+    md_path = Path(out_dir) / "results" / "continuous_prm_c8_preregistered.md"
+    ensure_dir(md_path.parent)
+    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return md_path
+
+
+# ---------------------------------------------------------------------------
+# 4. Figures (guarded, like C7's maybe_make_figures)
+# ---------------------------------------------------------------------------
+
+def maybe_make_figures(out_dir: Path, rows, cfg: C8Config, binding):
+    """Write three figures if matplotlib is importable; skip silently otherwise.
+    (a) exp-ratio-vs-euclid bars per suite (learned astar arms);
+    (b) time-aware-vs-time-blind bars per suite (aware/blind median exp ratio);
+    (c) suboptimality-vs-w for focal arms (pooled over suites at binding budgets)."""
+    if not cfg.make_figures:
+        return []
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except Exception:
+        print("[c8] analyze: matplotlib unavailable; skipping figures", flush=True)
+        return []
+    import numpy as np
+
+    fig_dir = ensure_dir(Path(out_dir) / "figures")
+    written = []
+    suites = sorted(binding)
+    present = _present_arms(rows)
+    learned = sorted(p for p in present if p not in NON_LEARNED)
+
+    # (a) expansion-ratio bars per suite at the binding budget (learned astar arms).
+    try:
+        for s in suites:
+            b = binding[s]
+            labels, vals = [], []
+            for prov in learned:
+                st = _matched_ratio_and_success(rows, s, b, prov, "astar", None, cfg)
+                if st is not None and st["median_ratio"] is not None:
+                    labels.append(prov)
+                    vals.append(st["median_ratio"])
+            if not labels:
+                continue
+            plt.figure(figsize=(7, 3.5))
+            plt.bar(range(len(labels)), vals, color="steelblue")
+            plt.axhline(1.0, color="k", linestyle="--", linewidth=1)
+            plt.xticks(range(len(labels)), labels, rotation=30, ha="right")
+            plt.ylabel("median exp ratio vs euclid")
+            plt.title(f"{s} @ budget {b}")
+            plt.tight_layout()
+            p = fig_dir / f"exp_ratio__{sanitize_name(s)}.png"
+            plt.savefig(p, dpi=130); plt.close()
+            written.append(p)
+    except Exception as exc:  # pragma: no cover - figure robustness
+        print(f"[c8] analyze: figure (a) failed: {exc}", flush=True)
+
+    # (b) time-aware vs time-blind median exp ratio (aware/blind) per suite.
+    try:
+        pairs = _aware_blind_pairs(present, cfg)
+        if pairs:
+            for s in suites:
+                b = binding[s]
+                labels, vals = [], []
+                for aware, blind in pairs:
+                    st = _aware_vs_blind(rows, s, b, aware, blind, cfg)
+                    if st is not None and st["median_ratio"] is not None:
+                        labels.append(aware)
+                        vals.append(st["median_ratio"])
+                if not labels:
+                    continue
+                plt.figure(figsize=(7, 3.5))
+                colors = ["seagreen" if v < 1.0 else "indianred" for v in vals]
+                plt.bar(range(len(labels)), vals, color=colors)
+                plt.axhline(1.0, color="k", linestyle="--", linewidth=1)
+                plt.xticks(range(len(labels)), labels, rotation=30, ha="right")
+                plt.ylabel("median exp ratio aware/blind")
+                plt.title(f"time-aware vs time-blind: {s} @ budget {b}")
+                plt.tight_layout()
+                p = fig_dir / f"aware_vs_blind__{sanitize_name(s)}.png"
+                plt.savefig(p, dpi=130); plt.close()
+                written.append(p)
+    except Exception as exc:  # pragma: no cover
+        print(f"[c8] analyze: figure (b) failed: {exc}", flush=True)
+
+    # (c) suboptimality-vs-w for focal arms (pooled over suites at binding budgets).
+    try:
+        focal_provs = sorted({r["provider"] for r in rows if r["mode"] == "focal"})
+        plotted = False
+        plt.figure(figsize=(7, 3.5))
+        for prov in focal_provs:
+            ws = sorted({r["w"] for r in rows if r["provider"] == prov and r["mode"] == "focal" and r["w"] is not None})
+            xs, ys = [], []
+            for w in ws:
+                subs = []
+                for s in suites:
+                    b = binding[s]
+                    for r in rows:
+                        if (r["suite"] == s and r["budget"] == b and r["provider"] == prov
+                                and r["mode"] == "focal" and r["w"] == w and r["found"]
+                                and np.isfinite(r["suboptimality"])):
+                            subs.append(float(r["suboptimality"]))
+                if subs:
+                    xs.append(w); ys.append(float(np.mean(subs)))
+            if xs:
+                plt.plot(xs, ys, marker="o", label=prov)
+                plotted = True
+        if plotted:
+            plt.xlabel("focal w"); plt.ylabel("mean suboptimality (solved)")
+            plt.title("suboptimality vs focal w (binding budgets)")
+            plt.legend(fontsize=8)
+            plt.tight_layout()
+            p = fig_dir / "suboptimality_vs_w.png"
+            plt.savefig(p, dpi=130); plt.close()
+            written.append(p)
+        else:
+            plt.close()
+    except Exception as exc:  # pragma: no cover
+        print(f"[c8] analyze: figure (c) failed: {exc}", flush=True)
+
+    if written:
+        print(f"[c8] analyze: wrote {len(written)} figures -> {fig_dir}", flush=True)
+    return written
+
+
+# ---------------------------------------------------------------------------
+# Analyze orchestrator
+# ---------------------------------------------------------------------------
+
+def run_analyze(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
+    """Read the raw eval CSV and write summary CSV, significance MD, pre-registered
+    comparisons MD, and figures. Returns the paths written."""
+    out_dir = Path(out_dir)
+    rows = load_raw_rows(out_dir)
+    print(f"[{now_str()}] C8 analyze: loaded {len(rows)} raw rows", flush=True)
+
+    _, _, suite_budgets = _index_rows(rows)
+    calib_budgets = _load_calib_budgets(out_dir)
+    binding = {s: _binding_budget(s, suite_budgets, calib_budgets) for s in suite_budgets}
+
+    # 1. Summary CSV
+    summary = build_summary(rows, cfg)
+    summary_path = Path(out_dir) / "results" / "continuous_prm_c8_eval_summary.csv"
+    write_csv(summary_path, summary)
+    print(f"[{now_str()}] C8 analyze: wrote summary ({len(summary)} arm-rows) -> {summary_path}", flush=True)
+
+    # 2. Significance MD
+    success_rows = _success_significance(rows, suite_budgets)
+    expansion_rows = _expansion_significance(rows, suite_budgets, cfg)
+    sig_path = write_significance_md(out_dir, success_rows, expansion_rows)
+    print(f"[{now_str()}] C8 analyze: wrote significance -> {sig_path}", flush=True)
+
+    # 3. Pre-registered comparisons MD
+    prereg_path = write_preregistered_md(out_dir, rows, cfg, binding)
+    print(f"[{now_str()}] C8 analyze: wrote pre-registered comparisons -> {prereg_path}", flush=True)
+
+    # 4. Figures (guarded)
+    figs = maybe_make_figures(out_dir, rows, cfg, binding)
+
+    return {
+        "summary": summary_path,
+        "significance": sig_path,
+        "preregistered": prereg_path,
+        "figures": figs,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
 
@@ -1302,7 +2222,9 @@ def main() -> None:
     elif cfg.mode == "calibrate":
         run_calibrate(cfg, out_dir, device=None)
     elif cfg.mode == "analyze":
-        raise NotImplementedError("C8 analyze: Task 13")
+        # Reads out_dir/results/continuous_prm_c8_eval_raw.csv (no models / device).
+        print(f"[{now_str()}] C8 analyze: stats + pre-registered comparisons (CPU)", flush=True)
+        run_analyze(cfg, out_dir)
     elif cfg.mode == "full":
         raise NotImplementedError("C8 full: Tasks 10-13")
     else:
