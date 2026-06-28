@@ -282,7 +282,7 @@ def _scalar_backbone_cfg(name: str) -> "C.BackboneConfig":
     return configs[name]
 
 
-def _build_scalar_dataset(labelsets: List[dict], cfg: C8Config):
+def _build_scalar_dataset(labelsets: List[dict], cfg: C8Config, window_w: Optional[int] = None):
     """Build the pooled scalar-temporal dataset across collected worlds.
 
     Per world: features Xw (N, t_max+1, W+1, token_dim) from
@@ -290,9 +290,14 @@ def _build_scalar_dataset(labelsets: List[dict], cfg: C8Config):
     target yw = node_residual.reshape(-1); mask mw = reachable.reshape(-1).
     Concatenated across worlds. token_dim = 4 + 4*k_patrollers.
 
+    `window_w` overrides cfg.window_w (default None -> cfg.window_w). The W=0
+    time-blind variant produces seq_len=1 (W+1=1) features with the SAME token_dim
+    — only the sequence length differs, so the model is a normal
+    ContinuousHeuristicModel trained on 1-frame sequences.
+
     Returns (X float32 (M, W+1, token_dim), y float32 (M,), mask bool (M,)).
     """
-    W = int(cfg.window_w)
+    W = int(cfg.window_w if window_w is None else window_w)
     token_dim = _scalar_token_dim(cfg)
     Xs: List[np.ndarray] = []
     ys: List[np.ndarray] = []
@@ -321,15 +326,30 @@ def _build_scalar_dataset(labelsets: List[dict], cfg: C8Config):
     return X, y, mask
 
 
-def _train_scalar(X, y, mask, cfg: C8Config, device, out_dir: Path) -> Dict[str, Path]:
+def _train_scalar(
+    labelsets: List[dict],
+    cfg: C8Config,
+    device,
+    window_w: Optional[int] = None,
+    suffix: str = "",
+) -> Dict[str, Path]:
     """Train each scalar backbone on the masked space-time residual target.
 
-    Saves out_dir/checkpoints/c8_scalar__{backbone}.pt with a payload that lets
-    Task 11 rebuild a ScalarTemporalProvider. Returns {backbone: ckpt_path}.
+    `window_w` overrides cfg.window_w (default None -> cfg.window_w); the dataset
+    is built internally with that W from the SHARED labelsets (no re-collection).
+    `suffix` is appended to the checkpoint name: c8_scalar__{backbone}{suffix}.pt
+    (e.g. suffix="_blind" for the W=0 time-blind ablation variant). Returns
+    {backbone: ckpt_path}. Empty cfg.scalar_backbones -> trains nothing.
     """
     import torch
     import torch.nn.functional as F
 
+    names = parse_csv(cfg.scalar_backbones)
+    if not names:
+        return {}
+
+    out_dir = Path(cfg.out_dir)
+    W = int(cfg.window_w if window_w is None else window_w)
     token_dim = _scalar_token_dim(cfg)
     train_cfg = C.TrainingConfig()
     max_norm_residual = float(train_cfg.max_norm_residual)
@@ -337,6 +357,10 @@ def _train_scalar(X, y, mask, cfg: C8Config, device, out_dir: Path) -> Dict[str,
     epochs = int(cfg.epochs)
     batch_size = 256
     grad_clip = 1.0
+
+    # Build the scalar dataset for THIS W from the shared labelsets (cheap;
+    # only feature-building repeats, not the backward-Dijkstra collection).
+    X, y, mask = _build_scalar_dataset(labelsets, cfg, window_w=W)
 
     ckpt_dir = ensure_dir(out_dir / "checkpoints")
     logs_dir = ensure_dir(out_dir / "logs")
@@ -349,14 +373,15 @@ def _train_scalar(X, y, mask, cfg: C8Config, device, out_dir: Path) -> Dict[str,
         raise RuntimeError("scalar train: no reachable (masked) examples to train on")
     Xk = torch.from_numpy(np.ascontiguousarray(X[mask_np])).to(device)
     yk = torch.from_numpy(np.ascontiguousarray(y[mask_np])).to(device)
+    tag = suffix or ""
     print(
-        f"[{now_str()}] C8 train: scalar dataset M={n_total} reachable={n_keep} "
-        f"({100.0 * n_keep / max(1, n_total):.1f}%) token_dim={token_dim}",
+        f"[{now_str()}] C8 train: scalar{tag} dataset M={n_total} reachable={n_keep} "
+        f"({100.0 * n_keep / max(1, n_total):.1f}%) token_dim={token_dim} W={W} seq_len={W + 1}",
         flush=True,
     )
 
     ckpts: Dict[str, Path] = {}
-    for name in parse_csv(cfg.scalar_backbones):
+    for name in names:
         bb = _scalar_backbone_cfg(name)
         model = C.ContinuousHeuristicModel(
             bb, token_dim=token_dim, max_norm_residual=max_norm_residual
@@ -387,13 +412,13 @@ def _train_scalar(X, y, mask, cfg: C8Config, device, out_dir: Path) -> Dict[str,
             mean_loss = ep_loss / max(1, ep_count)
             line = f"epoch={ep} loss={mean_loss:.6f}"
             log_lines.append(line)
-            print(f"[{now_str()}] C8 train: scalar {name} {line}", flush=True)
+            print(f"[{now_str()}] C8 train: scalar{tag} {name} {line}", flush=True)
 
-        ckpt_path = ckpt_dir / f"c8_scalar__{name}.pt"
+        ckpt_path = ckpt_dir / f"c8_scalar__{name}{suffix}.pt"
         payload = {
             "model": model.state_dict(),
             "backbone_cfg": asdict(bb),
-            "window_w": int(cfg.window_w),
+            "window_w": int(W),
             "k_patrollers": int(cfg.k_patrollers),
             "token_dim": token_dim,
             "max_norm_residual": max_norm_residual,
@@ -401,9 +426,9 @@ def _train_scalar(X, y, mask, cfg: C8Config, device, out_dir: Path) -> Dict[str,
         }
         torch.save(payload, ckpt_path)
         ckpts[name] = ckpt_path
-        log_path = logs_dir / f"c8_scalar__{name}.log"
+        log_path = logs_dir / f"c8_scalar__{name}{suffix}.log"
         log_path.write_text("\n".join(log_lines) + "\n")
-        print(f"[{now_str()}] C8 train: scalar {name} -> {ckpt_path}", flush=True)
+        print(f"[{now_str()}] C8 train: scalar{tag} {name} -> {ckpt_path}", flush=True)
 
     return ckpts
 
@@ -462,11 +487,14 @@ class _FieldTemporalDataset:
     C6 channels via `make_heatmap_example`), so we keep that as the single source
     of truth to stay byte-identical with the eval-time provider path; we only cache
     the per-world node grid-cells (constant over t) up front.
+
+    `window_w` overrides cfg.window_w (default None -> cfg.window_w). W=0 yields an
+    8-channel occupancy stack (the time-blind ablation variant).
     """
 
-    def __init__(self, labelsets: List[dict], cfg: C8Config):
+    def __init__(self, labelsets: List[dict], cfg: C8Config, window_w: Optional[int] = None):
         self.cfg = cfg
-        self.W = int(cfg.window_w)
+        self.W = int(cfg.window_w if window_w is None else window_w)
         self.G = int(cfg.grid_size)
         self.labelsets = labelsets
         self._cells: List[np.ndarray] = []        # (N, 2) int64 per world (const over t)
@@ -527,7 +555,13 @@ def _field_collate(batch):
     return occ, cells, target, mask
 
 
-def _train_field(labelsets: List[dict], cfg: C8Config, device) -> Dict[str, Path]:
+def _train_field(
+    labelsets: List[dict],
+    cfg: C8Config,
+    device,
+    window_w: Optional[int] = None,
+    suffix: str = "",
+) -> Dict[str, Path]:
     """Train each field backbone on the masked PRM-node space-time residual target.
 
     For each (world, t): forward the occupancy stack through a C6 field model
@@ -536,9 +570,14 @@ def _train_field(labelsets: List[dict], cfg: C8Config, device) -> Dict[str, Path
     `C6.predict_residual_grid` uses); GATHER the predicted residual at the PRM node
     grid-cells -> pred_nodes (B, N); masked smooth-L1 against node_residual[:, t].
 
-    Saves out_dir/checkpoints/c8_field__{backbone}.pt with a payload that lets
-    Task 11 rebuild a ValueFieldTemporalProvider. Returns {backbone: ckpt_path}.
-    Empty cfg.field_backbones -> trains nothing (returns {}), preserving T10a-only.
+    `window_w` overrides cfg.window_w (default None -> cfg.window_w); W=0 gives an
+    8-channel occupancy stack -> C6.build_model(name, in_channels=8) (the time-blind
+    ablation variant). `suffix` is appended to the checkpoint name:
+    c8_field__{backbone}{suffix}.pt (e.g. "_blind"). Built from the SHARED labelsets
+    (no re-collection; only occupancy-stack rendering + training repeats).
+
+    Saves a payload that lets Task 11 rebuild a ValueFieldTemporalProvider. Returns
+    {backbone: ckpt_path}. Empty cfg.field_backbones -> trains nothing (returns {}).
     """
     import torch
     import torch.nn.functional as F
@@ -550,24 +589,26 @@ def _train_field(labelsets: List[dict], cfg: C8Config, device) -> Dict[str, Path
         return {}
 
     out_dir = Path(cfg.out_dir)
-    in_channels = 8 + int(cfg.window_w)
+    W = int(cfg.window_w if window_w is None else window_w)
+    in_channels = 8 + W
     train_cfg = C.TrainingConfig()
     lr = float(train_cfg.lr)
     weight_decay = float(train_cfg.weight_decay)
     epochs = int(cfg.epochs)
     batch_size = 8  # grids are heavy; small batch keeps CPU/GPU memory modest
     grad_clip = 1.0
+    tag = suffix or ""
 
     ckpt_dir = ensure_dir(out_dir / "checkpoints")
     logs_dir = ensure_dir(out_dir / "logs")
 
-    dataset = _FieldTemporalDataset(labelsets, cfg)
+    dataset = _FieldTemporalDataset(labelsets, cfg, window_w=W)
     n_samples = len(dataset)
     if n_samples == 0:
         raise RuntimeError("field train: no (world, t) samples to train on")
     print(
-        f"[{now_str()}] C8 train: field dataset samples={n_samples} "
-        f"(worlds={len(labelsets)}) in_channels={in_channels} grid={cfg.grid_size}",
+        f"[{now_str()}] C8 train: field{tag} dataset samples={n_samples} "
+        f"(worlds={len(labelsets)}) in_channels={in_channels} grid={cfg.grid_size} W={W}",
         flush=True,
     )
 
@@ -622,21 +663,21 @@ def _train_field(labelsets: List[dict], cfg: C8Config, device) -> Dict[str, Path
             mean_loss = ep_loss / max(1, ep_count)
             line = f"epoch={ep} loss={mean_loss:.6f}"
             log_lines.append(line)
-            print(f"[{now_str()}] C8 train: field {name} {line}", flush=True)
+            print(f"[{now_str()}] C8 train: field{tag} {name} {line}", flush=True)
 
-        ckpt_path = ckpt_dir / f"c8_field__{name}.pt"
+        ckpt_path = ckpt_dir / f"c8_field__{name}{suffix}.pt"
         payload = {
             "model": model.state_dict(),
             "in_channels": in_channels,
-            "window_w": int(cfg.window_w),
+            "window_w": int(W),
             "grid_size": int(cfg.grid_size),
             "backbone": name,
         }
         torch.save(payload, ckpt_path)
         ckpts[name] = ckpt_path
-        log_path = logs_dir / f"c8_field__{name}.log"
+        log_path = logs_dir / f"c8_field__{name}{suffix}.log"
         log_path.write_text("\n".join(log_lines) + "\n")
-        print(f"[{now_str()}] C8 train: field {name} -> {ckpt_path}", flush=True)
+        print(f"[{now_str()}] C8 train: field{tag} {name} -> {ckpt_path}", flush=True)
 
     return ckpts
 
@@ -661,18 +702,29 @@ def run_collect(cfg: C8Config, out_dir: Path) -> Tuple[List[dict], Dict[str, int
 
 
 def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
-    """Collect labels, then train the scalar (Task 10a) and field (Task 10b) models.
+    """Collect labels ONCE, then train the time-aware AND time-blind (W=0) variants
+    of the scalar (Task 10a) and field (Task 10b) models.
 
-    Both arms supervise on the SAME shared `labelsets` (each carries
-    world/dyn/node_residual/reachable from the backward space-time Dijkstra). The
-    train_manifest.json lists both the scalar and field checkpoints. Field training
-    is a no-op when cfg.field_backbones is empty (preserves T10a scalar-only).
+    All four training passes supervise on the SAME shared `labelsets` (each carries
+    world/dyn/node_residual/reachable from the EXPENSIVE backward space-time
+    Dijkstra, run once in run_collect). The four passes only re-do the CHEAP work
+    (feature-building / occupancy-stack rendering + model training):
+      - scalar       W=cfg.window_w  suffix=""        -> c8_scalar__{bb}.pt
+      - scalar_blind W=0             suffix="_blind"  -> c8_scalar__{bb}_blind.pt
+      - field        W=cfg.window_w  suffix=""        -> c8_field__{bb}.pt
+      - field_blind  W=0             suffix="_blind"  -> c8_field__{bb}_blind.pt
+    The time-blind variants are the separately-trained W=0 models the
+    time-aware-vs-time-blind ablation (the spotlight comparison) requires.
+
+    A family is skipped (returns {}) when its backbone list is empty.
+    train_manifest.json lists all four groups: scalar, scalar_blind, field,
+    field_blind.
     """
     device = _pick_device(cfg)
     print(f"[{now_str()}] C8 train: device={device}", flush=True)
 
-    # Collection is cheap to just inline before training (the backward space-time
-    # Dijkstra per world dominates regardless of whether we re-collect).
+    # Collect ONCE. The backward space-time Dijkstra per world dominates cost; all
+    # four training passes below reuse these labelsets (no re-collection).
     labelsets, counts = run_collect(cfg, out_dir)
     if not labelsets:
         raise RuntimeError(
@@ -680,15 +732,18 @@ def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
             f"(tasks={cfg.train_tasks}, train_worlds={cfg.train_worlds})"
         )
 
-    # ---- Scalar temporal models (Task 10a) ----
-    X, y, mask = _build_scalar_dataset(labelsets, cfg)
-    scalar_ckpts = _train_scalar(X, y, mask, cfg, device, out_dir)
+    W = int(cfg.window_w)
 
-    # ---- Field temporal models (Task 10b) ----
-    # Reuse the SAME labelsets (each carries world/dyn/node_residual/reachable);
-    # supervise the field's predicted residual grid at the PRM node grid-cells.
-    # Empty cfg.field_backbones -> _train_field is a no-op (T10a scalar-only).
-    field_ckpts = _train_field(labelsets, cfg, device)
+    # ---- Scalar temporal models (Task 10a): time-aware + time-blind ----
+    scalar_ckpts = _train_scalar(labelsets, cfg, device, window_w=W, suffix="")
+    scalar_blind_ckpts = _train_scalar(labelsets, cfg, device, window_w=0, suffix="_blind")
+
+    # ---- Field temporal models (Task 10b): time-aware + time-blind ----
+    field_ckpts = _train_field(labelsets, cfg, device, window_w=W, suffix="")
+    field_blind_ckpts = _train_field(labelsets, cfg, device, window_w=0, suffix="_blind")
+
+    def _ckpt_map(ckpts: Dict[str, Path]) -> Dict[str, str]:
+        return {name: str(p) for name, p in ckpts.items() if Path(p).exists()}
 
     manifest = {
         "stage": "c8_train",
@@ -697,39 +752,47 @@ def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
         "train_worlds": int(cfg.train_worlds),
         "usable_worlds_per_suite": counts,
         "usable_worlds_total": int(sum(counts.values())),
-        "window_w": int(cfg.window_w),
+        "window_w": W,
         "k_patrollers": int(cfg.k_patrollers),
         "token_dim": _scalar_token_dim(cfg),
         "scalar": {
             "backbones": parse_csv(cfg.scalar_backbones),
             "epochs": int(cfg.epochs),
-            "checkpoints": {
-                name: str(p) for name, p in scalar_ckpts.items() if Path(p).exists()
-            },
+            "window_w": W,
+            "checkpoints": _ckpt_map(scalar_ckpts),
+        },
+        "scalar_blind": {
+            "backbones": parse_csv(cfg.scalar_backbones),
+            "epochs": int(cfg.epochs),
+            "window_w": 0,
+            "checkpoints": _ckpt_map(scalar_blind_ckpts),
         },
         "field": {
             "backbones": parse_csv(cfg.field_backbones),
             "epochs": int(cfg.epochs),
-            "in_channels": 8 + int(cfg.window_w),
+            "window_w": W,
+            "in_channels": 8 + W,
             "grid_size": int(cfg.grid_size),
-            "checkpoints": {
-                name: str(p) for name, p in field_ckpts.items() if Path(p).exists()
-            },
+            "checkpoints": _ckpt_map(field_ckpts),
+        },
+        "field_blind": {
+            "backbones": parse_csv(cfg.field_backbones),
+            "epochs": int(cfg.epochs),
+            "window_w": 0,
+            "in_channels": 8,
+            "grid_size": int(cfg.grid_size),
+            "checkpoints": _ckpt_map(field_blind_ckpts),
         },
     }
     manifest_path = Path(out_dir) / "train_manifest.json"
     write_json(manifest_path, manifest)
     print(f"[{now_str()}] C8 train: wrote manifest -> {manifest_path}", flush=True)
-    print(
-        f"[{now_str()}] C8 train: scalar checkpoints="
-        f"{list(manifest['scalar']['checkpoints'].values())}",
-        flush=True,
-    )
-    print(
-        f"[{now_str()}] C8 train: field checkpoints="
-        f"{list(manifest['field']['checkpoints'].values())}",
-        flush=True,
-    )
+    for group in ("scalar", "scalar_blind", "field", "field_blind"):
+        print(
+            f"[{now_str()}] C8 train: {group} checkpoints="
+            f"{list(manifest[group]['checkpoints'].values())}",
+            flush=True,
+        )
     return manifest
 
 
