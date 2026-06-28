@@ -783,8 +783,17 @@ def run_calibrate(out_dir: Path, cfg: C7Config) -> Path:
 
 # An "arm" is (provider, mode, w). The euclid baseline arm is always astar.
 EUCLID_BASELINE = ("euclid", "astar", None)
-# Providers that are baseline/ceiling, not "learned arms" (used by comparison 5).
+# Providers that are baseline/ceiling, not "learned arms". `euclid` is the
+# reference baseline and `oracle` is the (exact-Dijkstra) ceiling: neither is a
+# hypothesis under test. They are EXCLUDED from the McNemar/BH/Wilcoxon
+# significance family (oracle "beats" euclid trivially and would inflate the BH
+# test count m, making learned-arm q-values overly conservative). Oracle still
+# appears in the summary CSV and the gap-to-ceiling comparison.
 NON_LEARNED = {"euclid", "oracle"}
+# Below this n, a p-value is not trustworthy: print "n/a (n<6)" instead of a number
+# (still report the counts / median / CI). Applies to McNemar discordant count and
+# the expansion matched-set n.
+MIN_N_FOR_P = 6
 # In-distribution (trained) vs held-out (OOD) suites for comparison 6 (spec 6.5).
 IN_DIST_SUITES = ("C_hard_maze", "C_hard_rooms", "C_hard_spiral")
 HELD_OUT_SUITES = ("C_hard_maze_dense", "C_hard_bugtrap", "C_hard_rooms_large")
@@ -837,6 +846,30 @@ def _fmt_num(v, nd: int = 3) -> str:
     if not _m.isfinite(f):
         return "n/a"
     return f"{f:.{nd}f}"
+
+
+def _fmt_p(p, n=None, min_n: int = MIN_N_FOR_P) -> str:
+    """Format a p-value for markdown.
+
+    - If `n` is given and n < min_n, return "n/a (n<6)" (the p is untrustworthy).
+    - nan / None -> "n/a".
+    - 0 < p < 0.001 -> "<0.001" (avoids the misleading "0.000").
+    - otherwise -> 3-decimal fixed format.
+    """
+    if n is not None and int(n) < int(min_n):
+        return f"n/a (n<{int(min_n)})"
+    if p is None:
+        return "n/a"
+    import math as _m
+    try:
+        f = float(p)
+    except (TypeError, ValueError):
+        return "n/a"
+    if not _m.isfinite(f):
+        return "n/a"
+    if 0.0 < f < 0.001:
+        return "<0.001"
+    return f"{f:.3f}"
 
 
 def load_raw_rows(out_dir: Path):
@@ -905,10 +938,11 @@ def _load_calib_budgets(out_dir: Path):
 # ---------------------------------------------------------------------------
 
 def wilcoxon_signed_rank_p(diffs):
-    """Paired Wilcoxon signed-rank two-sided p-value over `diffs` (arm - euclid,
-    or any paired difference). Uses scipy.stats.wilcoxon if importable; otherwise
-    a normal-approximation with tie/zero correction. Returns nan when undefined
-    (e.g. < 1 nonzero diff). The caller pairs the inputs."""
+    """Paired Wilcoxon signed-rank two-sided p-value over `diffs` — the signed
+    deviations being tested (e.g. ratio - 1.0 over the matched set). Uses
+    scipy.stats.wilcoxon if importable; otherwise a normal-approximation with
+    tie/zero correction. Returns nan when undefined (e.g. < 1 nonzero diff). The
+    caller pairs the inputs and chooses the estimand-space (ratio-1)."""
     import numpy as np
 
     d = np.asarray([x for x in diffs if np.isfinite(x)], dtype=np.float64)
@@ -918,8 +952,9 @@ def wilcoxon_signed_rank_p(diffs):
     # Prefer scipy when available (exact for small n, continuity-corrected normal otherwise).
     try:
         from scipy.stats import wilcoxon  # type: ignore
-        # zero_method="wilcox" drops zeros (matches our manual fallback).
-        res = wilcoxon(d, zero_method="wilcox", alternative="two-sided", mode="auto")
+        # zero_method="wilcox" drops zeros (matches our manual fallback);
+        # method="auto" (was mode="auto", deprecated) picks exact vs normal-approx.
+        res = wilcoxon(d, zero_method="wilcox", alternative="two-sided", method="auto")
         return float(res.pvalue)
     except Exception:
         pass
@@ -1102,9 +1137,12 @@ def build_summary(rows, cfg: C7Config):
 # ---------------------------------------------------------------------------
 
 def _success_significance(rows, suite_budgets):
-    """McNemar paired (arm-astar vs euclid-astar) on SUCCESS per (suite, budget),
+    """McNemar paired (learned-arm vs euclid-astar) on SUCCESS per (suite, budget),
     BH-corrected across the whole grid. gain = arm found & euclid not; loss = euclid
-    found & arm not, paired over ALL shared worlds. Returns list of dict rows."""
+    found & arm not, paired over ALL shared worlds. Returns list of dict rows.
+
+    Only LEARNED arms are under test: euclid (reference) and oracle (ceiling) are
+    excluded from the arm list AND the BH p-value family (see NON_LEARNED)."""
     import numpy as np
 
     comparisons = []
@@ -1114,10 +1152,11 @@ def _success_significance(rows, suite_budgets):
             eu_by_world = _arm_rows_by_world(rows, suite, budget, "euclid", "astar", None)
             if not eu_by_world:
                 continue
-            # all non-euclid arms present at this (suite, budget), any mode/w.
+            # learned arms only at this (suite, budget), any mode/w (exclude NON_LEARNED).
             arm_keys = sorted(
                 {(r["provider"], r["mode"], r["w"]) for r in rows
-                 if r["suite"] == suite and r["budget"] == budget and r["provider"] != "euclid"},
+                 if r["suite"] == suite and r["budget"] == budget
+                 and r["provider"] not in NON_LEARNED},
                 key=lambda a: (a[0], a[1], (a[2] if a[2] is not None else -1.0)),
             )
             for (provider, mode, w) in arm_keys:
@@ -1138,7 +1177,8 @@ def _success_significance(rows, suite_budgets):
                         "n": len(shared),
                         "euclid_success": eu_succ, "arm_success": arm_succ,
                         "delta": arm_succ - eu_succ,
-                        "gain": gain, "loss": loss, "mcnemar_p": p,
+                        "gain": gain, "loss": loss,
+                        "discordant": gain + loss, "mcnemar_p": p,
                     }
                 )
     qvals = bh_q_values(pvals)
@@ -1148,10 +1188,13 @@ def _success_significance(rows, suite_budgets):
 
 
 def _expansion_significance(rows, suite_budgets, cfg: C7Config):
-    """For each non-euclid arm vs euclid-astar at (suite, budget): on the matched
-    set (worlds euclid-astar solved AND the arm solved), report median exp_ratio,
-    paired Wilcoxon signed-rank p (arm_exp vs euclid_exp), and bootstrap 95% CI on
-    the median ratio. Returns list of dict rows."""
+    """For each LEARNED arm vs euclid-astar at (suite, budget): on the matched set
+    (worlds euclid-astar solved AND the arm solved), report median exp_ratio, paired
+    Wilcoxon signed-rank p IN RATIO-SPACE (ratio - 1.0, matching the median-ratio +
+    CI estimand), and bootstrap 95% CI on the median ratio. Returns list of dict
+    rows. NON_LEARNED (euclid reference, oracle ceiling) are excluded — this table
+    is exploratory and uncorrected, but keeping it learned-only matches the success
+    family and the pre-registered comparisons."""
     import numpy as np
 
     out = []
@@ -1162,7 +1205,8 @@ def _expansion_significance(rows, suite_budgets, cfg: C7Config):
                 continue
             arm_keys = sorted(
                 {(r["provider"], r["mode"], r["w"]) for r in rows
-                 if r["suite"] == suite and r["budget"] == budget and r["provider"] != "euclid"},
+                 if r["suite"] == suite and r["budget"] == budget
+                 and r["provider"] not in NON_LEARNED},
                 key=lambda a: (a[0], a[1], (a[2] if a[2] is not None else -1.0)),
             )
             for (provider, mode, w) in arm_keys:
@@ -1183,9 +1227,8 @@ def _expansion_significance(rows, suite_budgets, cfg: C7Config):
                     continue
                 ratios = [float(arm_by_world[wi]["expansions"]) / float(eu_by_world[wi]["expansions"])
                           for wi in matched]
-                diffs = [float(arm_by_world[wi]["expansions"]) - float(eu_by_world[wi]["expansions"])
-                         for wi in matched]
-                wp = wilcoxon_signed_rank_p(diffs)
+                # Wilcoxon in ratio-space (ratio - 1.0) to match the reported median ratio + CI.
+                wp = wilcoxon_signed_rank_p([rt - 1.0 for rt in ratios])
                 med, ci_lo, ci_hi = bootstrap_median_ci(ratios, seed=int(cfg.seed))
                 out.append(
                     {"suite": suite, "budget": int(budget), "provider": provider,
@@ -1203,22 +1246,29 @@ def write_significance_md(out_dir: Path, success_rows, expansion_rows):
 
     lines = ["# C7 Integration Comparison — Significance", ""]
     lines += [
-        "## Success: McNemar (arm vs euclid/astar), BH-corrected across the grid",
+        "## Success: McNemar (learned arm vs euclid/astar), BH-corrected across the grid",
         "",
-        "|Suite|Budget|Arm|n|Euclid succ|Arm succ|Delta|Gain|Loss|McNemar p|BH q|",
-        "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "_Family: learned arms only (oracle ceiling and euclid reference excluded). "
+        "BH correction is applied to THIS success/McNemar grid only._",
+        "",
+        "|Suite|Budget|Arm|n|Euclid succ|Arm succ|Delta|Gain|Loss|Discordant|McNemar p|BH q|",
+        "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     if not success_rows:
-        lines.append("|<none>|-|-|-|-|-|-|-|-|-|-|")
+        lines.append("|<none>|-|-|-|-|-|-|-|-|-|-|-|")
     for r in sorted(success_rows, key=lambda x: (x["suite"], x["budget"], arm_label(x))):
+        disc = int(r.get("discordant", r["gain"] + r["loss"]))
         lines.append(
             f"|{r['suite']}|{r['budget']}|{arm_label(r)}|{r['n']}|"
             f"{_fmt_num(r['euclid_success'])}|{_fmt_num(r['arm_success'])}|{_fmt_num(r['delta'])}|"
-            f"{r['gain']}|{r['loss']}|{_fmt_num(r['mcnemar_p'])}|{_fmt_num(r['bh_q'])}|"
+            f"{r['gain']}|{r['loss']}|{disc}|{_fmt_p(r['mcnemar_p'], n=disc)}|{_fmt_num(r['bh_q'])}|"
         )
     lines += [
         "",
         "## Expansions: matched-set median ratio (arm/euclid) + Wilcoxon p + bootstrap 95% CI",
+        "",
+        "_Exploratory and UNcorrected: the Wilcoxon p-values below are NOT BH-corrected. "
+        "Treat the bootstrap 95% CI on the median ratio as the primary inference._",
         "",
         "|Suite|Budget|Arm|n matched|Median ratio|95% CI|Wilcoxon p|",
         "|---|---:|---|---:|---:|---|---:|",
@@ -1230,18 +1280,23 @@ def write_significance_md(out_dir: Path, success_rows, expansion_rows):
               if r["ci_lo"] is not None else "n/a")
         lines.append(
             f"|{r['suite']}|{r['budget']}|{arm_label(r)}|{r['n_matched']}|"
-            f"{_fmt_num(r['median_ratio'])}|{ci}|{_fmt_num(r['wilcoxon_p'])}|"
+            f"{_fmt_num(r['median_ratio'])}|{ci}|{_fmt_p(r['wilcoxon_p'], n=r['n_matched'])}|"
         )
     lines += [
         "",
         "## Notes",
         "",
-        "- McNemar pairs each arm against `euclid/astar` on success over shared worlds;",
-        "  gain = arm found & euclid not, loss = euclid found & arm not. BH q corrects across",
-        "  all arm-vs-euclid success comparisons in this grid.",
+        "- McNemar pairs each LEARNED arm against `euclid/astar` on success over shared worlds;",
+        "  gain = arm found & euclid not, loss = euclid found & arm not. `oracle` (ceiling) and",
+        "  `euclid` (reference) are NOT hypotheses under test and are excluded from the family.",
+        "- BH q-values correct ONLY across this success/McNemar grid. The expansion-Wilcoxon",
+        "  p-values are UNcorrected; the bootstrap CIs are the primary expansion inference.",
         "- The expansion ratio uses the *matched set* (worlds euclid AND the arm both solved).",
         "  Median ratio < 1 means the arm expands fewer nodes than euclid. The Wilcoxon p tests",
-        "  paired (arm_exp - euclid_exp); the bootstrap CI is a seeded percentile CI on the median ratio.",
+        "  paired (ratio - 1) in ratio-space (matching the median ratio + CI estimand); the bootstrap",
+        "  CI is a seeded percentile CI on the median ratio.",
+        f"- A p-value is shown as `n/a (n<{MIN_N_FOR_P})` when the McNemar discordant count or the",
+        f"  expansion matched-set n is below {MIN_N_FOR_P} (too few pairs for a trustworthy p).",
     ]
     md_path = Path(out_dir) / "results" / "continuous_prm_c7_significance.md"
     ensure_dir(md_path.parent)
@@ -1278,16 +1333,16 @@ def _matched_ratio_and_success(rows, suite, budget, provider, mode, w, cfg):
     )
     if matched:
         ratios = [float(arm_by_world[wi]["expansions"]) / float(eu_by_world[wi]["expansions"]) for wi in matched]
-        diffs = [float(arm_by_world[wi]["expansions"]) - float(eu_by_world[wi]["expansions"]) for wi in matched]
         med, ci_lo, ci_hi = bootstrap_median_ci(ratios, seed=int(cfg.seed))
-        wp = wilcoxon_signed_rank_p(diffs)
+        # Wilcoxon in ratio-space (ratio - 1.0) to match the median ratio + CI estimand.
+        wp = wilcoxon_signed_rank_p([rt - 1.0 for rt in ratios])
     else:
         med = ci_lo = ci_hi = None
         wp = float("nan")
     return {
         "n": len(shared), "n_matched": len(matched),
         "euclid_success": eu_succ, "arm_success": arm_succ, "success_delta": arm_succ - eu_succ,
-        "gain": gain, "loss": loss, "mcnemar_p": mp,
+        "gain": gain, "loss": loss, "discordant": gain + loss, "mcnemar_p": mp,
         "median_ratio": med, "ci_lo": ci_lo, "ci_hi": ci_hi, "wilcoxon_p": wp,
     }
 
@@ -1325,6 +1380,15 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
         + ", ".join(f"{s}={binding[s]}" for s in suites)
     )
     lines.append("")
+    lines += [
+        "_Multiplicity: BH correction is applied ONLY to the success/McNemar grid over learned "
+        "arms (see `continuous_prm_c7_significance.md`). The p-values in THESE six pre-registered "
+        "comparisons are UNcorrected; treat the bootstrap 95% CIs as the primary inference._",
+        "",
+        f"_Small-n: a p shown as `n/a (n<{MIN_N_FOR_P})` had too few discordant/matched pairs to "
+        "trust (counts / median / CI are still reported)._",
+        "",
+    ]
 
     def ratio_cell(st):
         if st is None or st.get("median_ratio") is None:
@@ -1349,8 +1413,8 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
                 continue
             lines.append(
                 f"|{s}|{b}|{st['n']}|{_fmt_num(st['euclid_success'])}|{_fmt_num(st['arm_success'])}|"
-                f"{_fmt_num(st['success_delta'])}|{_fmt_num(st['mcnemar_p'])}|{st['n_matched']}|"
-                f"{ratio_cell(st)}|{_fmt_num(st['wilcoxon_p'])}|"
+                f"{_fmt_num(st['success_delta'])}|{_fmt_p(st['mcnemar_p'], n=st['discordant'])}|{st['n_matched']}|"
+                f"{ratio_cell(st)}|{_fmt_p(st['wilcoxon_p'], n=st['n_matched'])}|"
             )
         lines.append("")
 
@@ -1377,7 +1441,7 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
                     continue
                 lines.append(
                     f"|{s}|{b}|{prov}|{_fmt_num(st['arm_success'])} ({_fmt_num(st['success_delta'])})|"
-                    f"{st['n_matched']}|{ratio_cell(st)}|{_fmt_num(st['wilcoxon_p'])}|"
+                    f"{st['n_matched']}|{ratio_cell(st)}|{_fmt_p(st['wilcoxon_p'], n=st['n_matched'])}|"
                 )
         lines.append("")
 
@@ -1389,6 +1453,9 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
         lines += [
             "Both expressed as median exp_ratio vs euclid on their matched sets (does focal help the scalar?).",
             "",
+            "_Note: w was selected post-hoc (lowest median exp-ratio); the reported focal p is "
+            "optimistic (winner's curse) — treat the CI as the primary inference._",
+            "",
             "|Suite|Budget|scalar/astar ratio (CI)|best w|scalar/focal ratio (CI)|focal Wilcoxon p|",
             "|---|---:|---|---:|---|---:|",
         ]
@@ -1396,9 +1463,10 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
             b = binding[s]
             st_a = _matched_ratio_and_success(rows, s, b, "scalar_hrm", "astar", None, cfg)
             bw, st_f = _best_focal_w(rows, s, b, "scalar_hrm", cfg)
+            focal_p = _fmt_p(st_f["wilcoxon_p"], n=st_f["n_matched"]) if st_f else "n/a"
             lines.append(
                 f"|{s}|{b}|{ratio_cell(st_a)}|{_fmt_w(bw) if bw is not None else 'n/a'}|"
-                f"{ratio_cell(st_f)}|{_fmt_num(st_f['wilcoxon_p']) if st_f else 'n/a'}|"
+                f"{ratio_cell(st_f)}|{focal_p}|"
             )
         lines.append("")
 
@@ -1409,6 +1477,9 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
         lines += ["_no field_* arms present — skipped._", ""]
     else:
         lines += [
+            "_Note: w was selected post-hoc (lowest median exp-ratio); the reported focal p is "
+            "optimistic (winner's curse) — treat the CI as the primary inference._",
+            "",
             "|Suite|Budget|Provider|astar ratio (CI)|best w|focal ratio (CI)|focal Wilcoxon p|",
             "|---|---:|---|---|---:|---|---:|",
         ]
@@ -1417,9 +1488,10 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
             for prov in field_provs:
                 st_a = _matched_ratio_and_success(rows, s, b, prov, "astar", None, cfg)
                 bw, st_f = _best_focal_w(rows, s, b, prov, cfg)
+                focal_p = _fmt_p(st_f["wilcoxon_p"], n=st_f["n_matched"]) if st_f else "n/a"
                 lines.append(
                     f"|{s}|{b}|{prov}|{ratio_cell(st_a)}|{_fmt_w(bw) if bw is not None else 'n/a'}|"
-                    f"{ratio_cell(st_f)}|{_fmt_num(st_f['wilcoxon_p']) if st_f else 'n/a'}|"
+                    f"{ratio_cell(st_f)}|{focal_p}|"
                 )
         lines.append("")
 
@@ -1490,7 +1562,10 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C7Config, binding):
         "",
         "- Each comparison uses the per-suite binding budget. Arms or suites absent from this run",
         "  are skipped with a note rather than crashing.",
-        "- Comparisons 3 and 4 pick the focal `w` with the lowest matched-median exp_ratio vs euclid.",
+        "- Comparisons 3 and 4 pick the focal `w` with the lowest matched-median exp_ratio vs euclid;",
+        "  reporting that winner's p on the same data is optimistic — the CI is the primary inference.",
+        "- These six p-values are UNcorrected (BH applies only to the success/McNemar grid).",
+        "- The Wilcoxon p tests paired (ratio - 1) in ratio-space, matching the median ratio + CI.",
         "- Bootstrap CIs are seeded (`np.random.default_rng(cfg.seed)`), so this analysis is reproducible.",
     ]
     md_path = Path(out_dir) / "results" / "continuous_prm_c7_preregistered.md"
