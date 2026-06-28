@@ -2103,6 +2103,51 @@ def run_analyze(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
 
 
 # ---------------------------------------------------------------------------
+# Full pipeline orchestrator (Tasks 10-13)
+# ---------------------------------------------------------------------------
+
+def run_full(cfg: C8Config, out_dir: Path, device) -> None:
+    """Run all C8 stages end-to-end in order.
+
+    Stage order:
+      1. train     — collect labels once + train scalar & field (time-aware AND
+                     time-blind) models via run_train.
+      2. calibrate — ONLY if out_dir/calibration.json does NOT already exist;
+                     prints SKIPPED and reuses existing calibration otherwise.
+      3. eval      — build providers via _load_eval_providers + run_eval.
+      4. analyze   — run_analyze (summary CSV + significance MD + pre-registered
+                     comparisons MD + figures).
+
+    Prints a [c8] === STAGE: <name> === banner before each stage.
+    """
+    out_dir = Path(out_dir)
+
+    # ---- Stage 1: train (includes collect) ----------------------------------
+    print(f"\n[c8] === STAGE: train ===", flush=True)
+    run_train(cfg, out_dir)
+
+    # ---- Stage 2: calibrate (skip if calibration.json already exists) -------
+    calib_path = out_dir / "calibration.json"
+    if calib_path.exists():
+        print(
+            f"\n[c8] === STAGE: calibrate (SKIPPED — {calib_path} already exists) ===",
+            flush=True,
+        )
+    else:
+        print(f"\n[c8] === STAGE: calibrate ===", flush=True)
+        run_calibrate(cfg, out_dir, device=None)
+
+    # ---- Stage 3: eval -------------------------------------------------------
+    print(f"\n[c8] === STAGE: eval ===", flush=True)
+    providers = _load_eval_providers(cfg, out_dir, device)
+    run_eval(cfg, out_dir, device, providers)
+
+    # ---- Stage 4: analyze ----------------------------------------------------
+    print(f"\n[c8] === STAGE: analyze ===", flush=True)
+    run_analyze(cfg, out_dir)
+
+
+# ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
 
@@ -2231,7 +2276,9 @@ def main() -> None:
         print(f"[{now_str()}] C8 analyze: stats + pre-registered comparisons (CPU)", flush=True)
         run_analyze(cfg, out_dir)
     elif cfg.mode == "full":
-        raise NotImplementedError("C8 full: Tasks 10-13")
+        device = _pick_device(cfg)
+        print(f"[{now_str()}] C8 full: device={device}", flush=True)
+        run_full(cfg, out_dir, device)
     else:
         raise ValueError(f"unknown mode: {cfg.mode}")
 
