@@ -498,12 +498,16 @@ class _FieldTemporalDataset:
         self.G = int(cfg.grid_size)
         self.labelsets = labelsets
         self._cells: List[np.ndarray] = []        # (N, 2) int64 per world (const over t)
+        self._static_base: List[tuple] = []       # (static_occ, static7) per world (const over t)
         self._index: List[Tuple[int, int]] = []   # flat (world_idx, t)
         for w_idx, ls in enumerate(labelsets):
             world = ls["world"]
             self._cells.append(
                 _build_field_node_cells(ls["rm"], float(world.side_len), self.G)
             )
+            # Cache the per-world, t-independent field static base (grid Dijkstra +
+            # static channels) ONCE — do NOT recompute it per sample in __getitem__.
+            self._static_base.append(P.compute_field_static_base(world, self.G))
             t_max = int(ls["params"]["t_max"])
             for t in range(t_max + 1):
                 self._index.append((w_idx, t))
@@ -518,7 +522,10 @@ class _FieldTemporalDataset:
         dt = float(ls["params"]["dt"])
         # Build the occupancy stack ON DEMAND (bounds memory). This re-renders the
         # W+1 patroller frames for (world, t) — matches the eval-time provider path.
-        occ = P.build_field_occupancy_stack(world, dyn, self.G, t, self.W, dt)
+        # Reuse the cached per-world static base (grid Dijkstra computed once/world).
+        occ = P.build_field_occupancy_stack(
+            world, dyn, self.G, t, self.W, dt, static_base=self._static_base[w_idx]
+        )
         occ = np.ascontiguousarray(occ, dtype=np.float32)  # (8+W, G, G)
         cells = self._cells[w_idx]                          # (N, 2) int64
         target = ls["node_residual"][:, t].astype(np.float32)  # (N,)

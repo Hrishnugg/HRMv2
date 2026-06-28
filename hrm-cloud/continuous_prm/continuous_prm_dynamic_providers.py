@@ -206,7 +206,25 @@ def _render_patrollers_occupancy(world, dyn, grid_size, t_real) -> np.ndarray:
     return occ
 
 
-def build_field_occupancy_stack(world, dyn, grid_size, t, window_w, dt) -> np.ndarray:
+def compute_field_static_base(world, grid_size):
+    """Per-world, t-independent inputs for the field occupancy stack (call ONCE per world).
+
+    Returns (static_occ_bool (G,G), static7 (7,G,G)).
+
+    These are the inputs to ``build_field_occupancy_stack`` that do NOT depend on
+    ``t``: the static occupancy (channel 0 of make_heatmap_example, used as the wall
+    base for every patroller frame) and the 7 static C6 channels. Computing this
+    once per world avoids re-running make_heatmap_example's grid Dijkstra on every
+    per-timestep call.
+    """
+    import continuous_prm_c6_heatmap_value_field as C6
+    base = C6.make_heatmap_example(world, int(grid_size))["x"]  # (8, G, G)
+    static_occ = base[0] > 0.5                                   # boolean static walls
+    static7 = base[1:8].astype(np.float32)                       # (7, G, G)
+    return static_occ, static7
+
+
+def build_field_occupancy_stack(world, dyn, grid_size, t, window_w, dt, static_base=None) -> np.ndarray:
     """Render a (8 + W, G, G) occupancy-stack field input for time-step ``t``.
 
     Channels:
@@ -215,18 +233,24 @@ def build_field_occupancy_stack(world, dyn, grid_size, t, window_w, dt) -> np.nd
       W+1 .. W+7 : the 7 static C6 channels (reachable_free, clearance, goal_g,
                start_g, x_norm, y_norm, eu_norm) unchanged from make_heatmap_example.
     W=0 -> 8 channels = the original C6 input (occupancy at time t only).
+
+    ``static_base`` (optional): the (static_occ, static7) pair from
+    ``compute_field_static_base(world, grid_size)``. When None (back-compat) it is
+    computed here; when supplied the per-world grid Dijkstra is skipped. Output is
+    byte-identical either way — only the source of the t-independent channels changes.
     """
-    import continuous_prm_c6_heatmap_value_field as C6
     G = int(grid_size)
     W = int(window_w)
-    base = C6.make_heatmap_example(world, G)["x"]  # (8, G, G); channel 0 is static occupancy
-    static_occ = base[0] > 0.5                      # boolean static walls
+    if static_base is None:
+        static_occ, static7 = compute_field_static_base(world, G)
+    else:
+        static_occ, static7 = static_base
     frames = np.empty((W + 1, G, G), dtype=np.float32)
     for i in range(W + 1):
         t_real = float(t + i) * float(dt)
         occ = static_occ | _render_patrollers_occupancy(world, dyn, G, t_real)
         frames[i] = occ.astype(np.float32)
-    x = np.concatenate([frames, base[1:8]], axis=0)  # (W+1) frames ++ 7 static = (8+W, G, G)
+    x = np.concatenate([frames, static7], axis=0)  # (W+1) frames ++ 7 static = (8+W, G, G)
     return x.astype(np.float32)
 
 
@@ -250,8 +274,11 @@ class ValueFieldTemporalProvider(SpaceTimeHeuristicProvider):
         euclid_t = euclid_time_row(roadmap, v_agent, goal_idx) / float(dt)
         T_scale = float(world.side_len) / float(v_agent) / float(dt)
         H = np.zeros((roadmap.points.shape[0], t_max + 1), dtype=np.float64)
+        # Per-world static base (grid Dijkstra + static channels) computed ONCE;
+        # reused for every t. Only the W+1 patroller frames change per timestep.
+        static_base = compute_field_static_base(world, self.grid_size)
         for t in range(t_max + 1):
-            x_t = build_field_occupancy_stack(world, dyn, self.grid_size, t, W, dt)
+            x_t = build_field_occupancy_stack(world, dyn, self.grid_size, t, W, dt, static_base=static_base)
             grid = C6.predict_residual_grid(self.model, x_t, self.device)
             grid = np.nan_to_num(grid, nan=0.0, posinf=10.0, neginf=0.0)
             node_resid = C6.interpolate_grid_values(np.maximum(0.0, grid), world, roadmap.points)

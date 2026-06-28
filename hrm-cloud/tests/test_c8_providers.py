@@ -136,3 +136,21 @@ def test_field_occupancy_stack_shape_and_motion():
     assert x.shape == (8 + 2, 32, 32)
     # the W+1 occupancy frames (channels 0..2) should differ across frames (patroller moves)
     assert not np.allclose(x[0], x[2])
+
+
+def test_field_occupancy_stack_static_base_equivalence():
+    """Passing a precomputed static_base must produce a BYTE-IDENTICAL stack to the
+    back-compat (static_base=None) path — the perf cache must not change behavior."""
+    import continuous_prm_dynamic_providers as P
+    world, rm = _small_world_and_prm()
+    mc = D.MovingCircle(ax=0.2, ay=0.5, bx=0.8, by=0.5, period=4.0, radius=0.1)
+    dyn = D.Dynamics([mc])
+    G = 32
+    static_base = P.compute_field_static_base(world, G)
+    assert static_base[0].shape == (G, G) and static_base[1].shape == (7, G, G)
+    for W in (0, 2):
+        for t in (0, 1, 3, 5):
+            a = P.build_field_occupancy_stack(world, dyn, G, t, W, dt=1.0)
+            b = P.build_field_occupancy_stack(world, dyn, G, t, W, dt=1.0, static_base=static_base)
+            assert np.array_equal(a, b), f"mismatch at W={W} t={t}"
+            assert a.dtype == b.dtype
