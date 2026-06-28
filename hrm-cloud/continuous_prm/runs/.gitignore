@@ -1,0 +1,9 @@
+# Run artifacts: keep text results (csv/json/md/log), exclude heavy/reproducible binaries.
+*.pt
+*.npz
+*.pth
+*.ckpt
+figures/
+*.png
+*.jpg
+*.gif

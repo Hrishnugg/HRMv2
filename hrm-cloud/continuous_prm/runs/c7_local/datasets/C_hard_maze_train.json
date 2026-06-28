@@ -1,0 +1,2250 @@
+{
+  "grid_size": 64,
+  "input_channels": 8,
+  "n_worlds_collected": 96,
+  "n_worlds_requested": 96,
+  "spec": {
+    "barrier_radius_frac": 0.028,
+    "extra_clutter_range": [
+      10,
+      20
+    ],
+    "gap_width_frac": 0.115,
+    "is_ood": false,
+    "mode": "hard_maze",
+    "name": "C_hard_maze",
+    "obstacle_count_range": [
+      10,
+      20
+    ],
+    "radius_range": [
+      0.018,
+      0.045
+    ],
+    "rect_hh_range": [
+      0.03,
+      0.1
+    ],
+    "rect_hw_range": [
+      0.03,
+      0.08
+    ],
+    "rectangle_count_range": [
+      3,
+      3
+    ],
+    "side_len": 1.0
+  },
+  "split": "train",
+  "task": "C_hard_maze",
+  "worlds": [
+    {
+      "free_cells": 3534,
+      "free_fraction_est": 0.865348361066576,
+      "goal": [
+        0.13952776975525183,
+        0.5611824692696635
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 2.116621447092825,
+      "roadmap_edges": 664,
+      "roadmap_nodes": 192,
+      "seed": 1529281941,
+      "side_len": 1.0,
+      "start": [
+        0.9053981977735313,
+        0.45795252884801
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 0
+    },
+    {
+      "free_cells": 3662,
+      "free_fraction_est": 0.8871071044009584,
+      "goal": [
+        0.09824911952890829,
+        0.478266434138099
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 2.142707237703459,
+      "roadmap_edges": 695,
+      "roadmap_nodes": 192,
+      "seed": 1765838724,
+      "side_len": 1.0,
+      "start": [
+        0.9299057252030359,
+        0.4931957547744766
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 1
+    },
+    {
+      "free_cells": 3681,
+      "free_fraction_est": 0.8921936526264129,
+      "goal": [
+        0.12037822426406485,
+        0.5178872584750098
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 2.1135976457444774,
+      "roadmap_edges": 705,
+      "roadmap_nodes": 192,
+      "seed": 702882454,
+      "side_len": 1.0,
+      "start": [
+        0.9645314900924393,
+        0.45477056936720367
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 2
+    },
+    {
+      "free_cells": 3598,
+      "free_fraction_est": 0.8817843831064405,
+      "goal": [
+        0.030024949998755816,
+        0.5050497085746455
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 2.128615910008622,
+      "roadmap_edges": 702,
+      "roadmap_nodes": 192,
+      "seed": 624062529,
+      "side_len": 1.0,
+      "start": [
+        0.9310097336779254,
+        0.566314068131035
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 3
+    },
+    {
+      "free_cells": 3586,
+      "free_fraction_est": 0.876602603324925,
+      "goal": [
+        0.9288371339864433,
+        0.414756779660369
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 2.1271913921551167,
+      "roadmap_edges": 694,
+      "roadmap_nodes": 192,
+      "seed": 683676424,
+      "side_len": 1.0,
+      "start": [
+        0.06028238393956905,
+        0.5437026681678427
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 4
+    },
+    {
+      "free_cells": 3637,
+      "free_fraction_est": 0.8960202199645915,
+      "goal": [
+        0.9664211795408977,
+        0.4739615451528469
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.9435764696805429,
+      "roadmap_edges": 699,
+      "roadmap_nodes": 192,
+      "seed": 169731582,
+      "side_len": 1.0,
+      "start": [
+        0.055308888454915356,
+        0.5054292753013891
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 5
+    },
+    {
+      "free_cells": 3563,
+      "free_fraction_est": 0.877256457772503,
+      "goal": [
+        0.8569542075837355,
+        0.47385655528284293
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 2.008470395480391,
+      "roadmap_edges": 700,
+      "roadmap_nodes": 192,
+      "seed": 609010104,
+      "side_len": 1.0,
+      "start": [
+        0.13074171098459736,
+        0.529224025126632
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 6
+    },
+    {
+      "free_cells": 3555,
+      "free_fraction_est": 0.8724442680749802,
+      "goal": [
+        0.04333549829940039,
+        0.5599802619758925
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 1.861083653300002,
+      "roadmap_edges": 678,
+      "roadmap_nodes": 192,
+      "seed": 2044382890,
+      "side_len": 1.0,
+      "start": [
+        0.8545624604543482,
+        0.4643220964027239
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 7
+    },
+    {
+      "free_cells": 3619,
+      "free_fraction_est": 0.8774435976153399,
+      "goal": [
+        0.13243398420972685,
+        0.40319979915016047
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 2.0075112791264575,
+      "roadmap_edges": 665,
+      "roadmap_nodes": 192,
+      "seed": 423762777,
+      "side_len": 1.0,
+      "start": [
+        0.8554229790998124,
+        0.5908014223536976
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 8
+    },
+    {
+      "free_cells": 3562,
+      "free_fraction_est": 0.8562045433955144,
+      "goal": [
+        0.05772911868672694,
+        0.5998061368716283
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 25,
+      "oracle_cost": 2.001825230914795,
+      "roadmap_edges": 662,
+      "roadmap_nodes": 192,
+      "seed": 229697770,
+      "side_len": 1.0,
+      "start": [
+        0.8871969995146906,
+        0.592252917762284
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 9
+    },
+    {
+      "free_cells": 3602,
+      "free_fraction_est": 0.8853550437545373,
+      "goal": [
+        0.8989456887456567,
+        0.4841406954206356
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 2.6648320935177456,
+      "roadmap_edges": 705,
+      "roadmap_nodes": 192,
+      "seed": 1882066855,
+      "side_len": 1.0,
+      "start": [
+        0.09034547237892376,
+        0.46230284611588424
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 10
+    },
+    {
+      "free_cells": 3656,
+      "free_fraction_est": 0.8873566426947542,
+      "goal": [
+        0.908877485875353,
+        0.5114362690247676
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 2.1095737723508567,
+      "roadmap_edges": 669,
+      "roadmap_nodes": 192,
+      "seed": 1926350324,
+      "side_len": 1.0,
+      "start": [
+        0.13603865036724777,
+        0.5313461790142406
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 11
+    },
+    {
+      "free_cells": 3678,
+      "free_fraction_est": 0.8877652732170798,
+      "goal": [
+        0.06363695177221766,
+        0.5810871673739034
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 2.2354129273394165,
+      "roadmap_edges": 667,
+      "roadmap_nodes": 192,
+      "seed": 1462906356,
+      "side_len": 1.0,
+      "start": [
+        0.8500588257266699,
+        0.5691017614216264
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 12
+    },
+    {
+      "free_cells": 3570,
+      "free_fraction_est": 0.8637589476516515,
+      "goal": [
+        0.9295049097134043,
+        0.4206626269479903
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 2.236071896079127,
+      "roadmap_edges": 689,
+      "roadmap_nodes": 192,
+      "seed": 1177643929,
+      "side_len": 1.0,
+      "start": [
+        0.13248179620049932,
+        0.4971368101388472
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 13
+    },
+    {
+      "free_cells": 3664,
+      "free_fraction_est": 0.8855364428716084,
+      "goal": [
+        0.05220848491750867,
+        0.4186475539263901
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 1.7287368462574362,
+      "roadmap_edges": 690,
+      "roadmap_nodes": 192,
+      "seed": 1241734690,
+      "side_len": 1.0,
+      "start": [
+        0.9613211263953998,
+        0.5977119001442723
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 14
+    },
+    {
+      "free_cells": 3609,
+      "free_fraction_est": 0.8847798225860605,
+      "goal": [
+        0.07075121941738728,
+        0.5858024534876162
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 2.0286963902634163,
+      "roadmap_edges": 711,
+      "roadmap_nodes": 192,
+      "seed": 493178712,
+      "side_len": 1.0,
+      "start": [
+        0.9213488707480822,
+        0.5821388732377717
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 15
+    },
+    {
+      "free_cells": 3637,
+      "free_fraction_est": 0.8686221947984534,
+      "goal": [
+        0.1139700055285025,
+        0.42375340599205225
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 22,
+      "oracle_cost": 1.8646343331914645,
+      "roadmap_edges": 658,
+      "roadmap_nodes": 192,
+      "seed": 2110666269,
+      "side_len": 1.0,
+      "start": [
+        0.8577623063279514,
+        0.5429927852084628
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 16
+    },
+    {
+      "free_cells": 3634,
+      "free_fraction_est": 0.8762490433765154,
+      "goal": [
+        0.8586989300596561,
+        0.5629043212985118
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 22,
+      "oracle_cost": 1.9589618597504201,
+      "roadmap_edges": 695,
+      "roadmap_nodes": 192,
+      "seed": 2035528957,
+      "side_len": 1.0,
+      "start": [
+        0.030829827377506273,
+        0.45722818293231504
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 17
+    },
+    {
+      "free_cells": 3584,
+      "free_fraction_est": 0.8743784025588428,
+      "goal": [
+        0.9540286808962507,
+        0.41698106304960986
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 23,
+      "oracle_cost": 1.8650850863974973,
+      "roadmap_edges": 699,
+      "roadmap_nodes": 192,
+      "seed": 1855137091,
+      "side_len": 1.0,
+      "start": [
+        0.05519407812370735,
+        0.42555310954691494
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 18
+    },
+    {
+      "free_cells": 3555,
+      "free_fraction_est": 0.8701111418605814,
+      "goal": [
+        0.03899049308110712,
+        0.5787934161714704
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 2.113709367042744,
+      "roadmap_edges": 672,
+      "roadmap_nodes": 192,
+      "seed": 1793086954,
+      "side_len": 1.0,
+      "start": [
+        0.9679052972691659,
+        0.4409494042223763
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 19
+    },
+    {
+      "free_cells": 3689,
+      "free_fraction_est": 0.8789319836141528,
+      "goal": [
+        0.1480945813284777,
+        0.4444309049532302
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 1.7344678585241455,
+      "roadmap_edges": 705,
+      "roadmap_nodes": 192,
+      "seed": 1310508413,
+      "side_len": 1.0,
+      "start": [
+        0.8566725613557196,
+        0.5135326021923527
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 20
+    },
+    {
+      "free_cells": 3574,
+      "free_fraction_est": 0.8773504936563499,
+      "goal": [
+        0.13482938236612285,
+        0.46265642401448387
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 1.6304928566555112,
+      "roadmap_edges": 684,
+      "roadmap_nodes": 192,
+      "seed": 1920400654,
+      "side_len": 1.0,
+      "start": [
+        0.9372384280767936,
+        0.4468654024615106
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 21
+    },
+    {
+      "free_cells": 3551,
+      "free_fraction_est": 0.8746046189221133,
+      "goal": [
+        0.9600970831279831,
+        0.44048027080839014
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.9127910585448047,
+      "roadmap_edges": 675,
+      "roadmap_nodes": 192,
+      "seed": 216619760,
+      "side_len": 1.0,
+      "start": [
+        0.13853353305996197,
+        0.5610959831365535
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 22
+    },
+    {
+      "free_cells": 3565,
+      "free_fraction_est": 0.8693873604163957,
+      "goal": [
+        0.07423932288124804,
+        0.4626877396998894
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 2.1633493923374822,
+      "roadmap_edges": 704,
+      "roadmap_nodes": 192,
+      "seed": 240701237,
+      "side_len": 1.0,
+      "start": [
+        0.8959377814836483,
+        0.5370792190037083
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 23
+    },
+    {
+      "free_cells": 3583,
+      "free_fraction_est": 0.8754955957861295,
+      "goal": [
+        0.1211690725933214,
+        0.5102659747698208
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 2.221640336794267,
+      "roadmap_edges": 702,
+      "roadmap_nodes": 192,
+      "seed": 2004081480,
+      "side_len": 1.0,
+      "start": [
+        0.898297677442509,
+        0.4228906544173147
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 24
+    },
+    {
+      "free_cells": 3746,
+      "free_fraction_est": 0.8930681843879062,
+      "goal": [
+        0.8759961574090492,
+        0.42072471183719784
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 2.2028003957828153,
+      "roadmap_edges": 685,
+      "roadmap_nodes": 192,
+      "seed": 145871440,
+      "side_len": 1.0,
+      "start": [
+        0.14306894426185543,
+        0.40702018169684373
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 25
+    },
+    {
+      "free_cells": 3641,
+      "free_fraction_est": 0.8815399753886791,
+      "goal": [
+        0.033355737257388454,
+        0.4345708243710478
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 2.1750660781572813,
+      "roadmap_edges": 696,
+      "roadmap_nodes": 192,
+      "seed": 1797154965,
+      "side_len": 1.0,
+      "start": [
+        0.8845432436663189,
+        0.576260419735908
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 26
+    },
+    {
+      "free_cells": 3718,
+      "free_fraction_est": 0.8947132990214315,
+      "goal": [
+        0.896853848230912,
+        0.5899373835597099
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.915186350342721,
+      "roadmap_edges": 709,
+      "roadmap_nodes": 192,
+      "seed": 572321230,
+      "side_len": 1.0,
+      "start": [
+        0.12884749612805216,
+        0.4385981583621816
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 27
+    },
+    {
+      "free_cells": 3658,
+      "free_fraction_est": 0.8827734975773345,
+      "goal": [
+        0.8911468594377413,
+        0.4539415156690309
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 1.8215494280396023,
+      "roadmap_edges": 689,
+      "roadmap_nodes": 192,
+      "seed": 1733762297,
+      "side_len": 1.0,
+      "start": [
+        0.11611881948885881,
+        0.587860321822724
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 28
+    },
+    {
+      "free_cells": 3726,
+      "free_fraction_est": 0.8994217697963268,
+      "goal": [
+        0.9266375345444028,
+        0.42295538773771835
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.6130814153289472,
+      "roadmap_edges": 696,
+      "roadmap_nodes": 192,
+      "seed": 1015922833,
+      "side_len": 1.0,
+      "start": [
+        0.06548987983730542,
+        0.4335025128412989
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 29
+    },
+    {
+      "free_cells": 3584,
+      "free_fraction_est": 0.8640920662796039,
+      "goal": [
+        0.9664778678627332,
+        0.573851915957878
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 22,
+      "oracle_cost": 2.2365293599784812,
+      "roadmap_edges": 685,
+      "roadmap_nodes": 192,
+      "seed": 707280792,
+      "side_len": 1.0,
+      "start": [
+        0.050281866145236706,
+        0.5528956509259422
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 30
+    },
+    {
+      "free_cells": 3583,
+      "free_fraction_est": 0.870415952446167,
+      "goal": [
+        0.0646794808034053,
+        0.4181030483330959
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 22,
+      "oracle_cost": 2.048387078194074,
+      "roadmap_edges": 676,
+      "roadmap_nodes": 192,
+      "seed": 159127526,
+      "side_len": 1.0,
+      "start": [
+        0.89009972914542,
+        0.43425515279137294
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 31
+    },
+    {
+      "free_cells": 3784,
+      "free_fraction_est": 0.9038758319728586,
+      "goal": [
+        0.09314495992871553,
+        0.4295394554571078
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.881466559275072,
+      "roadmap_edges": 716,
+      "roadmap_nodes": 192,
+      "seed": 1904130397,
+      "side_len": 1.0,
+      "start": [
+        0.9418481454308876,
+        0.4121217293026168
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 32
+    },
+    {
+      "free_cells": 3661,
+      "free_fraction_est": 0.886390898475377,
+      "goal": [
+        0.9223232207328819,
+        0.4571328476700299
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 1.864938937700337,
+      "roadmap_edges": 674,
+      "roadmap_nodes": 192,
+      "seed": 45578879,
+      "side_len": 1.0,
+      "start": [
+        0.08856814471999785,
+        0.5765698383840321
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 33
+    },
+    {
+      "free_cells": 3528,
+      "free_fraction_est": 0.8697393709545523,
+      "goal": [
+        0.13032745618938874,
+        0.5074048729910011
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 23,
+      "oracle_cost": 2.075002135736165,
+      "roadmap_edges": 720,
+      "roadmap_nodes": 192,
+      "seed": 1957410496,
+      "side_len": 1.0,
+      "start": [
+        0.9544940275095932,
+        0.5214845253861811
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 34
+    },
+    {
+      "free_cells": 3639,
+      "free_fraction_est": 0.8963369465310896,
+      "goal": [
+        0.9183187057154603,
+        0.45575494270876277
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 1.8360229019052972,
+      "roadmap_edges": 677,
+      "roadmap_nodes": 192,
+      "seed": 854738241,
+      "side_len": 1.0,
+      "start": [
+        0.08086921066480213,
+        0.4174064077919727
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 35
+    },
+    {
+      "free_cells": 3563,
+      "free_fraction_est": 0.8803294340676202,
+      "goal": [
+        0.9423001417347688,
+        0.5738174033610883
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 22,
+      "oracle_cost": 1.9114579097231619,
+      "roadmap_edges": 697,
+      "roadmap_nodes": 192,
+      "seed": 687682594,
+      "side_len": 1.0,
+      "start": [
+        0.11171454875934671,
+        0.49211818676656943
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 36
+    },
+    {
+      "free_cells": 3640,
+      "free_fraction_est": 0.8954307666839936,
+      "goal": [
+        0.9683459798879508,
+        0.42454750363715243
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 2.3170094433267234,
+      "roadmap_edges": 672,
+      "roadmap_nodes": 192,
+      "seed": 990165776,
+      "side_len": 1.0,
+      "start": [
+        0.08945206658029664,
+        0.5295353584877658
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 37
+    },
+    {
+      "free_cells": 3537,
+      "free_fraction_est": 0.8653896001848485,
+      "goal": [
+        0.9611084567673591,
+        0.42145860108163596
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 25,
+      "oracle_cost": 1.7372802193167833,
+      "roadmap_edges": 655,
+      "roadmap_nodes": 192,
+      "seed": 1604263718,
+      "side_len": 1.0,
+      "start": [
+        0.04911863536679892,
+        0.4323355568693677
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 38
+    },
+    {
+      "free_cells": 3592,
+      "free_fraction_est": 0.8829836159058799,
+      "goal": [
+        0.9169795945612584,
+        0.4367655349150289
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.9504527869559831,
+      "roadmap_edges": 697,
+      "roadmap_nodes": 192,
+      "seed": 1984645316,
+      "side_len": 1.0,
+      "start": [
+        0.06233381204238607,
+        0.4852459912262418
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 39
+    },
+    {
+      "free_cells": 3595,
+      "free_fraction_est": 0.882036476489206,
+      "goal": [
+        0.9613957870884114,
+        0.4260654057826768
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 1.670549873409714,
+      "roadmap_edges": 694,
+      "roadmap_nodes": 192,
+      "seed": 1651678508,
+      "side_len": 1.0,
+      "start": [
+        0.0771885350528247,
+        0.4578130999638752
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 40
+    },
+    {
+      "free_cells": 3689,
+      "free_fraction_est": 0.8945840727866626,
+      "goal": [
+        0.09693437068001948,
+        0.5276589823982993
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.8580336047690922,
+      "roadmap_edges": 709,
+      "roadmap_nodes": 192,
+      "seed": 1395073074,
+      "side_len": 1.0,
+      "start": [
+        0.9514822675114194,
+        0.5353561507276384
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 41
+    },
+    {
+      "free_cells": 3505,
+      "free_fraction_est": 0.8613681755037359,
+      "goal": [
+        0.9008324316983723,
+        0.4515640790359479
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 25,
+      "oracle_cost": 1.986227275126775,
+      "roadmap_edges": 702,
+      "roadmap_nodes": 192,
+      "seed": 1389163874,
+      "side_len": 1.0,
+      "start": [
+        0.14302258371568652,
+        0.43456056866978726
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 42
+    },
+    {
+      "free_cells": 3629,
+      "free_fraction_est": 0.8786232335116011,
+      "goal": [
+        0.9694153356266929,
+        0.49538751265082864
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.5258020548365807,
+      "roadmap_edges": 683,
+      "roadmap_nodes": 192,
+      "seed": 222528093,
+      "side_len": 1.0,
+      "start": [
+        0.04234665021648344,
+        0.41526036661972127
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 43
+    },
+    {
+      "free_cells": 3819,
+      "free_fraction_est": 0.8986689379262782,
+      "goal": [
+        0.13977513296690353,
+        0.4237398630173472
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.7375766240599284,
+      "roadmap_edges": 684,
+      "roadmap_nodes": 192,
+      "seed": 351679035,
+      "side_len": 1.0,
+      "start": [
+        0.9614846111508887,
+        0.4049647293935801
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 44
+    },
+    {
+      "free_cells": 3713,
+      "free_fraction_est": 0.884217867470652,
+      "goal": [
+        0.12961056944440974,
+        0.5532171980630693
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.958741274078082,
+      "roadmap_edges": 684,
+      "roadmap_nodes": 192,
+      "seed": 995028647,
+      "side_len": 1.0,
+      "start": [
+        0.882712171506971,
+        0.4046761846712616
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 45
+    },
+    {
+      "free_cells": 3691,
+      "free_fraction_est": 0.8968892423525787,
+      "goal": [
+        0.11577609890082054,
+        0.4399752982018926
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 2.063965548894293,
+      "roadmap_edges": 700,
+      "roadmap_nodes": 192,
+      "seed": 21767837,
+      "side_len": 1.0,
+      "start": [
+        0.9631083887186568,
+        0.427690823875441
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 46
+    },
+    {
+      "free_cells": 3515,
+      "free_fraction_est": 0.8603677381491387,
+      "goal": [
+        0.12403084730793636,
+        0.589577095526484
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 2.1067384468271095,
+      "roadmap_edges": 670,
+      "roadmap_nodes": 192,
+      "seed": 1734140070,
+      "side_len": 1.0,
+      "start": [
+        0.9089040022587198,
+        0.4953514327517885
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 47
+    },
+    {
+      "free_cells": 3654,
+      "free_fraction_est": 0.8822414675400811,
+      "goal": [
+        0.9146978139690518,
+        0.5828064609544608
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 2.6078896154969606,
+      "roadmap_edges": 685,
+      "roadmap_nodes": 192,
+      "seed": 1994967127,
+      "side_len": 1.0,
+      "start": [
+        0.11541766278451879,
+        0.4160611075224253
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 48
+    },
+    {
+      "free_cells": 3771,
+      "free_fraction_est": 0.9008693063585397,
+      "goal": [
+        0.9685003289245128,
+        0.5493447802515872
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 2.216100245734998,
+      "roadmap_edges": 695,
+      "roadmap_nodes": 192,
+      "seed": 1269894091,
+      "side_len": 1.0,
+      "start": [
+        0.10671027350395887,
+        0.5290290396382266
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 49
+    },
+    {
+      "free_cells": 3632,
+      "free_fraction_est": 0.893995725014755,
+      "goal": [
+        0.03724786151177984,
+        0.44643488006776116
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 1.6993732981732788,
+      "roadmap_edges": 733,
+      "roadmap_nodes": 192,
+      "seed": 2036972017,
+      "side_len": 1.0,
+      "start": [
+        0.929916161741371,
+        0.40836699320038594
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 50
+    },
+    {
+      "free_cells": 3627,
+      "free_fraction_est": 0.8918409069203346,
+      "goal": [
+        0.9375410158073548,
+        0.540035846506073
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 2.1341114343457654,
+      "roadmap_edges": 695,
+      "roadmap_nodes": 192,
+      "seed": 650818162,
+      "side_len": 1.0,
+      "start": [
+        0.12587446405098382,
+        0.5894741222046251
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 51
+    },
+    {
+      "free_cells": 3637,
+      "free_fraction_est": 0.8679905854296351,
+      "goal": [
+        0.13634370172228066,
+        0.4613240944430645
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 2.0932317555170457,
+      "roadmap_edges": 694,
+      "roadmap_nodes": 192,
+      "seed": 1013615503,
+      "side_len": 1.0,
+      "start": [
+        0.8910761988463749,
+        0.5825505584295739
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 52
+    },
+    {
+      "free_cells": 3670,
+      "free_fraction_est": 0.8892588334321754,
+      "goal": [
+        0.039346106072666046,
+        0.5870879458240956
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 2.425678619744448,
+      "roadmap_edges": 718,
+      "roadmap_nodes": 192,
+      "seed": 1396383738,
+      "side_len": 1.0,
+      "start": [
+        0.942609808343277,
+        0.4122321305175989
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 53
+    },
+    {
+      "free_cells": 3627,
+      "free_fraction_est": 0.8706290348017218,
+      "goal": [
+        0.8740315151679227,
+        0.5464519629681268
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 25,
+      "oracle_cost": 1.9296153932342905,
+      "roadmap_edges": 648,
+      "roadmap_nodes": 192,
+      "seed": 1587017602,
+      "side_len": 1.0,
+      "start": [
+        0.06564927169911443,
+        0.43827977888216363
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 54
+    },
+    {
+      "free_cells": 3577,
+      "free_fraction_est": 0.8651279687029833,
+      "goal": [
+        0.05220874749766831,
+        0.5450010298156117
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 25,
+      "oracle_cost": 1.9876461950894229,
+      "roadmap_edges": 668,
+      "roadmap_nodes": 192,
+      "seed": 697962601,
+      "side_len": 1.0,
+      "start": [
+        0.8966978921231651,
+        0.5595224079654947
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 55
+    },
+    {
+      "free_cells": 3598,
+      "free_fraction_est": 0.8549688222717806,
+      "goal": [
+        0.05703340369560308,
+        0.5223877254002295
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 2.1375382977037662,
+      "roadmap_edges": 671,
+      "roadmap_nodes": 192,
+      "seed": 943338574,
+      "side_len": 1.0,
+      "start": [
+        0.8763662483264854,
+        0.5166412470432697
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 56
+    },
+    {
+      "free_cells": 3636,
+      "free_fraction_est": 0.8784652616801562,
+      "goal": [
+        0.8928052310531943,
+        0.4554113511922569
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 2.1319428681634536,
+      "roadmap_edges": 711,
+      "roadmap_nodes": 192,
+      "seed": 171524208,
+      "side_len": 1.0,
+      "start": [
+        0.14143008476850966,
+        0.5221563736702193
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 57
+    },
+    {
+      "free_cells": 3622,
+      "free_fraction_est": 0.8898733907679759,
+      "goal": [
+        0.8922150566408984,
+        0.40940686201480225
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 2.0006039512812595,
+      "roadmap_edges": 684,
+      "roadmap_nodes": 192,
+      "seed": 299839422,
+      "side_len": 1.0,
+      "start": [
+        0.10487895034271046,
+        0.5224340862625914
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 58
+    },
+    {
+      "free_cells": 3634,
+      "free_fraction_est": 0.8809981690577182,
+      "goal": [
+        0.9095520759130701,
+        0.504886616513747
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 1.9661619024376882,
+      "roadmap_edges": 685,
+      "roadmap_nodes": 192,
+      "seed": 1827967073,
+      "side_len": 1.0,
+      "start": [
+        0.11276349077185491,
+        0.4071160405470335
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 59
+    },
+    {
+      "free_cells": 3599,
+      "free_fraction_est": 0.8840950507414875,
+      "goal": [
+        0.07098590409361119,
+        0.5363862572775033
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.7185809407940222,
+      "roadmap_edges": 658,
+      "roadmap_nodes": 192,
+      "seed": 351358797,
+      "side_len": 1.0,
+      "start": [
+        0.9168616180119304,
+        0.5686601535192162
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 60
+    },
+    {
+      "free_cells": 3632,
+      "free_fraction_est": 0.8901422837158451,
+      "goal": [
+        0.8854723960765137,
+        0.4853746253400648
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 1.6667986244072004,
+      "roadmap_edges": 664,
+      "roadmap_nodes": 192,
+      "seed": 97138685,
+      "side_len": 1.0,
+      "start": [
+        0.12291654943677868,
+        0.43076162098191556
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 61
+    },
+    {
+      "free_cells": 3644,
+      "free_fraction_est": 0.8941094434003781,
+      "goal": [
+        0.9437335246518171,
+        0.4434111417407358
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 1.4300277486758453,
+      "roadmap_edges": 684,
+      "roadmap_nodes": 192,
+      "seed": 352086201,
+      "side_len": 1.0,
+      "start": [
+        0.12450528623426249,
+        0.41177747049798596
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 62
+    },
+    {
+      "free_cells": 3603,
+      "free_fraction_est": 0.8843315668436186,
+      "goal": [
+        0.9409932325727234,
+        0.476731471750378
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 1.9772613154475458,
+      "roadmap_edges": 662,
+      "roadmap_nodes": 192,
+      "seed": 2081372786,
+      "side_len": 1.0,
+      "start": [
+        0.12236850642092453,
+        0.59699389556813
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 63
+    },
+    {
+      "free_cells": 3572,
+      "free_fraction_est": 0.8776343189695504,
+      "goal": [
+        0.10636271201837318,
+        0.4628689720745006
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 23,
+      "oracle_cost": 2.036691097510022,
+      "roadmap_edges": 667,
+      "roadmap_nodes": 192,
+      "seed": 246834781,
+      "side_len": 1.0,
+      "start": [
+        0.9225991246826218,
+        0.5468316524814907
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 64
+    },
+    {
+      "free_cells": 3628,
+      "free_fraction_est": 0.8918988848647957,
+      "goal": [
+        0.0656934424687786,
+        0.49189957806307677
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 2.111626117103126,
+      "roadmap_edges": 730,
+      "roadmap_nodes": 192,
+      "seed": 889338722,
+      "side_len": 1.0,
+      "start": [
+        0.8924721403169149,
+        0.5854973751455599
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 65
+    },
+    {
+      "free_cells": 3742,
+      "free_fraction_est": 0.8807437066635355,
+      "goal": [
+        0.8681512092081844,
+        0.40854705672053987
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.922492752648432,
+      "roadmap_edges": 710,
+      "roadmap_nodes": 192,
+      "seed": 1078283554,
+      "side_len": 1.0,
+      "start": [
+        0.0956960864333661,
+        0.4487629380102158
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 66
+    },
+    {
+      "free_cells": 3668,
+      "free_fraction_est": 0.8888449087052555,
+      "goal": [
+        0.14798091512201433,
+        0.4192723743624087
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 1.8200155977106,
+      "roadmap_edges": 719,
+      "roadmap_nodes": 192,
+      "seed": 1933461091,
+      "side_len": 1.0,
+      "start": [
+        0.8643535955320761,
+        0.5059233840698869
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 67
+    },
+    {
+      "free_cells": 3565,
+      "free_fraction_est": 0.8755364719021873,
+      "goal": [
+        0.11773009269977927,
+        0.5046776926092411
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 2.1133825986455848,
+      "roadmap_edges": 668,
+      "roadmap_nodes": 192,
+      "seed": 1713752987,
+      "side_len": 1.0,
+      "start": [
+        0.8822962631277018,
+        0.41390142698446086
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 68
+    },
+    {
+      "free_cells": 3567,
+      "free_fraction_est": 0.8737691392002843,
+      "goal": [
+        0.10771778676924558,
+        0.5603837211826553
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 1.472798601153488,
+      "roadmap_edges": 660,
+      "roadmap_nodes": 192,
+      "seed": 506449422,
+      "side_len": 1.0,
+      "start": [
+        0.898045962671262,
+        0.40281164822497223
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 69
+    },
+    {
+      "free_cells": 3606,
+      "free_fraction_est": 0.8847231378137954,
+      "goal": [
+        0.9012836572689868,
+        0.4307956909194176
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.695082023679728,
+      "roadmap_edges": 681,
+      "roadmap_nodes": 192,
+      "seed": 478911362,
+      "side_len": 1.0,
+      "start": [
+        0.11759819954635092,
+        0.4678029999219106
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 70
+    },
+    {
+      "free_cells": 3678,
+      "free_fraction_est": 0.8923451521910108,
+      "goal": [
+        0.9222914667993706,
+        0.5585199027621799
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 1.9424322247612649,
+      "roadmap_edges": 685,
+      "roadmap_nodes": 192,
+      "seed": 1830431447,
+      "side_len": 1.0,
+      "start": [
+        0.1491043211596231,
+        0.42221790300842676
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 71
+    },
+    {
+      "free_cells": 3654,
+      "free_fraction_est": 0.882833710653689,
+      "goal": [
+        0.9675069388603904,
+        0.5585034719720032
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.877733444190754,
+      "roadmap_edges": 697,
+      "roadmap_nodes": 192,
+      "seed": 387373342,
+      "side_len": 1.0,
+      "start": [
+        0.031983551290944524,
+        0.4134086891728388
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 72
+    },
+    {
+      "free_cells": 3634,
+      "free_fraction_est": 0.8930447847229674,
+      "goal": [
+        0.9687405701030778,
+        0.5370619115778135
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 2.186041974578971,
+      "roadmap_edges": 698,
+      "roadmap_nodes": 192,
+      "seed": 1357180448,
+      "side_len": 1.0,
+      "start": [
+        0.03516976337194744,
+        0.5614119873650433
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 73
+    },
+    {
+      "free_cells": 3614,
+      "free_fraction_est": 0.8625262889725773,
+      "goal": [
+        0.10763331641426169,
+        0.5178947164178633
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 2.0469143463007593,
+      "roadmap_edges": 682,
+      "roadmap_nodes": 192,
+      "seed": 1677721114,
+      "side_len": 1.0,
+      "start": [
+        0.8537865264053126,
+        0.5706932086695414
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 74
+    },
+    {
+      "free_cells": 3539,
+      "free_fraction_est": 0.8675036437284588,
+      "goal": [
+        0.13970803294166115,
+        0.5983396822661914
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 1.9830479880370215,
+      "roadmap_edges": 659,
+      "roadmap_nodes": 192,
+      "seed": 642627863,
+      "side_len": 1.0,
+      "start": [
+        0.8514175542756925,
+        0.5644944166966521
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 75
+    },
+    {
+      "free_cells": 3717,
+      "free_fraction_est": 0.8836138125192439,
+      "goal": [
+        0.07010644676180713,
+        0.4940105714730786
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 18,
+      "oracle_cost": 1.6586330850352216,
+      "roadmap_edges": 690,
+      "roadmap_nodes": 192,
+      "seed": 80206421,
+      "side_len": 1.0,
+      "start": [
+        0.8996528094203184,
+        0.5779186445511023
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 76
+    },
+    {
+      "free_cells": 3758,
+      "free_fraction_est": 0.8842863320744754,
+      "goal": [
+        0.9646156474689519,
+        0.595371219638162
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 2.14757184332876,
+      "roadmap_edges": 675,
+      "roadmap_nodes": 192,
+      "seed": 1966705131,
+      "side_len": 1.0,
+      "start": [
+        0.14179353788568527,
+        0.5023767920533869
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 77
+    },
+    {
+      "free_cells": 3565,
+      "free_fraction_est": 0.8717475859272543,
+      "goal": [
+        0.06670534353071239,
+        0.5990162848367502
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 23,
+      "oracle_cost": 1.8146730088527767,
+      "roadmap_edges": 703,
+      "roadmap_nodes": 192,
+      "seed": 1688970313,
+      "side_len": 1.0,
+      "start": [
+        0.950210534917703,
+        0.4524387676324431
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 78
+    },
+    {
+      "free_cells": 3652,
+      "free_fraction_est": 0.8832892745808447,
+      "goal": [
+        0.877074490469624,
+        0.5396625428999177
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.9062034916673234,
+      "roadmap_edges": 667,
+      "roadmap_nodes": 192,
+      "seed": 752173676,
+      "side_len": 1.0,
+      "start": [
+        0.12368415498516948,
+        0.4135275779677853
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 79
+    },
+    {
+      "free_cells": 3532,
+      "free_fraction_est": 0.865934807796864,
+      "goal": [
+        0.9521072318020742,
+        0.45304547460908867
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 1.9710341929851036,
+      "roadmap_edges": 683,
+      "roadmap_nodes": 192,
+      "seed": 902179433,
+      "side_len": 1.0,
+      "start": [
+        0.05244701388974017,
+        0.4712475421140488
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 80
+    },
+    {
+      "free_cells": 3567,
+      "free_fraction_est": 0.8757038509726714,
+      "goal": [
+        0.1198358830341448,
+        0.5958425497332209
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 2.349553893059962,
+      "roadmap_edges": 674,
+      "roadmap_nodes": 192,
+      "seed": 986629520,
+      "side_len": 1.0,
+      "start": [
+        0.9247378063099005,
+        0.588225493337973
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 81
+    },
+    {
+      "free_cells": 3728,
+      "free_fraction_est": 0.8888801611554418,
+      "goal": [
+        0.11421936198966082,
+        0.5406937742946012
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 20,
+      "oracle_cost": 1.7410773150668457,
+      "roadmap_edges": 681,
+      "roadmap_nodes": 192,
+      "seed": 1267626309,
+      "side_len": 1.0,
+      "start": [
+        0.8917151079066482,
+        0.5029604278642836
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 82
+    },
+    {
+      "free_cells": 3588,
+      "free_fraction_est": 0.8793508666921022,
+      "goal": [
+        0.945128303906454,
+        0.47247164856099033
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 2.2020195543406387,
+      "roadmap_edges": 661,
+      "roadmap_nodes": 192,
+      "seed": 1846655302,
+      "side_len": 1.0,
+      "start": [
+        0.051994218424630104,
+        0.5129366561443154
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 83
+    },
+    {
+      "free_cells": 3674,
+      "free_fraction_est": 0.8919017227851249,
+      "goal": [
+        0.9038942185100662,
+        0.5144315015930436
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 17,
+      "oracle_cost": 1.7979967552044105,
+      "roadmap_edges": 720,
+      "roadmap_nodes": 192,
+      "seed": 1016364231,
+      "side_len": 1.0,
+      "start": [
+        0.14324809233764685,
+        0.47459771497694614
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 84
+    },
+    {
+      "free_cells": 3655,
+      "free_fraction_est": 0.8854105895256725,
+      "goal": [
+        0.8844870046861287,
+        0.508516851367429
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 19,
+      "oracle_cost": 1.5934924860975377,
+      "roadmap_edges": 679,
+      "roadmap_nodes": 192,
+      "seed": 402275084,
+      "side_len": 1.0,
+      "start": [
+        0.07537394528946216,
+        0.46833903503306173
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 85
+    },
+    {
+      "free_cells": 3609,
+      "free_fraction_est": 0.8752162512450359,
+      "goal": [
+        0.04171578757646369,
+        0.5275907209929322
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 22,
+      "oracle_cost": 1.869777333050873,
+      "roadmap_edges": 703,
+      "roadmap_nodes": 192,
+      "seed": 1793341796,
+      "side_len": 1.0,
+      "start": [
+        0.9605797228880283,
+        0.4482086017262793
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 86
+    },
+    {
+      "free_cells": 3628,
+      "free_fraction_est": 0.8786671400826219,
+      "goal": [
+        0.9498683450204983,
+        0.5640099711881604
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 21,
+      "oracle_cost": 1.9368238822277242,
+      "roadmap_edges": 673,
+      "roadmap_nodes": 192,
+      "seed": 1885007766,
+      "side_len": 1.0,
+      "start": [
+        0.13381345670918166,
+        0.5081947186462257
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 87
+    },
+    {
+      "free_cells": 3640,
+      "free_fraction_est": 0.8934302567576659,
+      "goal": [
+        0.9162281418755295,
+        0.4224149122369628
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 2.343449946135989,
+      "roadmap_edges": 707,
+      "roadmap_nodes": 192,
+      "seed": 1851385309,
+      "side_len": 1.0,
+      "start": [
+        0.03226031857029887,
+        0.5387382570197284
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 88
+    },
+    {
+      "free_cells": 3667,
+      "free_fraction_est": 0.9024347588415894,
+      "goal": [
+        0.887029463157051,
+        0.4158807747033609
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.5448362953972243,
+      "roadmap_edges": 712,
+      "roadmap_nodes": 192,
+      "seed": 1283409413,
+      "side_len": 1.0,
+      "start": [
+        0.08103272856825366,
+        0.595865038562277
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 89
+    },
+    {
+      "free_cells": 3593,
+      "free_fraction_est": 0.8680663598212865,
+      "goal": [
+        0.10807937615198707,
+        0.5625459481913286
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 24,
+      "oracle_cost": 2.4847968719930096,
+      "roadmap_edges": 707,
+      "roadmap_nodes": 192,
+      "seed": 401392515,
+      "side_len": 1.0,
+      "start": [
+        0.8750584625937787,
+        0.4528093234069559
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 90
+    },
+    {
+      "free_cells": 3523,
+      "free_fraction_est": 0.8633716440274638,
+      "goal": [
+        0.06578985517072714,
+        0.426591329857191
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 1.639828526138021,
+      "roadmap_edges": 690,
+      "roadmap_nodes": 192,
+      "seed": 107684039,
+      "side_len": 1.0,
+      "start": [
+        0.8747120469103876,
+        0.5308057777788364
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 91
+    },
+    {
+      "free_cells": 3688,
+      "free_fraction_est": 0.8929473368579968,
+      "goal": [
+        0.9657707872148225,
+        0.5626666846770725
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 16,
+      "oracle_cost": 1.921876035826978,
+      "roadmap_edges": 705,
+      "roadmap_nodes": 192,
+      "seed": 1576336184,
+      "side_len": 1.0,
+      "start": [
+        0.04966354114248065,
+        0.5664357712261576
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 92
+    },
+    {
+      "free_cells": 3651,
+      "free_fraction_est": 0.8698189062734203,
+      "goal": [
+        0.8996546712331899,
+        0.4352421127477063
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 26,
+      "oracle_cost": 2.137864195609341,
+      "roadmap_edges": 690,
+      "roadmap_nodes": 192,
+      "seed": 1873972743,
+      "side_len": 1.0,
+      "start": [
+        0.12252883052485147,
+        0.5882691236330442
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 93
+    },
+    {
+      "free_cells": 3649,
+      "free_fraction_est": 0.8680656747885425,
+      "goal": [
+        0.8775420010136578,
+        0.44513539317607614
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 22,
+      "oracle_cost": 1.798015616312563,
+      "roadmap_edges": 702,
+      "roadmap_nodes": 192,
+      "seed": 697280248,
+      "side_len": 1.0,
+      "start": [
+        0.1488170952725301,
+        0.49031590773635564
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 94
+    },
+    {
+      "free_cells": 3581,
+      "free_fraction_est": 0.8636981565051245,
+      "goal": [
+        0.9268722084857128,
+        0.4630585325160013
+      ],
+      "hard_gap_width_frac": 0.115,
+      "hard_wall_count": 3,
+      "mode": "hard_maze",
+      "obstacle_count": 25,
+      "oracle_cost": 1.6724215292211346,
+      "roadmap_edges": 622,
+      "roadmap_nodes": 192,
+      "seed": 1584578903,
+      "side_len": 1.0,
+      "start": [
+        0.0976074362050405,
+        0.4706912545721428
+      ],
+      "task": "C_hard_maze",
+      "world_idx": 95
+    }
+  ]
+}

@@ -2,10 +2,14 @@
 /wandb/
 # checkpoints
 /checkpoints/
+hrm-cloud/ckpts/
 # cache
 /cache/
 # data
 /data/
+
+# generated Modal survey artifacts
+/modal_downloads/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
