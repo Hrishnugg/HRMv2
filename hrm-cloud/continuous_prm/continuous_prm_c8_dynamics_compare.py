@@ -971,6 +971,213 @@ def run_eval(cfg: C8Config, out_dir: Path, device, providers: Dict[str, "P.Space
 
 
 # ---------------------------------------------------------------------------
+# Task 12 — calibrate mode (Gate 1: per-suite binding-budget band selection)
+# ---------------------------------------------------------------------------
+#
+# Mirrors C7's run_calibrate (continuous_prm_c7_integration_compare.run_calibrate)
+# but uses the space-time search (ST.space_time_astar_prm) and space-time
+# heuristic providers (P.EuclidTimeProvider / P.OracleProvider .h_table).
+# Per-suite dynamics params (v_agent, dt, t_max) come from M8.dynamics_params.
+# Worlds come from iter_dynamic_worlds (the same generator run_eval uses) so
+# calibrate and eval observe IDENTICAL worlds for each (suite, world_idx).
+
+# Space-time expansion budgets. Larger than C7 because the space-time graph has
+# ~t_max times as many states; the [0.45, 0.70] euclid-success targets live in
+# this range for the six C8 dynamic suites.
+CALIB_GRID = [150, 250, 400, 600, 900, 1300, 1800, 2500, 3500]
+
+
+def _select_band_budgets_c8(grid, euclid_success, k):
+    """Pick k in-band budgets from `grid` by matching euclid success to targets.
+
+    Targets are k points evenly spaced in [0.45, 0.70]. For each target, pick
+    the grid budget whose euclid_success is closest (ties -> smaller budget,
+    since `grid` is ascending). Dedupe preserving ascending budget order; if
+    dedupe leaves < k, fill with the next-closest unused grid budgets (by
+    distance to the nearest target). Returns a sorted ascending list of length
+    min(k, len(grid)).
+    """
+    k = max(1, min(int(k), len(grid)))
+    targets = np.linspace(0.45, 0.70, k)
+    chosen: list = []
+    for t in targets:
+        best = int(np.argmin([abs(euclid_success[i] - t) for i in range(len(grid))]))
+        if grid[best] not in chosen:
+            chosen.append(grid[best])
+    if len(chosen) < k:
+        def nearest_target_dist(i):
+            return min(abs(euclid_success[i] - t) for t in targets)
+        remaining = sorted(
+            (i for i in range(len(grid)) if grid[i] not in chosen),
+            key=lambda i: (nearest_target_dist(i), grid[i]),
+        )
+        for i in remaining:
+            if len(chosen) >= k:
+                break
+            chosen.append(grid[i])
+    return sorted(chosen)
+
+
+def run_calibrate(cfg: C8Config, out_dir: Path, device=None) -> Path:
+    """Gate 1: sweep CALIB_GRID with ONLY Euclid-time + Oracle space-time A*
+    per suite and pick the binding-budget band. Writes out_dir/calibration.json
+    (the per-suite "budgets" map T11's run_eval consumes) plus diagnostics.
+
+    No learned models are loaded — euclid-time and oracle are pure geometry /
+    graph, so this runs fast on CPU. Worlds come from iter_dynamic_worlds, so
+    the budgets are calibrated on the SAME worlds eval will later score.
+
+    Per-suite dynamics params (v_agent, dt, t_max) come from M8.dynamics_params;
+    h-tables are built once per world via EuclidTimeProvider.h_table /
+    OracleProvider.h_table, then reused across all budgets for that world.
+    """
+    out_dir = Path(out_dir)
+    M8.install_c8_dynamic_maps()
+
+    euclid_provider = P.EuclidTimeProvider()
+    oracle_provider = P.OracleProvider()
+
+    print(
+        f"[{now_str()}] C8 calibrate: grid={CALIB_GRID} eval_worlds={cfg.eval_worlds} "
+        f"budget_grid_size={cfg.budget_grid_size} suites={cfg.eval_suites}",
+        flush=True,
+    )
+
+    budgets_map: Dict[str, list] = {}
+    measurements: Dict[str, list] = {}
+    warnings: list = []
+
+    for suite_idx, suite in enumerate(parse_csv(cfg.eval_suites)):
+        params = M8.dynamics_params(suite)
+        v_agent = float(params["v_agent"])
+        dt = float(params["dt"])
+        t_max = int(params["t_max"])
+
+        # Per-budget tallies: found counts + sum of expansions over SOLVED instances
+        # (mean expansions computed only where the method actually reached the goal).
+        euclid_found = [0] * len(CALIB_GRID)
+        oracle_found = [0] * len(CALIB_GRID)
+        euclid_exp_sum = [0.0] * len(CALIB_GRID)
+        oracle_exp_sum = [0.0] * len(CALIB_GRID)
+        n_worlds = 0
+
+        for _, world, dyn, rm in iter_dynamic_worlds(suite, suite_idx, cfg, cfg.eval_worlds):
+            # Build h-tables once per world; reused across all budgets.
+            euclid_ht = euclid_provider.h_table(world, rm, dyn, v_agent, dt, t_max, goal_idx=1)
+            oracle_ht = oracle_provider.h_table(world, rm, dyn, v_agent, dt, t_max, goal_idx=1)
+
+            for bi, b in enumerate(CALIB_GRID):
+                re = ST.space_time_astar_prm(
+                    rm.adj, rm.points, dyn, euclid_ht, int(b), v_agent, dt, t_max, 0, 1
+                )
+                if re["found"]:
+                    euclid_found[bi] += 1
+                    euclid_exp_sum[bi] += int(re["expansions"])
+
+                ro = ST.space_time_astar_prm(
+                    rm.adj, rm.points, dyn, oracle_ht, int(b), v_agent, dt, t_max, 0, 1
+                )
+                if ro["found"]:
+                    oracle_found[bi] += 1
+                    oracle_exp_sum[bi] += int(ro["expansions"])
+
+            n_worlds += 1
+
+        if n_worlds < cfg.eval_worlds:
+            msg = f"{suite}: under-filled {n_worlds}/{cfg.eval_worlds} worlds"
+            print(f"[c8] WARNING: calibrate {msg}", flush=True)
+            warnings.append(msg)
+
+        denom = max(1, n_worlds)
+        euclid_success = [f / denom for f in euclid_found]
+        oracle_success = [f / denom for f in oracle_found]
+        euclid_exp = [
+            (euclid_exp_sum[bi] / euclid_found[bi]) if euclid_found[bi] > 0 else None
+            for bi in range(len(CALIB_GRID))
+        ]
+        oracle_exp = [
+            (oracle_exp_sum[bi] / oracle_found[bi]) if oracle_found[bi] > 0 else None
+            for bi in range(len(CALIB_GRID))
+        ]
+
+        chosen = _select_band_budgets_c8(CALIB_GRID, euclid_success, cfg.budget_grid_size)
+        idx_of = {b: i for i, b in enumerate(CALIB_GRID)}
+        chosen_eu = [round(euclid_success[idx_of[b]], 3) for b in chosen]
+        chosen_eu_full = [euclid_success[idx_of[b]] for b in chosen]
+
+        def _headroom_at(b):
+            """1 - oracle_exp/euclid_exp on euclid-solved means; None if not computable."""
+            i = idx_of[b]
+            ee, oe = euclid_exp[i], oracle_exp[i]
+            if ee is None or oe is None or ee <= 0:
+                return None
+            return 1.0 - (oe / ee)
+
+        chosen_headroom = [_headroom_at(b) for b in chosen]
+        chosen_eu_exp = [euclid_exp[idx_of[b]] for b in chosen]
+        chosen_or_exp = [oracle_exp[idx_of[b]] for b in chosen]
+
+        # Warn if no chosen budget has euclid success in [0.35, 0.95] (no usable
+        # difficulty point) OR best chosen headroom < 0.15 (oracle barely cheaper
+        # than euclid, leaving little room for learned models to help).
+        if not any(0.35 <= es <= 0.95 for es in chosen_eu_full):
+            msg = (
+                f"{suite}: no usable difficulty point (no chosen budget has euclid_success "
+                f"in [0.35, 0.95]; euclid@chosen={chosen_eu})"
+            )
+            print(f"[c8] WARNING: {msg}", flush=True)
+            warnings.append(msg)
+
+        valid_headroom = [h for h in chosen_headroom if h is not None]
+        best_headroom = max(valid_headroom) if valid_headroom else None
+        if best_headroom is not None and best_headroom < 0.15:
+            msg = (
+                f"{suite}: low expansion headroom (best chosen headroom={best_headroom:.3f} "
+                f"< 0.15; oracle barely cheaper than euclid)"
+            )
+            print(f"[c8] WARNING: {msg}", flush=True)
+            warnings.append(msg)
+
+        budgets_map[suite] = chosen
+        measurements[suite] = [
+            {
+                "budget": int(b),
+                "euclid": round(euclid_success[bi], 4),
+                "oracle": round(oracle_success[bi], 4),
+                "euclid_exp": (round(euclid_exp[bi], 2) if euclid_exp[bi] is not None else None),
+                "oracle_exp": (round(oracle_exp[bi], 2) if oracle_exp[bi] is not None else None),
+                "worlds": int(n_worlds),
+            }
+            for bi, b in enumerate(CALIB_GRID)
+        ]
+
+        def _fmt(vals, nd=2):
+            return [(round(v, nd) if v is not None else None) for v in vals]
+
+        print(
+            f"[c8] calibrate {suite}: chosen={chosen} euclid@chosen={chosen_eu} "
+            f"euclid_exp@chosen={_fmt(chosen_eu_exp)} oracle_exp@chosen={_fmt(chosen_or_exp)} "
+            f"headroom@chosen={_fmt(chosen_headroom, 3)}",
+            flush=True,
+        )
+
+    calib = {
+        "budgets": budgets_map,
+        "grid": CALIB_GRID,
+        "measurements": measurements,
+        "warnings": warnings,
+    }
+    calib_path = out_dir / "calibration.json"
+    write_json(calib_path, calib)
+    print(
+        f"[{now_str()}] C8 calibrate: wrote {calib_path} "
+        f"({len(budgets_map)} suites, {len(warnings)} warnings)",
+        flush=True,
+    )
+    return calib_path
+
+
+# ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
 
@@ -1093,7 +1300,7 @@ def main() -> None:
         providers = _load_eval_providers(cfg, out_dir, device)
         run_eval(cfg, out_dir, device, providers)
     elif cfg.mode == "calibrate":
-        raise NotImplementedError("C8 calibrate: Task 12")
+        run_calibrate(cfg, out_dir, device=None)
     elif cfg.mode == "analyze":
         raise NotImplementedError("C8 analyze: Task 13")
     elif cfg.mode == "full":
