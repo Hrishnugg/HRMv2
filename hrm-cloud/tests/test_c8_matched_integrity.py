@@ -37,7 +37,7 @@ def test_run_arms_records_and_suboptimality():
     assert ("oracle", "focal", 1.5) in names
     for r in recs:
         assert {"provider", "mode", "budget", "found", "expansions", "arrival",
-                "optimal_arrival", "suboptimality", "nonfinite"}.issubset(r)
+                "optimal_arrival", "suboptimality", "closed", "nonfinite"}.issubset(r)
         if r["found"]:
             assert r["suboptimality"] >= 1.0 - 1e-6
             if r["mode"] == "focal":

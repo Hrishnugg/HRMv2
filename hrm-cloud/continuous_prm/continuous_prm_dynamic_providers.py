@@ -78,7 +78,14 @@ def run_world_arms_spacetime(world, roadmap, dyn, providers: dict, budgets, w_va
     nonfinite: set = set()
     for name, prov in providers.items():
         try:
-            tables[name] = prov.h_table(world, roadmap, dyn, v_agent, dt, t_max, goal_idx)
+            if isinstance(prov, OracleProvider):
+                # Reuse the hstar already computed for opt: OracleProvider.h_table
+                # would re-run the same backward DP (the per-world bottleneck). Its
+                # extra _finite_fill is a no-op since oracle_time_to_go already
+                # returns finite, non-negative values, so this is byte-identical.
+                tables[name] = ST.oracle_time_to_go(hstar, t_max)
+            else:
+                tables[name] = prov.h_table(world, roadmap, dyn, v_agent, dt, t_max, goal_idx)
         except FloatingPointError:
             nonfinite.add(name)
 
