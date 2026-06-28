@@ -1,0 +1,42 @@
+{
+  "field": {
+    "backbones": [
+      "unet",
+      "onlstm",
+      "hrm"
+    ],
+    "checkpoints": {
+      "hrm": "hrm-cloud\\continuous_prm\\runs\\c7_local\\checkpoints\\c6_heatmap__hrm.pt",
+      "onlstm": "hrm-cloud\\continuous_prm\\runs\\c7_local\\checkpoints\\c6_heatmap__onlstm.pt",
+      "unet": "hrm-cloud\\continuous_prm\\runs\\c7_local\\checkpoints\\c6_heatmap__unet.pt"
+    },
+    "datasets": {
+      "C_hard_maze": "hrm-cloud\\continuous_prm\\runs\\c7_local\\datasets\\C_hard_maze_train.npz",
+      "C_hard_rooms": "hrm-cloud\\continuous_prm\\runs\\c7_local\\datasets\\C_hard_rooms_train.npz",
+      "C_hard_spiral": "hrm-cloud\\continuous_prm\\runs\\c7_local\\datasets\\C_hard_spiral_train.npz"
+    }
+  },
+  "scalar": {
+    "backbones": [
+      "hrm",
+      "onlstm"
+    ],
+    "checkpoints": {
+      "hrm": "hrm-cloud\\continuous_prm\\runs\\c7_local\\checkpoints\\avgbase__hrm.pt",
+      "onlstm": "hrm-cloud\\continuous_prm\\runs\\c7_local\\checkpoints\\avgbase__onlstm.pt"
+    },
+    "datasets": {
+      "C_hard_maze": "hrm-cloud\\continuous_prm\\runs\\c7_local\\datasets_scalar\\C_hard_maze_train_scalar.npz",
+      "C_hard_rooms": "hrm-cloud\\continuous_prm\\runs\\c7_local\\datasets_scalar\\C_hard_rooms_train_scalar.npz",
+      "C_hard_spiral": "hrm-cloud\\continuous_prm\\runs\\c7_local\\datasets_scalar\\C_hard_spiral_train_scalar.npz"
+    },
+    "nodes_per_world": 160
+  },
+  "stage": "c7_train",
+  "timestamp": "2026-06-27 18:12:39",
+  "train_tasks": [
+    "C_hard_maze",
+    "C_hard_rooms",
+    "C_hard_spiral"
+  ]
+}
