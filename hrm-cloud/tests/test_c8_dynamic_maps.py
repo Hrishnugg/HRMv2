@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "continuous_prm"))
@@ -22,6 +23,7 @@ def test_install_registers_dyn_suites():
     assert "C_hard_maze" in specs  # C7 static suites preserved
 
 
+@pytest.mark.slow
 def test_dynamic_worlds_valid_and_have_patrollers():
     M8.install_c8_dynamic_maps()
     for suite in DYN:
@@ -40,6 +42,7 @@ def test_dynamic_worlds_valid_and_have_patrollers():
         assert built >= 5, f"{suite}: only {built} valid worlds in 40 seeds"
 
 
+@pytest.mark.slow
 def test_dynamic_worlds_space_time_solvable():
     # backward space-time Dijkstra from goal must reach the start within t_max.
     M8.install_c8_dynamic_maps()
@@ -64,6 +67,7 @@ def test_dynamic_worlds_space_time_solvable():
         assert solved >= 5, f"{suite}: only {solved} space-time-solvable worlds"
 
 
+@pytest.mark.slow
 def test_dynamic_worlds_have_timing_pressure():
     # For a fraction of worlds, the patrollers force a later arrival than with no dynamics.
     M8.install_c8_dynamic_maps()

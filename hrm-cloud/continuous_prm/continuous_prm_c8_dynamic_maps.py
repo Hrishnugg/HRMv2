@@ -14,8 +14,9 @@ space-time solvable and the corridor is never permanently sealed.
 Suites
 ------
 Train (``is_ood=False``):
-  - C_dyn_maze         static = C_hard_maze   (serpentine walls + clutter)
-  - C_dyn_rooms        static = C_hard_rooms  (2x2-ish room grid, side_len=2)
+  - C_dyn_maze         static = C_hard_maze base (serpentine walls + clutter)
+  - C_dyn_rooms        static = C_hard_maze base (2 walls, side_len=1.0, looser
+                       "room" feel)
   - C_dyn_spiral       static = C_hard_spiral (serpentine vertical walls)
 Held-out (``is_ood=True``):
   - C_dyn_maze_dense   static = C_hard_maze_dense (more/tighter walls) + more,
