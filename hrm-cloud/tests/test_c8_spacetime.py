@@ -27,14 +27,21 @@ def test_spacetime_astar_no_dynamics_reaches_goal():
 
 
 def test_spacetime_astar_must_wait_for_patroller():
+    # The agent reaches node 2 = (1,0) at t=1 and wants to traverse edge 2->1
+    # (segment (1,0)->(2,0)) during t in [1,2]. This patroller oscillates vertically
+    # at x=1.6 with period 2: it sits ON the segment at t=0 and t=2, and is far off
+    # (y=4) at t=1. So the edge traversal during [1,2] would collide near t~2, but
+    # the segment is clear during [2,3] (the agent is at the (1,0) end then while the
+    # circle has risen). Node 2 = (1,0) is 0.6 from the circle's x-track, so waiting
+    # there is always safe. => optimal plan MUST wait one step => arrival = 3 > 2.
     points, adj = _toy()
-    mc = D.MovingCircle(ax=1.0, ay=0.0, bx=1.0, by=5.0, period=6.0, radius=0.3)
+    mc = D.MovingCircle(ax=1.6, ay=0.0, bx=1.6, by=4.0, period=2.0, radius=0.4)
     dyn = D.Dynamics([mc])
     h = np.zeros((3, 50))
     res = ST.space_time_astar_prm(adj, points, dyn, h, budget=5000, v_agent=1.0, dt=1.0,
                                   t_max=40, start=0, goal=1)
     assert res["found"]
-    assert res["arrival"] >= 2
+    assert res["arrival"] > 2
 
 
 def test_backward_dijkstra_matches_astar_optimal_arrival():
@@ -42,10 +49,14 @@ def test_backward_dijkstra_matches_astar_optimal_arrival():
     mc = D.MovingCircle(ax=1.0, ay=0.0, bx=1.0, by=5.0, period=6.0, radius=0.3)
     dyn = D.Dynamics([mc])
     htab = ST.backward_spacetime_dijkstra(adj, points, dyn, v_agent=1.0, dt=1.0, t_max=40, goal=1)
-    opt = ST.space_time_astar_prm(adj, points, dyn, htab, budget=5000, v_agent=1.0, dt=1.0,
+    # The search's h_table must be a TIME-TO-GO estimate (remaining steps); htab is
+    # arrival time (t + remaining), so derive the admissible exact oracle from it.
+    oracle = ST.oracle_time_to_go(htab, t_max=40)
+    opt = ST.space_time_astar_prm(adj, points, dyn, oracle, budget=5000, v_agent=1.0, dt=1.0,
                                   t_max=40, start=0, goal=1)
-    assert np.isclose(htab[0, 0], opt["arrival"])
-    assert opt["found"] and opt["expansions"] <= 12
+    assert np.isclose(htab[0, 0], opt["arrival"])   # hstar arrival == A* optimal arrival
+    # With the true admissible oracle, A* expands only along the optimal path.
+    assert opt["found"] and opt["expansions"] <= 8
 
 
 def test_spacetime_budget_and_completeness():

@@ -21,6 +21,12 @@ def space_time_astar_prm(adj, points, dyn, h_table, budget, v_agent, dt, t_max,
                          start=0, goal=1) -> Dict[str, Any]:
     """Space-time A* on a static PRM with deterministically moving obstacles.
 
+    `h_table[node, t]` is the estimated remaining TIME-TO-GO in time-steps (NOT
+    arrival time). For an admissible exact oracle, derive it via
+    ``oracle_time_to_go(backward_spacetime_dijkstra(...))`` -- do NOT pass the raw
+    arrival-time table from ``backward_spacetime_dijkstra`` (that is ``t + remaining``,
+    which overestimates time-to-go and is inadmissible).
+
     Parameters
     ----------
     adj : List[List[Tuple[int, float]]]
@@ -30,7 +36,8 @@ def space_time_astar_prm(adj, points, dyn, h_table, budget, v_agent, dt, t_max,
     dyn : Dynamics
         Moving-obstacle feasibility checker.
     h_table : np.ndarray, shape (N, T+1)
-        Admissible heuristic (e.g. zeros or backward-Dijkstra table).
+        Admissible heuristic = estimated remaining time-to-go in time-steps
+        (e.g. zeros, or ``oracle_time_to_go(backward_spacetime_dijkstra(...))``).
     budget : int
         Maximum node expansions before giving up.
     v_agent : float
