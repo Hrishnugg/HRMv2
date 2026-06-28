@@ -21,9 +21,12 @@ from __future__ import annotations
 
 import argparse
 import os
-from dataclasses import dataclass
+import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 import continuous_prm_common as C
 import continuous_prm_dynamic_providers as P
@@ -130,6 +133,356 @@ def apply_scale_preset(cfg: C8Config) -> C8Config:
         cfg.w_values = cfg.w_values or "1.0,1.05,1.1,1.25"
         cfg.budget_grid_size = cfg.budget_grid_size or 3
     return cfg
+
+
+# ---------------------------------------------------------------------------
+# Device
+# ---------------------------------------------------------------------------
+
+def _pick_device(cfg: C8Config):
+    import torch
+    return torch.device("cpu" if cfg.cpu or not torch.cuda.is_available() else "cuda")
+
+
+# ---------------------------------------------------------------------------
+# Task 10 — shared space-time label collection
+# ---------------------------------------------------------------------------
+#
+# A "labelset" is everything one dynamic world contributes to supervised
+# training: the world + roadmap + dynamics, the per-suite params, and the TRUE
+# space-time time-to-go converted into the SAME normalized PRM-node residual
+# target the providers invert at eval time
+#   (h = euclid_steps + T_scale * clip(residual)).
+# Both the scalar models (Task 10a, here) and the field models (Task 10b)
+# supervise on `node_residual` masked by `reachable`. Keep _collect_world_labels
+# general so Task 10b can reuse it verbatim for the field dataset.
+
+# Distinct, well-separated seed per (suite, world) so two suites' world #k never
+# share a seed (avoids accidental world reuse across suites).
+_SUITE_SEED_STRIDE = 100_003
+_WORLD_SEED_STRIDE = 9_973
+
+
+def _world_seed(cfg: C8Config, suite_idx: int, world_idx: int) -> int:
+    return int(cfg.seed) + _SUITE_SEED_STRIDE * (suite_idx + 1) + _WORLD_SEED_STRIDE * world_idx
+
+
+def _collect_world_labels(suite: str, seed: int, cfg: C8Config) -> Optional[dict]:
+    """Build one dynamic world's supervised space-time labelset, or None.
+
+    Returns None (skips the world) when:
+      - the static/dynamic world could not be built,
+      - the PRM could not be built or start (node 0) is not connected to goal,
+      - the world is space-time-unsolvable from the start (hstar[0,0] not finite).
+
+    Otherwise returns a dict with keys:
+      world, rm, dyn, params, ttg, node_residual, reachable
+    where `node_residual` (N, t_max+1) is the clipped, T_scale-normalized
+    regression target and `reachable` (N, t_max+1) is the supervision mask.
+    Reused by Task 10b (field training) — keep general.
+    """
+    built = M8.build_dynamic_world(suite, seed)
+    if built is None:
+        return None
+    world, dyn = built
+
+    rm = C.build_prm(world, C.RoadmapConfig(cfg.roadmap_nodes, cfg.roadmap_k), seed)
+    if rm is None or not bool(rm.connected_to_goal[0]):
+        return None
+
+    params = M8.dynamics_params(suite)
+    v_agent = float(params["v_agent"])
+    dt = float(params["dt"])
+    t_max = int(params["t_max"])
+
+    # TRUE space-time time-to-go at PRM nodes (goal = node 1).
+    hstar = ST.backward_spacetime_dijkstra(rm.adj, rm.points, dyn, v_agent, dt, t_max, goal=1)
+    if not np.isfinite(hstar[0, 0]):
+        # space-time-unsolvable from the start at t=0
+        return None
+
+    ttg = ST.oracle_time_to_go(hstar, t_max)                       # (N, t_max+1)
+    euclid_steps = P.euclid_time_row(rm, v_agent, goal_idx=1) / dt  # (N,)
+    T_scale = float(world.side_len) / v_agent / dt                 # map-crossing time in steps
+    max_norm_residual = float(C.TrainingConfig().max_norm_residual)
+    # Normalized residual target: same inversion the providers apply
+    #   h = euclid_steps + T_scale * clip(residual, 0, max_norm_residual).
+    # Clip to [0, max_norm_residual] AFTER dividing by T_scale (normalized units).
+    node_residual = np.clip(ttg - euclid_steps[:, None], 0.0, None) / T_scale
+    node_residual = np.clip(node_residual, 0.0, max_norm_residual)
+    reachable = np.isfinite(hstar) & (hstar < 1e29)               # (N, t_max+1) bool
+
+    return {
+        "world": world,
+        "rm": rm,
+        "dyn": dyn,
+        "params": params,
+        "ttg": ttg,
+        "node_residual": node_residual,
+        "reachable": reachable,
+    }
+
+
+def _collect_labelsets(cfg: C8Config) -> Tuple[List[dict], Dict[str, int]]:
+    """Collect labelsets for cfg.train_tasks x cfg.train_worlds (seeded distinctly).
+
+    Returns (labelsets, per_suite_counts). Skipped worlds (invalid / unsolvable)
+    are simply omitted; the per-suite counts report how many of the requested
+    worlds yielded a usable labelset.
+    """
+    tasks = parse_csv(cfg.train_tasks)
+    labelsets: List[dict] = []
+    counts: Dict[str, int] = {}
+    for s_idx, suite in enumerate(tasks):
+        kept = 0
+        for w_idx in range(int(cfg.train_worlds)):
+            seed = _world_seed(cfg, s_idx, w_idx)
+            t0 = time.time()
+            ls = _collect_world_labels(suite, seed, cfg)
+            if ls is not None:
+                ls["suite"] = suite
+                ls["seed"] = seed
+                labelsets.append(ls)
+                kept += 1
+            print(
+                f"[{now_str()}] C8 collect: suite={suite} world={w_idx} "
+                f"seed={seed} {'kept' if ls is not None else 'skip'} "
+                f"({time.time() - t0:.1f}s)",
+                flush=True,
+            )
+        counts[suite] = kept
+        print(f"[{now_str()}] C8 collect: suite={suite} kept {kept}/{cfg.train_worlds}", flush=True)
+    return labelsets, counts
+
+
+# ---------------------------------------------------------------------------
+# Task 10a — scalar temporal dataset + training
+# ---------------------------------------------------------------------------
+
+def _scalar_token_dim(cfg: C8Config) -> int:
+    return 4 + 4 * int(cfg.k_patrollers)
+
+
+def _scalar_backbone_cfg(name: str) -> "C.BackboneConfig":
+    """Build a scalar BackboneConfig by name (mirrors ScalarTemporalProvider
+    .untrained_for_test's minimal Namespace, at production-scale hidden dims)."""
+    ns = argparse.Namespace(
+        hrm_hidden=192,
+        hrm_layers=2,
+        hrm_k_step=2,
+        hrm_heads=4,
+        head_hidden=256,
+        onlstm_hidden=192,
+        onlstm_layers=2,
+        onlstm_chunk_size=8,
+    )
+    configs = C.build_backbone_configs(ns)
+    if name not in configs:
+        raise ValueError(f"unknown scalar backbone {name!r}; have {sorted(configs)}")
+    return configs[name]
+
+
+def _build_scalar_dataset(labelsets: List[dict], cfg: C8Config):
+    """Build the pooled scalar-temporal dataset across collected worlds.
+
+    Per world: features Xw (N, t_max+1, W+1, token_dim) from
+    build_scalar_temporal_features, flattened to (N*(t_max+1), W+1, token_dim);
+    target yw = node_residual.reshape(-1); mask mw = reachable.reshape(-1).
+    Concatenated across worlds. token_dim = 4 + 4*k_patrollers.
+
+    Returns (X float32 (M, W+1, token_dim), y float32 (M,), mask bool (M,)).
+    """
+    W = int(cfg.window_w)
+    token_dim = _scalar_token_dim(cfg)
+    Xs: List[np.ndarray] = []
+    ys: List[np.ndarray] = []
+    ms: List[np.ndarray] = []
+    for ls in labelsets:
+        world, rm, dyn = ls["world"], ls["rm"], ls["dyn"]
+        params = ls["params"]
+        dt = float(params["dt"])
+        t_max = int(params["t_max"])
+        Xw = P.build_scalar_temporal_features(
+            world, rm, dyn, t_max, dt, W, int(cfg.k_patrollers), goal_idx=1
+        )  # (N, t_max+1, W+1, token_dim)
+        N = Xw.shape[0]
+        Xs.append(Xw.reshape(N * (t_max + 1), W + 1, token_dim).astype(np.float32))
+        ys.append(ls["node_residual"].reshape(-1).astype(np.float32))
+        ms.append(ls["reachable"].reshape(-1).astype(np.bool_))
+    if not Xs:
+        return (
+            np.zeros((0, W + 1, token_dim), dtype=np.float32),
+            np.zeros((0,), dtype=np.float32),
+            np.zeros((0,), dtype=np.bool_),
+        )
+    X = np.concatenate(Xs, axis=0)
+    y = np.concatenate(ys, axis=0)
+    mask = np.concatenate(ms, axis=0)
+    return X, y, mask
+
+
+def _train_scalar(X, y, mask, cfg: C8Config, device, out_dir: Path) -> Dict[str, Path]:
+    """Train each scalar backbone on the masked space-time residual target.
+
+    Saves out_dir/checkpoints/c8_scalar__{backbone}.pt with a payload that lets
+    Task 11 rebuild a ScalarTemporalProvider. Returns {backbone: ckpt_path}.
+    """
+    import torch
+    import torch.nn.functional as F
+
+    token_dim = _scalar_token_dim(cfg)
+    train_cfg = C.TrainingConfig()
+    max_norm_residual = float(train_cfg.max_norm_residual)
+    lr = float(train_cfg.lr)
+    epochs = int(cfg.epochs)
+    batch_size = 256
+    grad_clip = 1.0
+
+    ckpt_dir = ensure_dir(out_dir / "checkpoints")
+    logs_dir = ensure_dir(out_dir / "logs")
+
+    # Masked tensors once: training only on reachable space-time states.
+    mask_np = np.asarray(mask, dtype=np.bool_)
+    n_total = int(mask_np.shape[0])
+    n_keep = int(mask_np.sum())
+    if n_keep == 0:
+        raise RuntimeError("scalar train: no reachable (masked) examples to train on")
+    Xk = torch.from_numpy(np.ascontiguousarray(X[mask_np])).to(device)
+    yk = torch.from_numpy(np.ascontiguousarray(y[mask_np])).to(device)
+    print(
+        f"[{now_str()}] C8 train: scalar dataset M={n_total} reachable={n_keep} "
+        f"({100.0 * n_keep / max(1, n_total):.1f}%) token_dim={token_dim}",
+        flush=True,
+    )
+
+    ckpts: Dict[str, Path] = {}
+    for name in parse_csv(cfg.scalar_backbones):
+        bb = _scalar_backbone_cfg(name)
+        model = C.ContinuousHeuristicModel(
+            bb, token_dim=token_dim, max_norm_residual=max_norm_residual
+        ).to(device)
+        opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=float(train_cfg.weight_decay))
+        model.train()
+        log_lines: List[str] = []
+        for ep in range(epochs):
+            perm = torch.randperm(n_keep, device=device)
+            ep_loss = 0.0
+            ep_count = 0
+            for i in range(0, n_keep, batch_size):
+                idx = perm[i : i + batch_size]
+                xb = Xk[idx]
+                yb = yk[idx]
+                pred = model(xb)
+                if not torch.isfinite(pred).all():
+                    raise FloatingPointError(f"scalar train {name}: non-finite prediction")
+                loss = F.smooth_l1_loss(pred, yb)
+                if not torch.isfinite(loss):
+                    raise FloatingPointError(f"scalar train {name}: non-finite loss")
+                opt.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                opt.step()
+                ep_loss += float(loss.detach().cpu()) * int(idx.numel())
+                ep_count += int(idx.numel())
+            mean_loss = ep_loss / max(1, ep_count)
+            line = f"epoch={ep} loss={mean_loss:.6f}"
+            log_lines.append(line)
+            print(f"[{now_str()}] C8 train: scalar {name} {line}", flush=True)
+
+        ckpt_path = ckpt_dir / f"c8_scalar__{name}.pt"
+        payload = {
+            "model": model.state_dict(),
+            "backbone_cfg": asdict(bb),
+            "window_w": int(cfg.window_w),
+            "k_patrollers": int(cfg.k_patrollers),
+            "token_dim": token_dim,
+            "max_norm_residual": max_norm_residual,
+            "backbone": name,
+        }
+        torch.save(payload, ckpt_path)
+        ckpts[name] = ckpt_path
+        log_path = logs_dir / f"c8_scalar__{name}.log"
+        log_path.write_text("\n".join(log_lines) + "\n")
+        print(f"[{now_str()}] C8 train: scalar {name} -> {ckpt_path}", flush=True)
+
+    return ckpts
+
+
+# ---------------------------------------------------------------------------
+# Mode runners
+# ---------------------------------------------------------------------------
+
+def run_collect(cfg: C8Config, out_dir: Path) -> Tuple[List[dict], Dict[str, int]]:
+    """Collect space-time labelsets over train_tasks x train_worlds and report counts."""
+    print(
+        f"[{now_str()}] C8 collect: tasks={cfg.train_tasks} train_worlds={cfg.train_worlds}",
+        flush=True,
+    )
+    labelsets, counts = _collect_labelsets(cfg)
+    total = sum(counts.values())
+    print(
+        f"[{now_str()}] C8 collect: total usable worlds={total} per-suite={counts}",
+        flush=True,
+    )
+    return labelsets, counts
+
+
+def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
+    """Collect labels, then train the scalar temporal models (Task 10a).
+
+    Field training is Task 10b (see the explicit extension point below). The
+    train_manifest.json written here lists the scalar checkpoints; Task 10b will
+    extend it with the field checkpoints.
+    """
+    device = _pick_device(cfg)
+    print(f"[{now_str()}] C8 train: device={device}", flush=True)
+
+    # Collection is cheap to just inline before training (the backward space-time
+    # Dijkstra per world dominates regardless of whether we re-collect).
+    labelsets, counts = run_collect(cfg, out_dir)
+    if not labelsets:
+        raise RuntimeError(
+            "C8 train: no usable training worlds collected "
+            f"(tasks={cfg.train_tasks}, train_worlds={cfg.train_worlds})"
+        )
+
+    # ---- Scalar temporal models (Task 10a) ----
+    X, y, mask = _build_scalar_dataset(labelsets, cfg)
+    scalar_ckpts = _train_scalar(X, y, mask, cfg, device, out_dir)
+
+    # TODO(Task 10b): train field models. Reuse the same `labelsets` (each carries
+    # world/dyn/node_residual/reachable) to build the field occupancy-stack dataset
+    # via P.build_field_occupancy_stack and supervise on node_residual sampled to
+    # the grid, then add a "field" section to the manifest below.
+
+    manifest = {
+        "stage": "c8_train",
+        "timestamp": now_str(),
+        "train_tasks": parse_csv(cfg.train_tasks),
+        "train_worlds": int(cfg.train_worlds),
+        "usable_worlds_per_suite": counts,
+        "usable_worlds_total": int(sum(counts.values())),
+        "window_w": int(cfg.window_w),
+        "k_patrollers": int(cfg.k_patrollers),
+        "token_dim": _scalar_token_dim(cfg),
+        "scalar": {
+            "backbones": parse_csv(cfg.scalar_backbones),
+            "epochs": int(cfg.epochs),
+            "checkpoints": {
+                name: str(p) for name, p in scalar_ckpts.items() if Path(p).exists()
+            },
+        },
+        # "field": {...}  # TODO(Task 10b)
+    }
+    manifest_path = Path(out_dir) / "train_manifest.json"
+    write_json(manifest_path, manifest)
+    print(f"[{now_str()}] C8 train: wrote manifest -> {manifest_path}", flush=True)
+    print(
+        f"[{now_str()}] C8 train: scalar checkpoints="
+        f"{list(manifest['scalar']['checkpoints'].values())}",
+        flush=True,
+    )
+    return manifest
 
 
 # ---------------------------------------------------------------------------
@@ -246,9 +599,9 @@ def main() -> None:
     )
 
     if cfg.mode == "collect":
-        raise NotImplementedError("C8 collect: Task 10")
+        run_collect(cfg, out_dir)
     elif cfg.mode == "train":
-        raise NotImplementedError("C8 train: Task 10")
+        run_train(cfg, out_dir)
     elif cfg.mode == "eval":
         raise NotImplementedError("C8 eval: Task 11")
     elif cfg.mode == "calibrate":
