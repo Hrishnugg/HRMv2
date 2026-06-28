@@ -108,6 +108,139 @@ def space_time_astar_prm(adj, points, dyn, h_table, budget, v_agent, dt, t_max,
     return {"found": False, "arrival": -1, "expansions": expansions, "closed": len(closed)}
 
 
+def space_time_focal_prm(adj, points, dyn, euclid_time, rank_h, budget, v_agent, dt, t_max,
+                         w=1.0, start=0, goal=1) -> Dict[str, Any]:
+    """Bounded-suboptimal focal space-time A*epsilon on a static PRM with moving obstacles.
+
+    OPEN is ordered by the admissible f = g + euclid_time[node], where g = arrival
+    time-step and euclid_time[node] is the Euclidean lower bound in time-step units
+    (e.g. euclid(node, goal) / v_agent / dt), independent of t. The FOCAL band
+    {entries : f <= w * f_min + 1e-12} selects expansions by minimising
+    (rank_h[node, min(t, Tcap)], f, counter), where rank_h[node, t] is a
+    time-to-go estimate used as the band ranker (not required to be admissible).
+
+    The returned makespan satisfies arrival <= w * optimal_arrival when euclid_time
+    is admissible (i.e. euclid_time[node] <= true remaining time-steps to goal).
+
+    Uses rebuild-live OPEN + lazy deletion: before each expansion, stale and closed
+    entries are filtered, f_min is recomputed over the live set, and the FOCAL band
+    is selected fresh. State is (node, t_step) with a (node, t_step) closed set.
+    Wait/move feasibility is identical to space_time_astar_prm.
+
+    Parameters
+    ----------
+    adj : List[List[Tuple[int, float]]]
+        Adjacency list.
+    points : np.ndarray, shape (N, 2)
+        Node positions.
+    dyn : Dynamics
+        Moving-obstacle feasibility checker.
+    euclid_time : np.ndarray, shape (N,)
+        Admissible per-node time-to-go lower bound in time-step units.
+    rank_h : np.ndarray, shape (N, t_max+1)
+        Learned time-to-go estimate used to rank entries within the FOCAL band.
+    budget : int
+        Maximum node expansions before giving up.
+    v_agent : float
+        Agent speed in distance units per second.
+    dt : float
+        Time-step duration in seconds.
+    t_max : int
+        Maximum allowed time-step index.
+    w : float
+        Suboptimality factor (>= 1.0). w=1.0 reduces to standard A*.
+    start, goal : int
+        Node indices.
+
+    Returns
+    -------
+    dict with keys: found (bool), arrival (int), expansions (int), closed (int).
+    """
+    if w < 1.0:
+        raise ValueError(f"focal w must be >= 1.0, got {w}")
+    if not np.all(np.isfinite(euclid_time)):
+        raise ValueError("euclid_time must be fully finite")
+    if not np.all(np.isfinite(rank_h)):
+        raise ValueError("rank_h must be fully finite")
+
+    Tcap = int(rank_h.shape[1]) - 1
+
+    # g[(node, t)] = best known arrival time-step
+    g: Dict[Tuple[int, int], int] = {(start, 0): 0}
+    counter = 0
+    # OPEN entries: (f, g_val, node, t_step, counter)
+    # f = g_val + euclid_time[node]  (admissible ordering)
+    f_start = float(euclid_time[start])
+    open_entries: List[Tuple[float, int, int, int, int]] = [
+        (f_start, 0, start, 0, counter)
+    ]
+    closed: set = set()
+    expansions = 0
+
+    while open_entries and expansions < budget:
+        # Rebuild live: discard stale (g changed) or already-closed entries.
+        live = [
+            e for e in open_entries
+            if (e[2], e[3]) not in closed and e[1] == g.get((e[2], e[3]), 1 << 30)
+        ]
+        if not live:
+            break
+        open_entries = live
+
+        f_min = min(e[0] for e in open_entries)
+        threshold = w * f_min + 1e-12
+        focal_set = [e for e in open_entries if e[0] <= threshold]
+
+        # Select by (rank_h[node, min(t, Tcap)], f, counter)
+        best = min(focal_set, key=lambda e: (float(rank_h[e[2], min(e[3], Tcap)]), e[0], e[4]))
+        open_entries.remove(best)
+
+        f_val, g_val, u, t, _ = best
+        state = (u, t)
+        if state in closed or g_val != g.get(state, 1 << 30):
+            continue
+        closed.add(state)
+        expansions += 1
+
+        if u == goal:
+            return {
+                "found": True,
+                "arrival": int(t),
+                "expansions": expansions,
+                "closed": len(closed),
+            }
+
+        # --- wait action (stay at u for 1 step) ---
+        if t + 1 <= t_max and dyn.node_free(points[u], t * dt, (t + 1) * dt, samples=8):
+            nt = t + 1
+            nstate = (u, nt)
+            if nstate not in closed and nt < g.get(nstate, 1 << 30):
+                g[nstate] = nt
+                counter += 1
+                nf = float(nt) + float(euclid_time[u])
+                open_entries.append((nf, nt, u, nt, counter))
+
+        # --- move actions ---
+        for v, length in adj[u]:
+            steps = _edge_steps(float(length), v_agent, dt)
+            nt = t + steps
+            if nt > t_max:
+                continue
+            if not dyn.edge_free(points[u], points[v], t * dt, nt * dt,
+                                  samples=max(8, 4 * steps)):
+                continue
+            nstate = (v, nt)
+            if nstate in closed:
+                continue
+            if nt < g.get(nstate, 1 << 30):
+                g[nstate] = nt
+                counter += 1
+                nf = float(nt) + float(euclid_time[v])
+                open_entries.append((nf, nt, v, nt, counter))
+
+    return {"found": False, "arrival": -1, "expansions": expansions, "closed": len(closed)}
+
+
 def backward_spacetime_dijkstra(adj, points, dyn, v_agent, dt, t_max, goal=1) -> np.ndarray:
     """Backward space-time Dijkstra to compute the optimal-arrival oracle.
 
