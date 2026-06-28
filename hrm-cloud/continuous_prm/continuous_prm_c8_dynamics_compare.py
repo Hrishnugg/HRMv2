@@ -1267,7 +1267,7 @@ def load_raw_rows(out_dir: Path):
         out.append(
             {
                 "suite": str(r.get("suite", "")),
-                "world_index": int(float(r.get("world_index", 0))),
+                "world_index": int(float(r.get("world_index", 0) or 0)),
                 "provider": str(r.get("provider", "")),
                 "mode": str(r.get("mode", "")),
                 "w": _coerce_w(r.get("w")),
@@ -1660,11 +1660,16 @@ def _gap_to_ceiling_fracs(eu_by_world, or_by_world, arm_by_world):
 
 
 def _best_learned_arm(rows, binding, cfg, present):
-    """Pick the 'best learned arm' (provider) for comparison 6: the learned provider
-    (astar) with the lowest pooled-over-suites matched-median exp_ratio vs euclid at
-    each suite's binding budget. Returns provider name or None."""
+    """Pick the 'best learned arm' (provider) for comparison 6: the TIME-AWARE
+    learned provider (astar) with the lowest pooled-over-suites matched-median
+    exp_ratio vs euclid at each suite's binding budget. Time-blind (`_blind`) and
+    non-learned (euclid/oracle) arms are EXCLUDED — the generalization story should
+    feature a time-aware arm (mirrors comparison 1's time_aware_learned filter).
+    Returns provider name or None."""
     import numpy as np
-    learned = sorted(p for p in present if p not in NON_LEARNED)
+    learned = sorted(
+        p for p in present if p not in NON_LEARNED and not p.endswith("_blind")
+    )
     best = None
     for prov in learned:
         ratios = []
