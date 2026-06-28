@@ -409,6 +409,239 @@ def _train_scalar(X, y, mask, cfg: C8Config, device, out_dir: Path) -> Dict[str,
 
 
 # ---------------------------------------------------------------------------
+# Task 10b — field temporal dataset + training
+# ---------------------------------------------------------------------------
+#
+# The field models predict a per-cell residual GRID, but we supervise at the SAME
+# PRM-node space-time residual target the scalar arm (T10a) uses
+# (`node_residual[:, t]`, reachable-masked). We sample the predicted grid at the
+# PRM node grid-cells and supervise there — this matches how
+# `ValueFieldTemporalProvider.h_table` queries the field at eval time (it samples
+# the predicted grid at PRM nodes via `C6.interpolate_grid_values`). Documented
+# deviation from C6's dense full-grid supervision: the field is node-supervised
+# here for (a) target consistency with the scalar arm and (b) tractability — it
+# avoids an expensive grid-level space-time DP. (Minor sampling difference: train
+# uses nearest-cell gather via `C6.point_to_cell`; eval uses bilinear interp via
+# `C6.interpolate_grid_values`. Both reference the SAME cell convention — see the
+# gather-convention note in the dataset below.)
+
+
+def _build_field_node_cells(rm, side_len: float, grid_size: int) -> np.ndarray:
+    """Integer PRM-node grid-cells, (N, 2) = [ix, iy] per node.
+
+    Gather-convention (CRITICAL): `C6.point_to_cell(p, side, G)` returns
+    ``(ix, iy)`` where ``ix = floor(p[0]/side*G)`` (x-index) and
+    ``iy = floor(p[1]/side*G)`` (y-index). C6's predicted residual grid is
+    indexed ``grid[ix, iy]`` — `C6.interpolate_grid_values` (the eval-time
+    sampler) reads ``grid[x0, y0]`` with ``x0`` from ``p[0]`` and ``y0`` from
+    ``p[1]``. So the training-time nearest-cell gather must be ``pred[b, ix, iy]``
+    to reference the same cell the provider samples at eval time.
+    """
+    import continuous_prm_c6_heatmap_value_field as C6
+    pts = np.asarray(rm.points, dtype=np.float64)
+    cells = np.empty((pts.shape[0], 2), dtype=np.int64)
+    for i in range(pts.shape[0]):
+        ix, iy = C6.point_to_cell(pts[i], float(side_len), int(grid_size))
+        cells[i, 0] = int(ix)
+        cells[i, 1] = int(iy)
+    return cells
+
+
+class _FieldTemporalDataset:
+    """Torch-style dataset of per-(world, t) field-training samples.
+
+    Each sample yields:
+      occ_stack  (8+W, G, G) float32 — `P.build_field_occupancy_stack` for (world, t)
+      node_cells (N, 2)      int64   — [ix, iy] grid-cells per PRM node (const over t)
+      target     (N,)        float32 — `node_residual[:, t]` (T_scale-normalized)
+      mask       (N,)        bool    — `reachable[:, t]`
+
+    Occupancy stacks are built ON DEMAND in `__getitem__` to bound memory (we do
+    NOT materialize all (sum_w t_max+1) stacks up front). `P.build_field_occupancy_stack`
+    owns the full per-(world, t) render (the W+1 patroller frames + the 7 static
+    C6 channels via `make_heatmap_example`), so we keep that as the single source
+    of truth to stay byte-identical with the eval-time provider path; we only cache
+    the per-world node grid-cells (constant over t) up front.
+    """
+
+    def __init__(self, labelsets: List[dict], cfg: C8Config):
+        self.cfg = cfg
+        self.W = int(cfg.window_w)
+        self.G = int(cfg.grid_size)
+        self.labelsets = labelsets
+        self._cells: List[np.ndarray] = []        # (N, 2) int64 per world (const over t)
+        self._index: List[Tuple[int, int]] = []   # flat (world_idx, t)
+        for w_idx, ls in enumerate(labelsets):
+            world = ls["world"]
+            self._cells.append(
+                _build_field_node_cells(ls["rm"], float(world.side_len), self.G)
+            )
+            t_max = int(ls["params"]["t_max"])
+            for t in range(t_max + 1):
+                self._index.append((w_idx, t))
+
+    def __len__(self) -> int:
+        return len(self._index)
+
+    def __getitem__(self, i: int):
+        w_idx, t = self._index[i]
+        ls = self.labelsets[w_idx]
+        world, dyn = ls["world"], ls["dyn"]
+        dt = float(ls["params"]["dt"])
+        # Build the occupancy stack ON DEMAND (bounds memory). This re-renders the
+        # W+1 patroller frames for (world, t) — matches the eval-time provider path.
+        occ = P.build_field_occupancy_stack(world, dyn, self.G, t, self.W, dt)
+        occ = np.ascontiguousarray(occ, dtype=np.float32)  # (8+W, G, G)
+        cells = self._cells[w_idx]                          # (N, 2) int64
+        target = ls["node_residual"][:, t].astype(np.float32)  # (N,)
+        mask = ls["reachable"][:, t].astype(np.bool_)          # (N,)
+        return occ, cells, target, mask
+
+
+def _field_collate(batch):
+    """Collate variable-N field samples into a padded batch.
+
+    Different worlds have different roadmap node counts N, so node_cells/target/
+    mask are padded to the batch-max N and a row-validity is folded into `mask`
+    (padded rows get mask=False so they never contribute to the loss).
+
+    Returns torch tensors:
+      occ    (B, 8+W, G, G) float32
+      cells  (B, Nmax, 2)   long
+      target (B, Nmax)      float32
+      mask   (B, Nmax)      bool
+    """
+    import torch
+    occs, cells_l, targets, masks = zip(*batch)
+    B = len(occs)
+    Nmax = max(int(c.shape[0]) for c in cells_l)
+    occ = torch.from_numpy(np.stack(occs, axis=0))  # (B, 8+W, G, G)
+    cells = torch.zeros((B, Nmax, 2), dtype=torch.long)
+    target = torch.zeros((B, Nmax), dtype=torch.float32)
+    mask = torch.zeros((B, Nmax), dtype=torch.bool)
+    for b in range(B):
+        n = int(cells_l[b].shape[0])
+        cells[b, :n] = torch.from_numpy(np.ascontiguousarray(cells_l[b]))
+        target[b, :n] = torch.from_numpy(targets[b])
+        mask[b, :n] = torch.from_numpy(masks[b])
+    return occ, cells, target, mask
+
+
+def _train_field(labelsets: List[dict], cfg: C8Config, device) -> Dict[str, Path]:
+    """Train each field backbone on the masked PRM-node space-time residual target.
+
+    For each (world, t): forward the occupancy stack through a C6 field model
+    (in_channels = 8 + window_w) -> predicted residual grid (B, G, G) via
+    `C6.model_output_residual(model(x))` (the same forward path
+    `C6.predict_residual_grid` uses); GATHER the predicted residual at the PRM node
+    grid-cells -> pred_nodes (B, N); masked smooth-L1 against node_residual[:, t].
+
+    Saves out_dir/checkpoints/c8_field__{backbone}.pt with a payload that lets
+    Task 11 rebuild a ValueFieldTemporalProvider. Returns {backbone: ckpt_path}.
+    Empty cfg.field_backbones -> trains nothing (returns {}), preserving T10a-only.
+    """
+    import torch
+    import torch.nn.functional as F
+    from torch.utils.data import DataLoader
+    import continuous_prm_c6_heatmap_value_field as C6
+
+    names = parse_csv(cfg.field_backbones)
+    if not names:
+        return {}
+
+    out_dir = Path(cfg.out_dir)
+    in_channels = 8 + int(cfg.window_w)
+    train_cfg = C.TrainingConfig()
+    lr = float(train_cfg.lr)
+    weight_decay = float(train_cfg.weight_decay)
+    epochs = int(cfg.epochs)
+    batch_size = 8  # grids are heavy; small batch keeps CPU/GPU memory modest
+    grad_clip = 1.0
+
+    ckpt_dir = ensure_dir(out_dir / "checkpoints")
+    logs_dir = ensure_dir(out_dir / "logs")
+
+    dataset = _FieldTemporalDataset(labelsets, cfg)
+    n_samples = len(dataset)
+    if n_samples == 0:
+        raise RuntimeError("field train: no (world, t) samples to train on")
+    print(
+        f"[{now_str()}] C8 train: field dataset samples={n_samples} "
+        f"(worlds={len(labelsets)}) in_channels={in_channels} grid={cfg.grid_size}",
+        flush=True,
+    )
+
+    ckpts: Dict[str, Path] = {}
+    for name in names:
+        model = C6.build_model(name, in_channels=in_channels).to(device)
+        opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+        model.train()
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=0,
+            collate_fn=_field_collate,
+        )
+        log_lines: List[str] = []
+        for ep in range(epochs):
+            ep_loss = 0.0
+            ep_count = 0
+            for occ, cells, target, mask in loader:
+                occ = occ.to(device=device, dtype=torch.float32)
+                cells = cells.to(device)
+                target = target.to(device=device, dtype=torch.float32)
+                mask = mask.to(device)
+                # Predicted residual grid (B, G, G) via C6's model->residual path.
+                pred_grid = C6.model_output_residual(model(occ))
+                if not torch.isfinite(pred_grid).all():
+                    raise FloatingPointError(f"field train {name}: non-finite grid")
+                # GATHER at PRM node grid-cells. Convention (see
+                # _build_field_node_cells): cells[..., 0]=ix (x-index),
+                # cells[..., 1]=iy (y-index); grid is indexed [ix, iy], matching the
+                # eval-time sampler C6.interpolate_grid_values(grid[x0, y0]).
+                B, G, _ = pred_grid.shape
+                ix = cells[..., 0].clamp(0, G - 1)   # (B, N) x-index
+                iy = cells[..., 1].clamp(0, G - 1)   # (B, N) y-index
+                flat = pred_grid.reshape(B, G * G)
+                lin = ix * G + iy                    # row-major [ix, iy] -> ix*G + iy
+                pred_nodes = torch.gather(flat, 1, lin)  # (B, N)
+                m = mask.bool()
+                if not bool(m.any()):
+                    continue
+                loss = F.smooth_l1_loss(pred_nodes[m], target[m])
+                if not torch.isfinite(loss):
+                    raise FloatingPointError(f"field train {name}: non-finite loss")
+                opt.zero_grad(set_to_none=True)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                opt.step()
+                nm = int(m.sum().item())
+                ep_loss += float(loss.detach().cpu()) * nm
+                ep_count += nm
+            mean_loss = ep_loss / max(1, ep_count)
+            line = f"epoch={ep} loss={mean_loss:.6f}"
+            log_lines.append(line)
+            print(f"[{now_str()}] C8 train: field {name} {line}", flush=True)
+
+        ckpt_path = ckpt_dir / f"c8_field__{name}.pt"
+        payload = {
+            "model": model.state_dict(),
+            "in_channels": in_channels,
+            "window_w": int(cfg.window_w),
+            "grid_size": int(cfg.grid_size),
+            "backbone": name,
+        }
+        torch.save(payload, ckpt_path)
+        ckpts[name] = ckpt_path
+        log_path = logs_dir / f"c8_field__{name}.log"
+        log_path.write_text("\n".join(log_lines) + "\n")
+        print(f"[{now_str()}] C8 train: field {name} -> {ckpt_path}", flush=True)
+
+    return ckpts
+
+
+# ---------------------------------------------------------------------------
 # Mode runners
 # ---------------------------------------------------------------------------
 
@@ -428,11 +661,12 @@ def run_collect(cfg: C8Config, out_dir: Path) -> Tuple[List[dict], Dict[str, int
 
 
 def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
-    """Collect labels, then train the scalar temporal models (Task 10a).
+    """Collect labels, then train the scalar (Task 10a) and field (Task 10b) models.
 
-    Field training is Task 10b (see the explicit extension point below). The
-    train_manifest.json written here lists the scalar checkpoints; Task 10b will
-    extend it with the field checkpoints.
+    Both arms supervise on the SAME shared `labelsets` (each carries
+    world/dyn/node_residual/reachable from the backward space-time Dijkstra). The
+    train_manifest.json lists both the scalar and field checkpoints. Field training
+    is a no-op when cfg.field_backbones is empty (preserves T10a scalar-only).
     """
     device = _pick_device(cfg)
     print(f"[{now_str()}] C8 train: device={device}", flush=True)
@@ -450,10 +684,11 @@ def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
     X, y, mask = _build_scalar_dataset(labelsets, cfg)
     scalar_ckpts = _train_scalar(X, y, mask, cfg, device, out_dir)
 
-    # TODO(Task 10b): train field models. Reuse the same `labelsets` (each carries
-    # world/dyn/node_residual/reachable) to build the field occupancy-stack dataset
-    # via P.build_field_occupancy_stack and supervise on node_residual sampled to
-    # the grid, then add a "field" section to the manifest below.
+    # ---- Field temporal models (Task 10b) ----
+    # Reuse the SAME labelsets (each carries world/dyn/node_residual/reachable);
+    # supervise the field's predicted residual grid at the PRM node grid-cells.
+    # Empty cfg.field_backbones -> _train_field is a no-op (T10a scalar-only).
+    field_ckpts = _train_field(labelsets, cfg, device)
 
     manifest = {
         "stage": "c8_train",
@@ -472,7 +707,15 @@ def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
                 name: str(p) for name, p in scalar_ckpts.items() if Path(p).exists()
             },
         },
-        # "field": {...}  # TODO(Task 10b)
+        "field": {
+            "backbones": parse_csv(cfg.field_backbones),
+            "epochs": int(cfg.epochs),
+            "in_channels": 8 + int(cfg.window_w),
+            "grid_size": int(cfg.grid_size),
+            "checkpoints": {
+                name: str(p) for name, p in field_ckpts.items() if Path(p).exists()
+            },
+        },
     }
     manifest_path = Path(out_dir) / "train_manifest.json"
     write_json(manifest_path, manifest)
@@ -480,6 +723,11 @@ def run_train(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
     print(
         f"[{now_str()}] C8 train: scalar checkpoints="
         f"{list(manifest['scalar']['checkpoints'].values())}",
+        flush=True,
+    )
+    print(
+        f"[{now_str()}] C8 train: field checkpoints="
+        f"{list(manifest['field']['checkpoints'].values())}",
         flush=True,
     )
     return manifest
