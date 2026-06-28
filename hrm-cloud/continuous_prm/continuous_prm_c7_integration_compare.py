@@ -1757,6 +1757,48 @@ def run_analyze(out_dir: Path, cfg: C7Config) -> Dict[str, Path]:
 
 
 # ---------------------------------------------------------------------------
+# Full mode (Tasks 8-11): collect -> train -> calibrate-if-needed -> eval -> analyze
+# ---------------------------------------------------------------------------
+
+def run_full(out_dir: Path, cfg: C7Config, device) -> None:
+    """Run all stages end-to-end.
+
+    Stage order:
+      1. train  — run_train_all (which internally calls run_collect if datasets absent)
+      2. calibrate — ONLY if out_dir/calibration.json does not already exist;
+                     reuses an existing calibration otherwise.
+      3. eval   — run_eval (loads models + calibrated budgets; writes raw CSV)
+      4. analyze — run_analyze (stats + significance + pre-registered MDs + figures)
+
+    Prints a [c7] === STAGE: <name> === banner before each stage.
+    """
+    out_dir = Path(out_dir)
+
+    # ---- Stage 1: train (includes collect) ----------------------------------
+    print(f"\n[c7] === STAGE: train (collect + train_all) ===", flush=True)
+    run_train_all(out_dir, cfg, device)
+
+    # ---- Stage 2: calibrate (skip if calibration.json already exists) -------
+    calib_path = out_dir / "calibration.json"
+    if calib_path.exists():
+        print(
+            f"\n[c7] === STAGE: calibrate (SKIPPED — {calib_path} already exists) ===",
+            flush=True,
+        )
+    else:
+        print(f"\n[c7] === STAGE: calibrate ===", flush=True)
+        run_calibrate(out_dir, cfg)
+
+    # ---- Stage 3: eval -------------------------------------------------------
+    print(f"\n[c7] === STAGE: eval ===", flush=True)
+    run_eval(out_dir, cfg, device)
+
+    # ---- Stage 4: analyze ----------------------------------------------------
+    print(f"\n[c7] === STAGE: analyze ===", flush=True)
+    run_analyze(out_dir, cfg)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -1799,14 +1841,9 @@ def main() -> None:
         print(f"[{now_str()}] C7 analyze: stats + pre-registered comparisons (CPU)", flush=True)
         run_analyze(out_dir, cfg)
     elif cfg.mode == "full":
-        # full = collect -> train -> calibrate -> eval -> analyze. full mode is not
-        # wired here on purpose: the heavy collect/train stages require a GPU and a
-        # multi-hour budget; run the individual modes (collect/train/calibrate/eval/
-        # analyze) so each stage is checkpointed and resumable.
-        raise NotImplementedError(
-            "C7 full mode: run --mode collect/train/calibrate/eval/analyze individually "
-            "(each stage checkpoints to out_dir so a long run is resumable)"
-        )
+        device = _pick_device(cfg)
+        print(f"[{now_str()}] C7 full: device={device}", flush=True)
+        run_full(out_dir, cfg, device)
     else:
         raise ValueError(f"unknown mode: {cfg.mode}")
 
