@@ -69,3 +69,51 @@ def load_source_base(source_dir, backbone: str, device) -> SourceBase:
     train_cfg = C.TrainingConfig(**payload["train_cfg"])
     model = C.load_base_model(backbone_cfg, feature_cfg, train_cfg, ckpt, device)
     return SourceBase(model, backbone_cfg, feature_cfg, train_cfg, ckpt, backbone)
+
+
+# ---------------------------------------------------------------------------
+# Task 2 — ADAPT/TEST world-split helpers
+# ---------------------------------------------------------------------------
+
+def world_fingerprint(world) -> tuple:
+    """Stable identity of a world (start, goal, obstacle centers)."""
+    start = tuple(np.round(np.asarray(world.start, dtype=np.float64), 6))
+    goal = tuple(np.round(np.asarray(world.goal, dtype=np.float64), 6))
+    obs = tuple(sorted((round(float(getattr(o, "cx", 0.0)), 6), round(float(getattr(o, "cy", 0.0)), 6)) for o in world.obstacles))
+    return (round(float(world.side_len), 6), start, goal, obs)
+
+
+def iter_test_worlds(spec, suite_idx: int, cfg: C9Config, roadmap_cfg, n_test: int):
+    """TEST worlds for a target = the C7 deterministic eval worlds (yields (idx, world, rm))."""
+    c7cfg = C7.C7Config(seed=int(cfg.seed), roadmap_nodes=cfg.roadmap_nodes, roadmap_k=cfg.roadmap_k)
+    yield from C7.iter_matched_worlds(spec, suite_idx, c7cfg, roadmap_cfg, n_test)
+
+
+def adapt_seed(target: str, K: int, adapt_seed: int, base_seed: int) -> int:
+    """Deterministic (within-process), well-separated seed for an ADAPT(target,K,adapt_seed) collection."""
+    h = (hash(target) & 0xFFFF)
+    return int(base_seed) + 5_000_000 + 100_000 * h % 7_000_000 + 1_009 * int(K) + int(adapt_seed)
+
+
+def adapt_world_fingerprints(spec, n_worlds, nodes_per_world, roadmap_cfg, feature_cfg, seed):
+    """Replays collect_task_dataset's world-generation loop to expose ADAPT world fingerprints
+    (for the disjointness test). Mirrors C.collect_task_dataset world acceptance rules."""
+    import random as _random
+    rng = _random.Random(int(seed))
+    fps, done, attempts = [], 0, 0
+    while done < n_worlds and attempts < n_worlds * 100:
+        attempts += 1
+        w_seed = rng.randint(0, 2**31 - 1)
+        world = C.build_world(spec, w_seed, roadmap_cfg.min_start_goal_dist_frac)
+        if world is None:
+            continue
+        rm = C.build_prm(world, roadmap_cfg, seed=w_seed + 17)
+        if rm is None or not rm.connected_to_goal[0]:
+            continue
+        connected_idxs = np.where(rm.connected_to_goal)[0]
+        connected_idxs = connected_idxs[connected_idxs != 1]
+        if len(connected_idxs) < max(12, nodes_per_world // 4):
+            continue
+        fps.append(world_fingerprint(world))
+        done += 1
+    return fps
