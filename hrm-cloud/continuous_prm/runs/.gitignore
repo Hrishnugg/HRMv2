@@ -7,3 +7,5 @@ figures/
 *.png
 *.jpg
 *.gif
+# Intermediate per-suite eval shards (redundant with the merged *_eval_raw.csv).
+_shards/
