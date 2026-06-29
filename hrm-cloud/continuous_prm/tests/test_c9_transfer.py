@@ -1,4 +1,5 @@
 import os, sys
+import dataclasses as _dc
 from pathlib import Path
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -57,3 +58,34 @@ def test_adapt_seed_deterministic():
     b = C9.adapt_seed("C_hard_bugtrap", 4, 2, 1234)
     c = C9.adapt_seed("C_hard_bugtrap", 4, 3, 1234)
     assert a == b and a != c
+
+
+def dataclasses_replace_epochs(train_cfg, epochs):
+    return _dc.replace(train_cfg, base_epochs=int(epochs))
+
+
+def _tiny_npz(tmp_path, feature_cfg, n=24):
+    import numpy as np
+    x = np.random.RandomState(0).randn(n, feature_cfg.seq_len, feature_cfg.token_dim).astype("float32")
+    y = np.abs(np.random.RandomState(1).randn(n)).astype("float32")
+    p = tmp_path / "tiny.npz"
+    np.savez_compressed(p, x=x, y=y, euclid=np.ones(n, "float32"), side=np.ones(n, "float32"))
+    return p
+
+
+@pytest.mark.skipif(not (HERE / "runs/c7_local/checkpoints/avgbase__hrm.pt").exists(),
+                    reason="base missing")
+def test_train_scalar_model_full_ft_vs_scratch(tmp_path):
+    import torch
+    dev = torch.device("cpu")
+    base = C9.load_source_base(HERE / "runs/c7_local", "hrm", dev)
+    npz = _tiny_npz(tmp_path, base.feature_cfg)
+    tcfg = dataclasses_replace_epochs(base.train_cfg, 1)
+    ck_ft = tmp_path / "ft.pt"
+    C9.train_scalar_model(base.backbone_cfg, npz, ck_ft, base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path)
+    assert ck_ft.exists()
+    ck_sc = tmp_path / "sc.pt"
+    C9.train_scalar_model(base.backbone_cfg, npz, ck_sc, base.feature_cfg, tcfg, dev, seed=0, init_ckpt=None)
+    assert ck_sc.exists()
+    pl = torch.load(ck_ft, map_location="cpu")
+    assert {"model", "backbone_cfg", "feature_cfg", "train_cfg"} <= set(pl)

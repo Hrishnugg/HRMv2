@@ -11,9 +11,13 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import hashlib
-from dataclasses import dataclass
+import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+import torch
+import torch.nn.functional as F
 
 import numpy as np
 
@@ -128,3 +132,54 @@ def adapt_world_fingerprints(spec, n_worlds, nodes_per_world, roadmap_cfg, featu
         fps.append(world_fingerprint(world))
         done += 1
     return fps
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — per-(K, seed) scalar model training
+# ---------------------------------------------------------------------------
+
+def train_scalar_model(backbone_cfg, dataset_npz, out_ckpt, feature_cfg,
+                       train_cfg, device, seed: int, init_ckpt=None):
+    """Train an additive-residual scalar model on a single npz dataset.
+    init_ckpt=None => from-scratch; a path => full fine-tune from those weights.
+    Mirrors C.train_avgbase's optimizer/loss/loop; writes to out_ckpt (no skip guard)."""
+    out_ckpt = Path(out_ckpt)
+    x, y = C.load_npz_arrays(dataset_npz)
+    ds = C.ArrayDataset(x, y)
+    loader = C.make_loader(ds, train_cfg.batch_size, shuffle=True, num_workers=train_cfg.num_workers)
+    model = C.build_model(backbone_cfg, feature_cfg, train_cfg, device)
+    if init_ckpt is not None:
+        C.safe_load_state(model, Path(init_ckpt))
+    opt = torch.optim.AdamW(model.parameters(), lr=train_cfg.lr, weight_decay=train_cfg.weight_decay)
+    C.set_global_seed(int(seed))
+    history = []
+    for epoch in range(1, train_cfg.base_epochs + 1):
+        model.train()
+        losses = []
+        t0 = time.time()
+        for xb, yb in loader:
+            xb = xb.to(device, non_blocking=True); yb = yb.to(device, non_blocking=True)
+            opt.zero_grad(set_to_none=True)
+            pred = model(xb)
+            if not torch.isfinite(pred).all():
+                raise RuntimeError("nonfinite c9 predictions")
+            loss = F.smooth_l1_loss(pred, yb)
+            if not torch.isfinite(loss):
+                raise RuntimeError("nonfinite c9 loss")
+            loss.backward()
+            if train_cfg.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), train_cfg.grad_clip)
+            opt.step()
+            losses.append(float(loss.item()))
+        history.append({"epoch": epoch, "loss": C.finite_mean(losses), "seconds": time.time() - t0})
+    payload = {
+        "model": model.state_dict(),
+        "backbone_cfg": asdict(backbone_cfg),
+        "feature_cfg": asdict(feature_cfg),
+        "train_cfg": asdict(train_cfg),
+        "init_ckpt": (str(init_ckpt) if init_ckpt is not None else None),
+        "history": history,
+    }
+    C.ensure_dir(out_ckpt.parent)
+    torch.save(payload, out_ckpt)
+    return out_ckpt
