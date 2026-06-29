@@ -335,8 +335,6 @@ def run_adapt(cfg: C9hConfig, device) -> dict:
 # Task 6 — eval mode (scalar + field providers; matched A* on TEST)
 # ---------------------------------------------------------------------------
 
-import csv as _csv
-
 
 def _target_budgets(cfg: C9hConfig, target: str) -> List[int]:
     if str(cfg.budgets).strip():
