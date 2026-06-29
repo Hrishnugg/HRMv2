@@ -89,3 +89,23 @@ def test_train_scalar_model_full_ft_vs_scratch(tmp_path):
     assert ck_sc.exists()
     pl = torch.load(ck_ft, map_location="cpu")
     assert {"model", "backbone_cfg", "feature_cfg", "train_cfg"} <= set(pl)
+
+
+@pytest.mark.skipif(not (HERE / "runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_load_scalar_provider_base_and_full_ft(tmp_path):
+    import torch, numpy as np
+    dev = torch.device("cpu")
+    base = C9.load_source_base(HERE / "runs/c7_local", "hrm", dev)
+    prov0 = C9.load_scalar_provider(base.ckpt_path, dev)
+    assert prov0.name == "scalar_hrm"
+    npz = _tiny_npz(tmp_path, base.feature_cfg)
+    tcfg = dataclasses_replace_epochs(base.train_cfg, 1)
+    ck = tmp_path / "ft.pt"
+    C9.train_scalar_model(base.backbone_cfg, npz, ck, base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path)
+    prov1 = C9.load_scalar_provider(ck, dev)
+    H7.install_c7_hard_maps(); specs = C.build_anchor_specs()
+    rmcfg = C.RoadmapConfig(n_nodes=64, k_neighbors=7)
+    w = C.build_world(specs["C_hard_bugtrap"], 7, rmcfg.min_start_goal_dist_frac)
+    rm = C.build_prm(w, rmcfg, seed=24)
+    h = prov1.node_h(w, rm, goal_idx=1)
+    assert np.isfinite(h).all() and h.shape[0] == rm.points.shape[0]

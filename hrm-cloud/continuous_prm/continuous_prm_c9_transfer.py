@@ -183,3 +183,22 @@ def train_scalar_model(backbone_cfg, dataset_npz, out_ckpt, feature_cfg,
     C.ensure_dir(out_ckpt.parent)
     torch.save(payload, out_ckpt)
     return out_ckpt
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — load any scalar checkpoint into a ScalarResidualProvider
+# ---------------------------------------------------------------------------
+
+def load_scalar_provider(ckpt, device):
+    """Load a scalar checkpoint (avgbase / full-FT / scratch / LoRA-expert) into a ScalarResidualProvider.
+    For LoRA experts, apply_lora must run before load_state_dict (the state_dict carries LoRA params)."""
+    payload = torch.load(Path(ckpt), map_location="cpu")
+    backbone_cfg = C.BackboneConfig(**payload["backbone_cfg"])
+    feature_cfg = C.FeatureConfig(**payload["feature_cfg"])
+    train_cfg = C.TrainingConfig(**payload["train_cfg"])
+    model = C.build_model(backbone_cfg, feature_cfg, train_cfg, device)
+    if "lora_rank" in payload and "alpha" in payload:
+        C.apply_lora(model, rank=int(payload["lora_rank"]), alpha=float(payload["alpha"]), init_scale=0.01)
+    model.load_state_dict(payload["model"], strict=True)
+    model.eval()
+    return P.ScalarResidualProvider(model, feature_cfg, device, backbone_cfg.name, train_cfg.max_norm_residual)
