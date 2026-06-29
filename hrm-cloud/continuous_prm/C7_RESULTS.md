@@ -4,7 +4,7 @@
 **Experiment:** `continuous_prm_c7_integration_compare.py` (spec: `../../docs/superpowers/specs/2026-06-27-c7-integration-comparison-design.md`, plan: `../../docs/superpowers/plans/2026-06-27-c7-integration-comparison.md`)
 **Scope:** Phase 1 — a single **matched** comparison of heuristic-integration strategies on hard continuous-PRM planning. Phase 2 (dynamics) is a separate later cycle.
 
-Related: [`C8_RESULTS.md`](C8_RESULTS.md) (dynamics — this extended into space-time), [`C6_RESULTS.md`](C6_RESULTS.md) (value-field stage this builds on), [`../EXPERIMENT_RESULTS_FOCAL_REDESIGN.md`](../EXPERIMENT_RESULTS_FOCAL_REDESIGN.md) (discrete focal search), [`../EXPERIMENT_RESULTS_COMPENDIUM.md`](../EXPERIMENT_RESULTS_COMPENDIUM.md) (program history).
+Related: [`C8_RESULTS.md`](C8_RESULTS.md) (dynamics — this extended into space-time), [`C9_RESULTS.md`](C9_RESULTS.md) (few-shot transfer — adapts this run's `avgbase`), [`C6_RESULTS.md`](C6_RESULTS.md) (value-field stage this builds on), [`../EXPERIMENT_RESULTS_FOCAL_REDESIGN.md`](../EXPERIMENT_RESULTS_FOCAL_REDESIGN.md) (discrete focal search), [`../EXPERIMENT_RESULTS_COMPENDIUM.md`](../EXPERIMENT_RESULTS_COMPENDIUM.md) (program history).
 
 ---
 
