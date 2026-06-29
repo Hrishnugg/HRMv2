@@ -109,3 +109,19 @@ def test_load_scalar_provider_base_and_full_ft(tmp_path):
     rm = C.build_prm(w, rmcfg, seed=24)
     h = prov1.node_h(w, rm, goal_idx=1)
     assert np.isfinite(h).all() and h.shape[0] == rm.points.shape[0]
+
+
+@pytest.mark.skipif(not (HERE / "runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_adapt_smoke(tmp_path):
+    import torch
+    cfg = C9.C9Config(
+        source_dir=str(HERE / "runs/c7_local"), out_dir=str(tmp_path / "c9"),
+        targets="C_hard_bugtrap", backbones="hrm", k_grid="0,1", n_adapt_seeds=1,
+        n_test=4, adapt_epochs=1, roadmap_nodes=192, roadmap_k=7, cpu=True, seed=7,
+    )
+    man = C9.run_adapt(cfg, torch.device("cpu"))
+    arms = {(a["K"], a["method"]) for a in man["arms"]}
+    assert (1, "lora") in arms and (1, "full_ft") in arms and (1, "scratch") in arms
+    assert not any(a["K"] == 0 for a in man["arms"])
+    for a in man["arms"]:
+        assert Path(a["ckpt"]).exists()

@@ -202,3 +202,54 @@ def load_scalar_provider(ckpt, device):
     model.load_state_dict(payload["model"], strict=True)
     model.eval()
     return P.ScalarResidualProvider(model, feature_cfg, device, backbone_cfg.name, train_cfg.max_norm_residual)
+
+
+# ---------------------------------------------------------------------------
+# Task 5 — adapt mode (lora / full_ft / scratch per target x K x seed x backbone)
+# ---------------------------------------------------------------------------
+
+SCALAR_NODES_PER_WORLD = C7.SCALAR_NODES_PER_WORLD  # match how the avgbase base was trained
+
+
+def _parse_csv(s): return [t for t in str(s).split(",") if t != ""]
+def _parse_ints(s): return [int(t) for t in _parse_csv(s)]
+
+
+def arm_ckpt_path(out_dir, target: str, K: int, seed: int, method: str, backbone: str) -> Path:
+    return Path(out_dir) / "checkpoints" / f"c9__{target}__K{K}__s{seed}__{method}__{backbone}.pt"
+
+
+def run_adapt(cfg: C9Config, device) -> dict:
+    H7.install_c7_hard_maps()
+    specs = C.build_anchor_specs()
+    out_dir = Path(cfg.out_dir)
+    ds_dir = out_dir / "datasets"
+    C.ensure_dir(out_dir / "checkpoints"); C.ensure_dir(ds_dir)
+    rmcfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    Ks = [k for k in _parse_ints(cfg.k_grid) if k > 0]
+    arms = []
+    for target in _parse_csv(cfg.targets):
+        spec = specs[target]
+        for backbone in _parse_csv(cfg.backbones):
+            base = load_source_base(Path(cfg.source_dir), backbone, device)
+            tcfg = base.train_cfg if cfg.adapt_epochs <= 0 else dataclasses.replace(base.train_cfg, base_epochs=int(cfg.adapt_epochs))
+            for K in Ks:
+                for s in range(int(cfg.n_adapt_seeds)):
+                    aseed = adapt_seed(target, K, s, cfg.seed)
+                    npz = C.collect_task_dataset(
+                        spec, ds_dir, f"adapt_{target}_K{K}_s{s}", K, SCALAR_NODES_PER_WORLD,
+                        rmcfg, base.feature_cfg, seed=aseed)
+                    lora_ck = C.train_expert(
+                        base.backbone_cfg, f"{target}_K{K}_s{s}", npz, base.ckpt_path,
+                        out_dir, base.feature_cfg, tcfg, device, seed=aseed, alpha=float(cfg.alpha))
+                    arms.append(dict(target=target, K=K, seed=s, method="lora", backbone=backbone, ckpt=str(lora_ck)))
+                    for method, init in (("full_ft", base.ckpt_path), ("scratch", None)):
+                        ck = arm_ckpt_path(out_dir, target, K, s, method, backbone)
+                        if not ck.exists():
+                            train_scalar_model(base.backbone_cfg, npz, ck, base.feature_cfg, tcfg, device, seed=aseed, init_ckpt=init)
+                        arms.append(dict(target=target, K=K, seed=s, method=method, backbone=backbone, ckpt=str(ck)))
+                    print(f"[{now_str()}] c9 adapt: {target} {backbone} K={K} s={s} done", flush=True)
+    manifest = {"arms": arms, "targets": _parse_csv(cfg.targets), "backbones": _parse_csv(cfg.backbones),
+                "k_grid": _parse_ints(cfg.k_grid), "n_adapt_seeds": int(cfg.n_adapt_seeds), "seed": int(cfg.seed)}
+    C.write_json(out_dir / "adapt_manifest.json", manifest)
+    return manifest
