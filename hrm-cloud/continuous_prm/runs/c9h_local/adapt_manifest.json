@@ -1,0 +1,2943 @@
+{
+  "arms": [
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__hrm__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__onlstm__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_maze_dense__unet__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_maze_dense"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__hrm__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__onlstm__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_bugtrap__unet__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_bugtrap"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "hrm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__hrm__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "onlstm",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__onlstm__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 1,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K1__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 4,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K4__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s0__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s0__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s0__full_ft.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s0__scratch.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s1__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s1__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s1__full_ft.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s1__scratch.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s2__lora_bounded.pt",
+      "method": "lora_bounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": false,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s2__lora_unbounded.pt",
+      "method": "lora_unbounded",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s2__full_ft.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    },
+    {
+      "K": 16,
+      "backbone": "unet",
+      "bounded": true,
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9h_local\\checkpoints\\c9h__C_hard_rooms_large__unet__K16__s2__scratch.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_hard_rooms_large"
+    }
+  ],
+  "backbones": [
+    "hrm",
+    "onlstm",
+    "unet"
+  ],
+  "k_grid": [
+    1,
+    4,
+    16
+  ],
+  "methods": [
+    "lora_bounded",
+    "lora_unbounded",
+    "full_ft",
+    "scratch"
+  ],
+  "n_adapt_seeds": 3,
+  "seed": 1234,
+  "targets": [
+    "C_hard_maze_dense",
+    "C_hard_bugtrap",
+    "C_hard_rooms_large"
+  ]
+}
