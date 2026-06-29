@@ -399,3 +399,258 @@ def run_eval(cfg: C9hConfig, device) -> Path:
         for r in all_rows: wri.writerow({k: r.get(k, "") for k in C9.RAW_COLS})
     print(f"[{now_str()}] c9h eval: merged {len(all_rows)} rows -> {raw}", flush=True)
     return raw
+
+
+# ---------------------------------------------------------------------------
+# Task 7 — analyze mode (5-method curves + bounded-vs-unbounded + significance)
+# ---------------------------------------------------------------------------
+
+from continuous_prm_c6_heatmap_value_field import mcnemar_exact_p, bh_q_values
+from continuous_prm_c7_integration_compare import bootstrap_median_ci
+
+# Reuse C9's pure-Python row helpers (no I/O side effects, safe to import directly)
+_load_rows = C9._load_rows
+_astar = C9._astar
+_is_found = C9._is_found
+_binding_budget_for = C9._binding_budget_for
+_euclid_exp_by_world = C9._euclid_exp_by_world
+
+
+def analyze_from_raw_c9h(raw_csv, out_dir, seed, targets, backbones, methods):
+    """Compute adaptation curves and significance for C9h's 5-method design.
+
+    methods: list such as ["lora_bounded","lora_unbounded","full_ft","scratch"].
+    zero_shot is always prepended automatically (K=0 rows).
+    Writes:
+      continuous_prm_c9h_curves.csv
+      continuous_prm_c9h_comparisons.md   (includes Bounded vs Unbounded section)
+      continuous_prm_c9h_significance.md
+    Returns {"curves": Path, "comparisons": Path, "significance": Path}.
+    """
+    rows = _load_rows(raw_csv)
+    res_dir = Path(out_dir)
+    C.ensure_dir(res_dir)
+
+    all_methods = ["zero_shot"] + list(methods)
+
+    # One binding budget per target
+    binding = {t: _binding_budget_for(rows, t) for t in targets}
+
+    curves = []
+    for target in targets:
+        bb = binding[target]
+        eu = _euclid_exp_by_world(rows, target, bb) if bb is not None else {}
+        for backbone in backbones:
+            for method in all_methods:
+                by_K: Dict[int, list] = {}
+                succ_by_K: Dict[int, list] = {}
+                for r in _astar(rows):
+                    if r["target"] != target or r["method"] != method:
+                        continue
+                    if bb is None or int(r["budget"]) != bb:
+                        continue
+                    if method != "zero_shot" and r.get("backbone") != backbone:
+                        continue
+                    if method == "zero_shot" and r.get("backbone") not in ("", backbone):
+                        continue
+                    K = int(r["K"])
+                    wi = int(r["world_index"])
+                    found = _is_found(r)
+                    succ_by_K.setdefault(K, []).append(1 if found else 0)
+                    if found and wi in eu and eu[wi] > 0:
+                        by_K.setdefault(K, []).append(float(r["expansions"]) / eu[wi])
+                for K in sorted(set(list(by_K) + list(succ_by_K))):
+                    med, lo, hi = bootstrap_median_ci(by_K.get(K, []), seed=seed)
+                    succ = (float(np.mean(succ_by_K.get(K, [])))
+                            if succ_by_K.get(K) else float("nan"))
+                    curves.append(dict(target=target, backbone=backbone, method=method, K=K,
+                                       n_matched=len(by_K.get(K, [])),
+                                       exp_ratio_median=med, ci_lo=lo, ci_hi=hi, success=succ))
+
+    curves_csv = res_dir / "continuous_prm_c9h_curves.csv"
+    cols = ["target", "backbone", "method", "K", "n_matched",
+            "exp_ratio_median", "ci_lo", "ci_hi", "success"]
+    with open(curves_csv, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=cols)
+        wri.writeheader()
+        for c in curves:
+            wri.writerow({k: ("" if c[k] is None or
+                               (isinstance(c[k], float) and not np.isfinite(c[k]))
+                               else c[k]) for k in cols})
+
+    comp_md = res_dir / "continuous_prm_c9h_comparisons.md"
+    _write_comparisons_md_c9h(comp_md, curves, binding, all_methods)
+
+    sig_md = res_dir / "continuous_prm_c9h_significance.md"
+    _write_significance_md_c9h(sig_md, rows, targets, backbones, all_methods, binding)
+
+    print(f"[{now_str()}] c9h analyze: wrote {curves_csv}, {comp_md}, {sig_md}", flush=True)
+    return {"curves": curves_csv, "comparisons": comp_md, "significance": sig_md}
+
+
+def _write_comparisons_md_c9h(path, curves, binding, all_methods):
+    """Write the comparisons markdown, including a Bounded vs Unbounded section."""
+    by = {(c["target"], c["backbone"], c["method"], c["K"]): c for c in curves}
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
+
+    targets = sorted({c["target"] for c in curves})
+    backbones = sorted({c["backbone"] for c in curves})
+    Ks = sorted({c["K"] for c in curves})
+
+    # Build method header columns (skip zero_shot from main table K-column since it's K=0)
+    non_zero = [m for m in all_methods if m != "zero_shot"]
+    header_methods = all_methods  # show all inc zero_shot
+
+    def _cell(c):
+        if not c or not np.isfinite(c["exp_ratio_median"]):
+            return "n/a"
+        return (f'{c["exp_ratio_median"]:.3f} [{c["ci_lo"]:.3f},{c["ci_hi"]:.3f}]'
+                f' (succ {c["success"]:.2f}, n{c["n_matched"]})')
+
+    lines = [
+        "# C9h Transfer Hardening — Pre-registered Comparisons",
+        "",
+        "Adaptation curves: matched A* expansion-ratio vs euclid (median, 95% CI) per K.",
+        "lora_bounded vs lora_unbounded = clamp effect; lora_bounded vs full_ft = LoRA efficiency;"
+        " lora_bounded vs scratch = transfer benefit. Lower = fewer expansions.",
+        f"Binding budget per target: {binding_str}.",
+        "",
+    ]
+
+    col_hdr = "|K|" + "|".join(header_methods) + "|"
+    col_sep = "|---:|" + "|".join(["---"] * len(header_methods)) + "|"
+
+    for target in targets:
+        for backbone in backbones:
+            lines += [f"## {target} / {backbone}", col_hdr, col_sep]
+            for K in Ks:
+                cells = [_cell(by.get((target, backbone, m, K))) for m in header_methods]
+                lines.append(f"|{K}|" + "|".join(cells) + "|")
+            lines.append("")
+
+    # Bounded vs Unbounded section
+    lines += [
+        "## Bounded vs Unbounded",
+        "",
+        "Comparison of lora_bounded vs lora_unbounded per (target, backbone, K).",
+        "A smaller exp_ratio for bounded means the clamp helps; larger means it hurts.",
+        "",
+    ]
+    bvu_hdr = "|target|backbone|K|lora_bounded|lora_unbounded|delta (bounded−unbounded)|"
+    bvu_sep = "|---|---|---:|---|---|---|"
+    lines += [bvu_hdr, bvu_sep]
+    for target in targets:
+        for backbone in backbones:
+            for K in Ks:
+                cb = by.get((target, backbone, "lora_bounded", K))
+                cu = by.get((target, backbone, "lora_unbounded", K))
+                if cb is None and cu is None:
+                    continue
+                b_med = cb["exp_ratio_median"] if (cb and np.isfinite(cb["exp_ratio_median"])) else None
+                u_med = cu["exp_ratio_median"] if (cu and np.isfinite(cu["exp_ratio_median"])) else None
+                delta_str = (f"{b_med - u_med:.3f}" if (b_med is not None and u_med is not None) else "n/a")
+                lines.append(
+                    f"|{target}|{backbone}|{K}|{_cell(cb)}|{_cell(cu)}|{delta_str}|"
+                )
+    lines.append("")
+
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_significance_md_c9h(path, rows, targets, backbones, all_methods, binding):
+    """McNemar + BH success grid for C9h methods vs euclid."""
+    astar_rows = _astar(rows)
+
+    # Euclid found-by-world at the binding budget per target
+    eu_found: Dict[str, Dict[int, bool]] = {}
+    for r in astar_rows:
+        if r["provider"] != "euclid":
+            continue
+        bb = binding.get(r["target"])
+        if bb is None or int(r["budget"]) != bb:
+            continue
+        eu_found.setdefault(r["target"], {})[int(r["world_index"])] = _is_found(r)
+
+    comparisons = []
+    pvals = []
+    for target in targets:
+        bb = binding.get(target)
+        eu_by_wi = eu_found.get(target, {})
+        for backbone in backbones:
+            for method in all_methods:
+                Ks_present: Dict[int, list] = {}
+                for r in astar_rows:
+                    if r["target"] != target or r["method"] != method:
+                        continue
+                    if bb is None or int(r["budget"]) != bb:
+                        continue
+                    if method != "zero_shot" and r.get("backbone") != backbone:
+                        continue
+                    if method == "zero_shot" and r.get("backbone") not in ("", backbone):
+                        continue
+                    K = int(r["K"])
+                    wi = int(r["world_index"])
+                    Ks_present.setdefault(K, []).append((wi, _is_found(r)))
+                for K, obs in sorted(Ks_present.items()):
+                    pairs = [(wi, af) for (wi, af) in obs if wi in eu_by_wi]
+                    n = len(pairs)
+                    if n == 0:
+                        continue
+                    gain = sum(1 for (wi, af) in pairs if af and not eu_by_wi[wi])
+                    loss = sum(1 for (wi, af) in pairs if eu_by_wi[wi] and not af)
+                    eu_succ = float(np.mean([1.0 if eu_by_wi[wi] else 0.0 for (wi, _) in pairs]))
+                    arm_succ = float(np.mean([1.0 if af else 0.0 for (_, af) in pairs]))
+                    p = mcnemar_exact_p(gain, loss)
+                    pvals.append(p)
+                    comparisons.append(dict(target=target, backbone=backbone, method=method, K=K,
+                                            n=n, euclid_succ=eu_succ, arm_succ=arm_succ,
+                                            gain=gain, loss=loss, mcnemar_p=p))
+
+    qvals = bh_q_values(pvals)
+    for row, q in zip(comparisons, qvals):
+        row["bh_q"] = q
+
+    def _fmt_p(p, disc):
+        if disc < 2:
+            return "n/a"
+        return f"{p:.4f}" if p is not None and np.isfinite(p) else "n/a"
+
+    def _fmt_num(v):
+        if v is None or (isinstance(v, float) and not np.isfinite(v)):
+            return "n/a"
+        return f"{v:.3f}"
+
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
+    lines = [
+        "# C9h Transfer Hardening — Significance",
+        "",
+        "McNemar exact test (learned arm found & euclid not = gain; euclid found & arm not = loss).",
+        "BH correction applied across all comparisons in this table.",
+        "n/a when fewer than 2 discordant pairs.",
+        f"All results are at the per-target binding budget ({binding_str});"
+        " McNemar pairs are pooled over adapt-seeds (n = #worlds x #seeds).",
+        "",
+        "|target|backbone|method|K|n|euclid_succ|arm_succ|gain|loss|McNemar p|BH q|",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    if not comparisons:
+        lines.append("|<none>|-|-|-|-|-|-|-|-|-|-|")
+    for r in comparisons:
+        disc = r["gain"] + r["loss"]
+        lines.append(
+            f"|{r['target']}|{r['backbone']}|{r['method']}|{r['K']}|{r['n']}|"
+            f"{_fmt_num(r['euclid_succ'])}|{_fmt_num(r['arm_succ'])}|{r['gain']}|{r['loss']}|"
+            f"{_fmt_p(r['mcnemar_p'], disc)}|{_fmt_num(r.get('bh_q'))}|"
+        )
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def run_analyze(cfg: C9hConfig) -> dict:
+    raw = Path(cfg.out_dir) / "results" / "continuous_prm_c9h_eval_raw.csv"
+    return analyze_from_raw_c9h(
+        raw, Path(cfg.out_dir) / "results",
+        seed=int(cfg.seed),
+        targets=C9._parse_csv(cfg.targets),
+        backbones=C9._parse_csv(cfg.backbones),
+        methods=C9._parse_csv(cfg.methods),
+    )

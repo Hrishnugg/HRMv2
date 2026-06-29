@@ -133,3 +133,40 @@ def test_run_eval_smoke(tmp_path):
     assert any(p.startswith("zeroshot_unet") for p in provs)
     assert any(p.startswith("lora_bounded_unet") for p in provs)
     assert any(p.startswith("full_ft_hrm") for p in provs)
+
+
+def _c9h_synth_raw(path):
+    import csv
+    rows = []
+    def row(provider, method, K, wi, exp, backbone="unet", found=True):
+        return dict(target="C_hard_bugtrap", K=K, seed=0, method=method, backbone=backbone,
+                    suite="C_hard_bugtrap", world_index=wi, provider=provider, mode="astar",
+                    w="", budget=400, found=found, expansions=exp, closed=exp, cost=1.0,
+                    optimal=1.0, suboptimality=1.0, nonfinite=0)
+    for wi in (0, 1):
+        rows.append(row("euclid", "euclid", -1, wi, 100, backbone=""))
+        rows.append(row("oracle", "oracle", -1, wi, 20, backbone=""))
+        rows.append(row("lora_bounded_unet_K4_s0", "lora_bounded", 4, wi, 40))
+        rows.append(row("lora_unbounded_unet_K4_s0", "lora_unbounded", 4, wi, 70))
+        rows.append(row("full_ft_unet_K4_s0", "full_ft", 4, wi, 50))
+        rows.append(row("scratch_unet_K4_s0", "scratch", 4, wi, 90))
+        rows.append(row("zeroshot_unet", "zero_shot", 0, wi, 60))
+    import continuous_prm_c9_transfer as C9
+    cols = C9.RAW_COLS
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
+        for r in rows: w.writerow({k: r.get(k, "") for k in cols})
+
+
+def test_analyze_c9h_curves_and_methods(tmp_path):
+    import csv
+    raw = tmp_path / "raw.csv"; _c9h_synth_raw(raw)
+    out = C9H.analyze_from_raw_c9h(raw, tmp_path, seed=0, targets=["C_hard_bugtrap"],
+                                   backbones=["unet"], methods=["lora_bounded", "lora_unbounded", "full_ft", "scratch"])
+    rowsout = list(csv.DictReader(open(out["curves"], newline="")))
+    cur = {(r["method"], int(r["K"])): float(r["exp_ratio_median"]) for r in rowsout if r["exp_ratio_median"]}
+    assert cur[("lora_bounded", 4)] < cur[("lora_unbounded", 4)]  # 0.4 < 0.7
+    assert cur[("full_ft", 4)] < cur[("lora_unbounded", 4)]       # 0.5 < 0.7
+    assert Path(out["comparisons"]).exists() and Path(out["significance"]).exists()
+    # bounded-vs-unbounded section present
+    assert "bounded" in Path(out["comparisons"]).read_text().lower()
