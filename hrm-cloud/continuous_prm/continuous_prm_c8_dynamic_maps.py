@@ -124,10 +124,12 @@ def _build_static_spec(suite: str, base_specs: Dict[str, C.AnchorSpec]) -> Optio
             extra_clutter_range=(4, 8), obstacle_count_range=(4, 8), is_ood=False,
         )
     if suite == DYN_MAZE_DENSE:
-        # Held out: denser (more walls, tighter gaps, more clutter) than C_dyn_maze.
+        # Held out: denser (more walls, more clutter) than C_dyn_maze. Gap widened
+        # to 0.13 (from 0.115) so the static PRM connects often enough that the
+        # patroller layer — not static disconnection — supplies the difficulty.
         return dataclasses.replace(
             base_specs["C_hard_maze"], name="C_hard_maze", mode=C5.HARD_MODE,
-            rectangle_count_range=(4, 4), gap_width_frac=0.115,
+            rectangle_count_range=(4, 4), gap_width_frac=0.13,
             extra_clutter_range=(6, 12), obstacle_count_range=(6, 12), is_ood=True,
         )
     if suite == DYN_SPIRAL:
@@ -192,8 +194,11 @@ _PARAMS: Dict[str, Dict[str, float]] = {
         lateral_frac=0.02, v_agent=0.060, dt=1.0, t_max=110,
     ),
     DYN_MAZE_DENSE: dict(  # side_len = 1.0; held out: denser + faster
-        n_patrollers=4, radius_frac=0.080, span_frac=0.42, period_frac=0.13,
-        lateral_frac=0.02, v_agent=0.060, dt=1.0, t_max=120,
+        # Loosened vs the other hardened suites: the dense static walls (gap 0.115)
+        # already constrict the corridor, so smaller/slower patrollers + a longer
+        # horizon keep the space-time corridor solvable while staying time-coupled.
+        n_patrollers=4, radius_frac=0.062, span_frac=0.42, period_frac=0.17,
+        lateral_frac=0.02, v_agent=0.060, dt=1.0, t_max=140,
     ),
     DYN_CROSSING: dict(  # side_len = 1.0; open arena, CONTROL — leave unchanged
         n_patrollers=4, radius_frac=0.055, span_frac=0.50, period_frac=0.30,
