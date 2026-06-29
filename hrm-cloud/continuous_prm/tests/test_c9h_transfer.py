@@ -72,3 +72,30 @@ def test_scalar_lora_bounded_vs_unbounded(tmp_path):
     # loader round-trips both
     provb = C9H.load_scalar_provider_c9h(ckb, dev)
     assert provb.name == "scalar_hrm"
+
+
+import continuous_prm_c7_hard_maps as H7
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/c6_heatmap__unet.pt").exists(), reason="field base missing")
+def test_field_train_and_provider(tmp_path):
+    import torch, numpy as np
+    dev = torch.device("cpu")
+    H7.install_c7_hard_maps(); specs = C.build_anchor_specs()
+    c6cfg = C9H._c6_cfg(C9H.C9hConfig(epochs=1, grid_size=64))
+    npz = C9H.collect_field_adapt(specs["C_hard_bugtrap"], tmp_path/"ds", "adapt_t", 2, c6cfg, seed=7)
+    base = HERE/"runs/c7_local/checkpoints/c6_heatmap__unet.pt"
+    ck_ft = C9H.train_field_model("unet", [npz], tmp_path/"ft.pt", c6cfg, dev, seed=0, init_ckpt=base, lora_rank=0, alpha=1.0)
+    ck_lo = C9H.train_field_model("unet", [npz], tmp_path/"lo.pt", c6cfg, dev, seed=0, init_ckpt=base, lora_rank=8, alpha=1.0)
+    rmcfg = C.RoadmapConfig(n_nodes=64, k_neighbors=7)
+    w = None; rm = None
+    for s in (11, 7, 13, 24, 31, 5):
+        w = C.build_world(specs["C_hard_bugtrap"], s, rmcfg.min_start_goal_dist_frac)
+        if w is None: continue
+        rm = C.build_prm(w, rmcfg, seed=s+17)
+        if rm is not None and rm.connected_to_goal[0]: break
+    assert rm is not None and rm.connected_to_goal[0]
+    for ck in (ck_ft, ck_lo):
+        prov = C9H.load_field_provider(ck, dev, grid_size=64, bounded=True)
+        h = prov.node_h(w, rm, goal_idx=1)
+        assert np.isfinite(h).all() and h.shape[0] == rm.points.shape[0]

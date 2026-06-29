@@ -132,3 +132,136 @@ def load_scalar_provider_c9h(ckpt, device):
     model.max_norm_residual = mnr
     model.eval()
     return P.ScalarResidualProvider(model, fc, device, bb.name, mnr)
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — Field U-Net transfer arms (collect, train, bounded provider)
+# ---------------------------------------------------------------------------
+
+def _c6_cfg(cfg) -> "C6.C6Config":
+    """Build a minimal C6Config from a C9hConfig, forwarding grid/epoch/lr/roadmap settings."""
+    return C6.C6Config(
+        grid_size=int(cfg.grid_size),
+        epochs=int(cfg.epochs),
+        lr=float(cfg.lr),
+        roadmap_nodes=int(cfg.roadmap_nodes),
+        roadmap_k=int(cfg.roadmap_k),
+        seed=int(cfg.seed),
+    )
+
+
+def collect_field_adapt(spec, ds_dir, split: str, n_worlds: int, c6cfg, seed: int) -> Path:
+    """Collect a C6-format heatmap dataset for one anchor spec.  Returns the npz path."""
+    return C6.collect_dataset(spec, Path(ds_dir), split, int(n_worlds), c6cfg, seed=int(seed))
+
+
+def train_field_model(
+    name: str,
+    dataset_paths,
+    out_ckpt,
+    c6cfg,
+    device,
+    seed: int,
+    init_ckpt,
+    lora_rank: int,
+    alpha: float,
+) -> Path:
+    """Train (or fine-tune) a C6 field model.
+
+    Mirrors C6.train_model's loss loop exactly:
+      - uses forward_both() for a single forward pass yielding (residual_raw, path_logits)
+      - model_output_residual(raw) applies softplus+squeeze
+      - ranking_loss receives the post-softplus prediction (not raw)
+      - path_bce_loss_from_logits receives path_logits (not a second model(x) call)
+    Optional conv-LoRA via apply_conv_lora when lora_rank > 0.
+    """
+    out_ckpt = Path(out_ckpt)
+    ds = C6.HeatmapDataset(list(dataset_paths))
+    loader = torch.utils.data.DataLoader(ds, batch_size=int(c6cfg.batch_size), shuffle=True, num_workers=0)
+    model = C6.build_model(name).to(device)
+    if init_ckpt is not None:
+        pl = torch.load(Path(init_ckpt), map_location="cpu")
+        sd = pl["model"] if isinstance(pl, dict) and "model" in pl else pl
+        model.load_state_dict(sd, strict=True)
+    if int(lora_rank) > 0:
+        apply_conv_lora(model, rank=int(lora_rank), alpha=float(alpha))
+        C.set_lora_trainable(model)
+        params = [p for p in model.parameters() if p.requires_grad]
+    else:
+        params = list(model.parameters())
+    opt = torch.optim.AdamW(params, lr=float(c6cfg.lr), weight_decay=float(c6cfg.weight_decay))
+    C.set_global_seed(int(seed))
+    for _ in range(int(c6cfg.epochs)):
+        model.train()
+        for batch in loader:
+            xb = batch["x"].to(device=device, dtype=torch.float32)
+            free = batch["free_mask"].to(device=device)
+            tr = batch["target_residual"].to(device=device, dtype=torch.float32)
+            td = batch["target_distance"].to(device=device, dtype=torch.float32)
+            pm = batch["path_mask"].to(device=device, dtype=torch.float32)
+            # Single forward — use forward_both if available (same as C6.train_model)
+            if hasattr(model, "forward_both"):
+                raw_pred, path_logits = model.forward_both(xb)
+            else:
+                raw_pred = model(xb)
+                path_logits = model.forward_path(xb) if hasattr(model, "forward_path") else torch.zeros_like(raw_pred)
+            pred = C6.model_output_residual(raw_pred)
+            value = C6.masked_smooth_l1(pred, tr, free)
+            rank = C6.ranking_loss(pred, td, free, int(c6cfg.rank_pairs))
+            path = C6.path_bce_loss_from_logits(path_logits, pm, free)
+            cons = C6.consistency_loss(pred, xb, free)
+            loss = (
+                value
+                + float(c6cfg.loss_rank_weight) * rank
+                + float(c6cfg.loss_path_weight) * path
+                + float(c6cfg.loss_consistency_weight) * cons
+            )
+            if not torch.isfinite(loss):
+                raise RuntimeError("nonfinite c9h field loss")
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, float(c6cfg.grad_clip))
+            opt.step()
+    payload = {
+        "model": model.state_dict(),
+        "model_name": name,
+        "lora_rank": int(lora_rank),
+        "alpha": float(alpha),
+        "grid_size": int(c6cfg.grid_size),
+    }
+    C.ensure_dir(out_ckpt.parent)
+    torch.save(payload, out_ckpt)
+    return out_ckpt
+
+
+class _BoundedFieldProvider(P.ValueFieldProvider):
+    """ValueFieldProvider with an optional residual clamp (bounded=True limits extra residual)."""
+
+    def __init__(self, model, grid_size: int, device, backbone: str, max_resid: float):
+        super().__init__(model, grid_size, device, backbone)
+        self.max_resid = float(max_resid)
+
+    def node_h(self, world, roadmap, goal_idx: int = 1) -> np.ndarray:
+        from continuous_prm_providers import euclid_to_goal
+        euclid = euclid_to_goal(roadmap, goal_idx)
+        x = C6.make_heatmap_example(world, self.grid_size)["x"]
+        h, _ = C6.field_node_heuristic(self.model, x, world, roadmap, euclid, self.device)
+        if np.isfinite(self.max_resid):
+            # Clamp the additive residual term: extra = h - euclid <= side_len * max_resid
+            extra = np.asarray(h, dtype=np.float64) - euclid
+            extra = np.minimum(extra, float(world.side_len) * self.max_resid)
+            h = euclid + np.maximum(0.0, extra)
+        return np.maximum(np.asarray(h, dtype=np.float64), 0.0)
+
+
+def load_field_provider(ckpt, device, grid_size: int, bounded: bool) -> "_BoundedFieldProvider":
+    """Load a field checkpoint (full-FT or conv-LoRA) and wrap it in a _BoundedFieldProvider."""
+    pl = torch.load(Path(ckpt), map_location="cpu")
+    model = C6.build_model(pl.get("model_name", "unet"))
+    if int(pl.get("lora_rank", 0)) > 0:
+        apply_conv_lora(model, rank=int(pl["lora_rank"]), alpha=float(pl["alpha"]))
+    model.load_state_dict(pl["model"], strict=True)
+    model.to(device)
+    model.eval()
+    max_resid = 4.0 if bounded else float("inf")
+    return _BoundedFieldProvider(model, int(grid_size), device, pl.get("model_name", "unet"), max_resid)
