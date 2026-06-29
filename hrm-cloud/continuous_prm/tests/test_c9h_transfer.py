@@ -46,3 +46,29 @@ def test_c9hconfig_defaults():
     assert cfg.n_adapt_seeds == 3
     assert cfg.epochs == 10 and abs(cfg.lr - 2e-4) < 1e-12
     assert cfg.source_dir.endswith("c7_local")
+
+
+import dataclasses
+import continuous_prm_c9_transfer as C9
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_scalar_lora_bounded_vs_unbounded(tmp_path):
+    import torch, numpy as np
+    dev = torch.device("cpu")
+    base = C9.load_source_base(HERE/"runs/c7_local", "hrm", dev)
+    n=24
+    x=np.random.RandomState(0).randn(n, base.feature_cfg.seq_len, base.feature_cfg.token_dim).astype("float32")
+    y=np.abs(np.random.RandomState(1).randn(n)).astype("float32")
+    npz=tmp_path/"t.npz"; np.savez_compressed(npz, x=x, y=y, euclid=np.ones(n,"float32"), side=np.ones(n,"float32"))
+    tcfg = dataclasses.replace(base.train_cfg, base_epochs=2, lr=2e-4)
+    ckb = C9H.train_scalar_lora(base.backbone_cfg, npz, tmp_path/"b.pt", base.feature_cfg, tcfg, dev, seed=0,
+                                init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=True)
+    cku = C9H.train_scalar_lora(base.backbone_cfg, npz, tmp_path/"u.pt", base.feature_cfg, tcfg, dev, seed=0,
+                                init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=False)
+    pb = torch.load(ckb, map_location="cpu"); pu = torch.load(cku, map_location="cpu")
+    assert pb["bounded"] is True and pu["bounded"] is False
+    assert "lora_rank" in pb and pb["max_norm_residual"] != pu["max_norm_residual"]
+    # loader round-trips both
+    provb = C9H.load_scalar_provider_c9h(ckb, dev)
+    assert provb.name == "scalar_hrm"

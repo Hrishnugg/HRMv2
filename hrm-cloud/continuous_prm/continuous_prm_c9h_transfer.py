@@ -73,3 +73,62 @@ def _is_field(backbone: str) -> bool:
 
 def now_str() -> str:
     return C.now_str()
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — Matched-compute scalar LoRA trainer (bounded / unbounded)
+# ---------------------------------------------------------------------------
+
+def train_scalar_lora(backbone_cfg, dataset_npz, out_ckpt, feature_cfg, train_cfg, device,
+                      seed, init_ckpt, rank, alpha, bounded: bool):
+    """Matched-compute scalar LoRA fine-tune. bounded=True keeps the model's finite
+    max_norm_residual clamp; bounded=False sets it to inf (no clamp)."""
+    import torch.nn.functional as F
+    out_ckpt = Path(out_ckpt)
+    x, y = C.load_npz_arrays(dataset_npz)
+    ds = C.ArrayDataset(x, y)
+    loader = C.make_loader(ds, train_cfg.batch_size, shuffle=True, num_workers=train_cfg.num_workers)
+    model = C.build_model(backbone_cfg, feature_cfg, train_cfg, device)
+    if init_ckpt is not None:
+        C.safe_load_state(model, Path(init_ckpt))
+    max_resid = float(train_cfg.max_norm_residual) if bounded else float("inf")
+    model.max_norm_residual = max_resid
+    C.apply_lora(model, rank=int(rank), alpha=float(alpha))
+    C.set_lora_trainable(model)
+    params = [p for p in model.parameters() if p.requires_grad]
+    opt = torch.optim.AdamW(params, lr=train_cfg.lr, weight_decay=train_cfg.weight_decay)
+    C.set_global_seed(int(seed))
+    for _ in range(train_cfg.base_epochs):
+        model.train()
+        for xb, yb in loader:
+            xb = xb.to(device); yb = yb.to(device)
+            opt.zero_grad(set_to_none=True)
+            pred = model(xb)
+            loss = F.smooth_l1_loss(pred, yb)
+            if not torch.isfinite(loss):
+                raise RuntimeError("nonfinite c9h scalar-lora loss")
+            loss.backward()
+            if train_cfg.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(params, train_cfg.grad_clip)
+            opt.step()
+    payload = {"model": model.state_dict(), "backbone_cfg": asdict(backbone_cfg),
+               "feature_cfg": asdict(feature_cfg), "train_cfg": asdict(train_cfg),
+               "lora_rank": int(rank), "alpha": float(alpha), "bounded": bool(bounded),
+               "max_norm_residual": max_resid}
+    C.ensure_dir(out_ckpt.parent); torch.save(payload, out_ckpt)
+    return out_ckpt
+
+
+def load_scalar_provider_c9h(ckpt, device):
+    """Load a scalar checkpoint (avgbase/full-FT/scratch/LoRA, bounded/unbounded) into a provider."""
+    payload = torch.load(Path(ckpt), map_location="cpu")
+    bb = C.BackboneConfig(**payload["backbone_cfg"]); fc = C.FeatureConfig(**payload["feature_cfg"])
+    tc = C.TrainingConfig(**payload["train_cfg"])
+    model = C.build_model(bb, fc, tc, device)
+    if "lora_rank" in payload:
+        C.apply_lora(model, rank=int(payload["lora_rank"]), alpha=float(payload["alpha"]))
+    model.load_state_dict(payload["model"], strict=True)
+    mnr = float(payload.get("max_norm_residual", tc.max_norm_residual))
+    model.max_norm_residual = mnr
+    model.eval()
+    return P.ScalarResidualProvider(model, fc, device, bb.name, mnr)
