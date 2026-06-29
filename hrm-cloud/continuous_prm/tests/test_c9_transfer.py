@@ -45,7 +45,7 @@ def test_world_fingerprint_and_split_disjoint():
 
     adapt_fps = set()
     for s in (0, 1):
-        seed = C9.adapt_seed(spec.name, K=4, adapt_seed=s, base_seed=cfg.seed)
+        seed = C9.adapt_seed(spec.name, K=4, adapt_seed_idx=s, base_seed=cfg.seed)
         for fp in C9.adapt_world_fingerprints(spec, n_worlds=4, nodes_per_world=8,
                                               roadmap_cfg=rmcfg, feature_cfg=C.FeatureConfig(), seed=seed):
             adapt_fps.add(fp)

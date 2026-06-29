@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -89,10 +90,15 @@ def iter_test_worlds(spec, suite_idx: int, cfg: C9Config, roadmap_cfg, n_test: i
     yield from C7.iter_matched_worlds(spec, suite_idx, c7cfg, roadmap_cfg, n_test)
 
 
-def adapt_seed(target: str, K: int, adapt_seed: int, base_seed: int) -> int:
-    """Deterministic (within-process), well-separated seed for an ADAPT(target,K,adapt_seed) collection."""
-    h = (hash(target) & 0xFFFF)
-    return int(base_seed) + 5_000_000 + 100_000 * h % 7_000_000 + 1_009 * int(K) + int(adapt_seed)
+def adapt_seed(target: str, K: int, adapt_seed_idx: int, base_seed: int) -> int:
+    """Deterministic (cross-process stable), well-separated seed for an
+    ADAPT(target, K, adapt_seed_idx) collection. Cross-process stability matters
+    because collect_task_dataset caches by file path: a salted hash would let a
+    resume reuse an npz built under a different seed."""
+    h = int(hashlib.md5(target.encode()).hexdigest()[:4], 16)
+    # 100_000*h % 7_000_000 is a coarse per-target offset; the actual separation
+    # between collections comes from the 1_009*K + idx terms.
+    return int(base_seed) + 5_000_000 + 100_000 * h % 7_000_000 + 1_009 * int(K) + int(adapt_seed_idx)
 
 
 def adapt_world_fingerprints(spec, n_worlds, nodes_per_world, roadmap_cfg, feature_cfg, seed):
@@ -114,6 +120,11 @@ def adapt_world_fingerprints(spec, n_worlds, nodes_per_world, roadmap_cfg, featu
         connected_idxs = connected_idxs[connected_idxs != 1]
         if len(connected_idxs) < max(12, nodes_per_world // 4):
             continue
+        # mirror collect_task_dataset's rng.sample so replayed worlds match the real ADAPT collection
+        if nodes_per_world > 1:
+            rng.sample([int(i) for i in connected_idxs], k=min(nodes_per_world - 1, len(connected_idxs)))
+        # (collect_task_dataset's later finite-residual gate cannot drop connected
+        # nodes, so it draws no rng and need not be replicated here.)
         fps.append(world_fingerprint(world))
         done += 1
     return fps
