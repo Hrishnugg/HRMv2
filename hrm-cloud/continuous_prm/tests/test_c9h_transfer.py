@@ -117,3 +117,19 @@ def test_run_adapt_smoke(tmp_path):
     assert all(a["bounded"] == ("unbounded" not in a["method"]) for a in man["arms"])
     for a in man["arms"]:
         assert Path(a["ckpt"]).exists()
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_eval_smoke(tmp_path):
+    import torch, csv
+    cfg = C9H.C9hConfig(source_dir=str(HERE/"runs/c7_local"), out_dir=str(tmp_path/"c9h"),
+                        targets="C_hard_bugtrap", backbones="hrm,unet",
+                        methods="lora_bounded,full_ft,scratch", k_grid="1", n_adapt_seeds=1,
+                        n_test=4, epochs=1, budgets="200,400", w_values="1.0", cpu=True, seed=7)
+    dev = torch.device("cpu"); C9H.run_adapt(cfg, dev); raw = C9H.run_eval(cfg, dev)
+    provs = {r["provider"] for r in csv.DictReader(open(raw, newline=""))}
+    assert "euclid" in provs and "oracle" in provs
+    assert any(p.startswith("zeroshot_hrm") for p in provs)
+    assert any(p.startswith("zeroshot_unet") for p in provs)
+    assert any(p.startswith("lora_bounded_unet") for p in provs)
+    assert any(p.startswith("full_ft_hrm") for p in provs)
