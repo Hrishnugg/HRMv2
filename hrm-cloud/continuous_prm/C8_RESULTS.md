@@ -16,7 +16,7 @@ But the headline scientific question of C8 — **does modeling the future obstac
 
 This is the expected job of a local validation: it confirms the substrate, the pipeline, and the Euclidean-beating + additive-beating-focal results, and it flags that the temporal spotlight needs **either full-scale training or harder, more time-coupled suites (or both)** before we can claim the future window helps. Two concrete, testable reasons it likely under-delivered here are spelled out below.
 
-> **Update (2026-06-28) — hardened, time-coupled re-run.** We acted on reason #2 and rebuilt the suites to be genuinely time-coupled, then re-ran (W=8, fresh calibration). The spotlight **moved toward aware but did not decisively land at local scale.** See "[Hardened re-run](#hardened-re-run-2026-06-28--time-coupled-suites-w8)" below. Results: `runs/c8_local_hardened/`.
+> **Update (2026-06-28) — two follow-up runs change the conclusion.** We acted on both reasons: (#2) rebuilt the suites to be genuinely time-coupled, then (#1) re-ran with a fair fit (full data, 12 epochs) and real statistical power (n≈20). Outcome: **Gate 1 (learned ≫ euclid) is now statistically significant**, and **the temporal spotlight is a robust NEGATIVE** — a strong time-blind (present-frame) learner matches or beats the future-aware one (significant blind-wins in 7 cells vs 1 aware-win). The future window helps the *plan*, not the learned *heuristic*. See "[Heavier confirmation](#heavier-confirmation-2026-06-28--fair-fit--firm-n-the-spotlight-is-a-robust-negative)" (decisive) and "[Hardened re-run](#hardened-re-run-2026-06-28--time-coupled-suites-w8)" below. Results: `runs/c8_local_hardened/`, `runs/c8_local_heavy/`.
 
 ---
 
@@ -165,3 +165,40 @@ Acting on reason #2, the dynamic suites were rebuilt to be genuinely time-couple
 **Methodological catch (important):** the matched expansion ratio is computed only on worlds **both** arms solve, so on rooms_large it *excludes the very worlds where aware's edge is largest* (those only aware solves). There, the **success delta is the truer measure** — and it favors aware. A cluster-scale analysis should report a success-aware composite, not expansion ratio alone, when success rates differ.
 
 **Read:** hardening shifted the needle in the hypothesis's direction — genuine aware *success* advantages appear on the hardest time-coupled suite, and expansion ratios move sub-1 on the harder suites — but the local run (6 epochs, 250k cap, n≤10) still cannot declare a clean win, and one backbone regresses. This now squarely motivates **reason #1**: a cluster full-scale run (full data, ≥12 epochs) on these time-coupled suites, with success-aware reporting, is the test that should settle it.
+
+---
+
+## Heavier confirmation (2026-06-28) — fair fit + firm n: the spotlight is a robust NEGATIVE
+
+To test reason #1 (under-training) we re-ran on the hardened suites with a **fair fit and real statistical power**: **epochs 12** (was 6), **full uncapped scalar dataset = 1,129,536 samples** (was 250k), **train-worlds 24 → 53 usable worlds**, **eval-worlds 20** (was 10 → matched n now reaches 6–20 instead of ≤4), W=8, fresh recalibration with the binding-budget fix. Results in `runs/c8_local_heavy/`. ~3.5 h on one RTX 5090.
+
+**Binding budgets** now all non-degenerate, including **`maze_dense`=2500** (euclid 0.05 — the [`6a3f312`](#) binding fix + more worlds removed the degeneracy). `rooms_large` recalibrated to 600 where euclid is already 0.75 (easier; less headroom).
+
+**Gate 1 (learned ≫ euclid) is now statistically significant, not just directional:**
+
+| Suite | Budget | best field arm | euclid→arm succ | exp ratio (CI) | Wilcoxon p |
+|---|---:|---|---|---|---:|
+| C_dyn_spiral | 2500 | field_hrm | 0.20→0.90 (+0.70) | **0.046** [0.038, 0.073] | n<6 (McNemar <0.001) |
+| C_dyn_maze | 1800 | field_unet | 0.30→1.00 (+0.70) | **0.064** [0.046, 0.088] | 0.031 |
+| C_dyn_rooms | 1300 | field_unet | 0.30→1.00 (+0.70) | 0.096 [0.038, 0.191] | 0.031 |
+| C_dyn_maze_dense | 2500 | field_unet | 0.05→0.75 (+0.70) | 0.278 | McNemar <0.001 |
+| C_dyn_rooms_large | 600 | scalar_hrm | 0.75→0.95 (+0.20) | 0.326 [0.207, 0.532] | **<0.001** (n=14) |
+| C_dyn_crossing | 150 | field_unet | 0.30→1.00 (+0.70) | 0.258 [0.132, 0.769] | 0.062 (n=6) |
+
+Learned space-time heuristics cut expansions **65–95%** with **+0.2 to +0.7 success**, significant where n permits. **The main thesis is confirmed under dynamics.** Additive ≫ focal holds again (Comparison 3: additive ratios 0.05–0.42 vs focal best-w 0.76–0.99).
+
+**The spotlight (Comparison 2) is now a robust NEGATIVE.** With a fair fit and n≈20, the time-blind (W=0) twin is competitive-to-better, and the additive expansion ratios of the **blind** variants are consistently **lower (better)** than their aware counterparts:
+
+- **Significant aware-wins: 1** (maze scalar_hrm, 0.823, p=0.021). **Significant blind-wins: 7** (crossing scalar_onlstm 2.13 p<0.001; maze scalar_onlstm 1.24 p=0.001; maze field_hrm 2.21 p<0.001; maze_dense scalar_onlstm 1.29 p=0.008; maze_dense field_unet 1.62 p<0.001; rooms scalar_onlstm 1.51 p=0.021; rooms field_hrm 1.27 p=0.027).
+- The blind-vs-aware additive ratios make it stark: maze field_hrm_blind **0.054** vs aware 0.418; rooms field_hrm_blind 0.080 vs aware 0.176; rooms_large field_unet_blind 0.228 vs aware 0.380. The present-frame model is the *better heuristic*.
+- The `crossing` control behaves correctly (aware ties or loses — no timing to exploit).
+
+**This refutes reason #1: it is not under-training.** With full data and 12 epochs on genuinely time-coupled suites, the future window still does not help the learned heuristic and frequently hurts. The most consistent explanation: **for heuristic *guidance*, a present-frame learner predicts the (time-aware) cost-to-go about as well as a future-aware one — the window is largely redundant for the heuristic, even though it is essential for the optimal *plan* (the labels/oracle encode it).** A secondary contributor is optimization difficulty: the larger aware input adds variance (the recurrent field_hrm degrades most, maze 2.21×), so the extra channels cost more than they pay back at this scale.
+
+**Comparison 4 nuance:** the convolutional **field_unet is the strongest backbone** (lowest ratios: maze 0.064, spiral 0.076, rooms 0.096), not the recurrent/hierarchical ones — so "recurrent wins when timing matters" is *not* supported here either.
+
+### Bottom line for C8
+
+- **Confirmed (now significant):** learned additive space-time heuristics dominate Euclidean-time planning (65–95% fewer expansions, large success gains, generalizes OOD); additive ≫ focal under dynamics, as in C7.
+- **Careful negative (robust at heavy-local scale):** explicitly modeling the future obstacle window does **not** improve a learned heuristic over a strong time-blind (present-frame) one — and can hurt — because the present frame is a near-sufficient predictor of time-to-go for *guidance*. This is the publishable nuance: time-awareness matters for the plan, not for the heuristic that guides the search.
+- **Open for cluster:** a definitive publication run (more seeds, all backbones incl. field_onlstm, a success-aware composite metric, and an ablation that measures heuristic accuracy aware-vs-blind directly) would harden the negative and the positive. But the local evidence already points clearly.
