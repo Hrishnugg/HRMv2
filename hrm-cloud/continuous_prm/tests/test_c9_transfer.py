@@ -125,3 +125,21 @@ def test_run_adapt_smoke(tmp_path):
     assert not any(a["K"] == 0 for a in man["arms"])
     for a in man["arms"]:
         assert Path(a["ckpt"]).exists()
+
+
+@pytest.mark.skipif(not (HERE / "runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_eval_smoke(tmp_path):
+    import torch, csv
+    cfg = C9.C9Config(source_dir=str(HERE / "runs/c7_local"), out_dir=str(tmp_path / "c9"),
+                      targets="C_hard_bugtrap", backbones="hrm", k_grid="0,1", n_adapt_seeds=1,
+                      n_test=4, adapt_epochs=1, roadmap_nodes=192, roadmap_k=7, budgets="200,400",
+                      w_values="1.0", cpu=True, seed=7)
+    dev = torch.device("cpu")
+    C9.run_adapt(cfg, dev)
+    raw = C9.run_eval(cfg, dev)
+    rows = list(csv.DictReader(open(raw, newline="")))
+    provs = {r["provider"] for r in rows}
+    assert "euclid" in provs and "oracle" in provs
+    assert any(p.startswith("zeroshot_hrm") for p in provs)
+    assert any(p.startswith("lora_hrm") for p in provs)
+    assert all("target" in r and "K" in r for r in rows)

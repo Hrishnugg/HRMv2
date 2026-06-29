@@ -253,3 +253,79 @@ def run_adapt(cfg: C9Config, device) -> dict:
                 "k_grid": _parse_ints(cfg.k_grid), "n_adapt_seeds": int(cfg.n_adapt_seeds), "seed": int(cfg.seed)}
     C.write_json(out_dir / "adapt_manifest.json", manifest)
     return manifest
+
+
+# ---------------------------------------------------------------------------
+# Task 6 — eval mode (run TEST worlds, per-arm providers, raw CSV output)
+# ---------------------------------------------------------------------------
+
+import csv as _csv
+
+RAW_COLS = ["target", "K", "seed", "method", "backbone", "suite", "world_index",
+            "provider", "mode", "w", "budget", "found", "expansions", "closed",
+            "cost", "optimal", "suboptimality", "nonfinite"]
+
+
+def _target_budgets(cfg: C9Config, target: str) -> List[int]:
+    if str(cfg.budgets).strip():
+        return _parse_ints(cfg.budgets)
+    calib = Path(cfg.source_dir) / "calibration.json"
+    if calib.exists():
+        import json
+        b = (json.loads(calib.read_text()).get("budgets", {}) or {}).get(target)
+        if b:
+            return [int(x) for x in b]
+    raise RuntimeError(f"no budgets for {target}: pass --budgets or provide {calib}")
+
+
+def run_eval(cfg: C9Config, device) -> Path:
+    H7.install_c7_hard_maps()
+    specs = C.build_anchor_specs()
+    out_dir = Path(cfg.out_dir)
+    res_dir = out_dir / "results"; shard_dir = res_dir / "_shards"
+    C.ensure_dir(shard_dir)
+    rmcfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    w_values = [float(x) for x in _parse_csv(cfg.w_values)]
+    import json
+    manifest = json.loads((out_dir / "adapt_manifest.json").read_text())
+    all_rows: List[dict] = []
+    for suite_idx, target in enumerate(_parse_csv(cfg.targets)):
+        spec = specs[target]
+        budgets = _target_budgets(cfg, target)
+        providers: Dict[str, object] = {"euclid": P.EuclidProvider(), "oracle": P.OracleProvider()}
+        meta: Dict[str, dict] = {"euclid": {}, "oracle": {}}
+        for backbone in _parse_csv(cfg.backbones):
+            base = load_source_base(Path(cfg.source_dir), backbone, device)
+            zp = P.ScalarResidualProvider(base.model, base.feature_cfg, device, backbone, base.train_cfg.max_norm_residual)
+            zp.name = f"zeroshot_{backbone}"
+            providers[zp.name] = zp
+            meta[zp.name] = dict(K=0, seed=-1, method="zero_shot", backbone=backbone)
+        for a in manifest["arms"]:
+            if a["target"] != target:
+                continue
+            prov = load_scalar_provider(Path(a["ckpt"]), device)
+            key = f'{a["method"]}_{a["backbone"]}_K{a["K"]}_s{a["seed"]}'
+            prov.name = key
+            providers[key] = prov
+            meta[key] = dict(K=a["K"], seed=a["seed"], method=a["method"], backbone=a["backbone"])
+        rows = []
+        for world_index, world, rm in iter_test_worlds(spec, suite_idx, cfg, rmcfg, cfg.n_test):
+            recs = P.run_world_arms(world, rm, providers, budgets, w_values, goal_idx=1)
+            for r in recs:
+                m = meta.get(r["provider"], dict(K=-1, seed=-1, method=r["provider"], backbone=""))
+                r.update(dict(target=target, suite=target, world_index=world_index, **m))
+                rows.append(r)
+        sp = shard_dir / f"{target}.csv"
+        with open(sp, "w", newline="") as f:
+            wri = _csv.DictWriter(f, fieldnames=RAW_COLS); wri.writeheader()
+            for r in rows:
+                wri.writerow({k: r.get(k, "") for k in RAW_COLS})
+        all_rows.extend(rows)
+        print(f"[{now_str()}] c9 eval {target}: {len(rows)} rows", flush=True)
+    raw = res_dir / "continuous_prm_c9_eval_raw.csv"
+    with open(raw, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=RAW_COLS); wri.writeheader()
+        for r in all_rows:
+            wri.writerow({k: r.get(k, "") for k in RAW_COLS})
+    print(f"[{now_str()}] c9 eval: merged {len(all_rows)} rows -> {raw}", flush=True)
+    return raw
