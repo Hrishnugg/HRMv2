@@ -265,3 +265,67 @@ def load_field_provider(ckpt, device, grid_size: int, bounded: bool) -> "_Bounde
     model.eval()
     max_resid = 4.0 if bounded else float("inf")
     return _BoundedFieldProvider(model, int(grid_size), device, pl.get("model_name", "unet"), max_resid)
+
+
+# ---------------------------------------------------------------------------
+# Task 5 — adapt mode (4 methods × scalar+field backbones, writes adapt_manifest.json)
+# ---------------------------------------------------------------------------
+
+def arm_ckpt_path(out_dir, target, K, seed, method, backbone):
+    return Path(out_dir) / "checkpoints" / f"c9h__{target}__{backbone}__K{K}__s{seed}__{method}.pt"
+
+
+def _field_base_ckpt(source_dir) -> Path:
+    return Path(source_dir) / "checkpoints" / "c6_heatmap__unet.pt"
+
+
+def run_adapt(cfg: C9hConfig, device) -> dict:
+    H7.install_c7_hard_maps()
+    specs = C.build_anchor_specs()
+    out_dir = Path(cfg.out_dir)
+    ds_dir = out_dir / "datasets"
+    C.ensure_dir(out_dir / "checkpoints"); C.ensure_dir(ds_dir)
+    rmcfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    c6cfg = _c6_cfg(cfg)
+    Ks = [k for k in C9._parse_ints(cfg.k_grid) if k > 0]
+    methods = C9._parse_csv(cfg.methods)
+    arms = []
+    for target in C9._parse_csv(cfg.targets):
+        spec = specs[target]
+        for backbone in C9._parse_csv(cfg.backbones):
+            field = _is_field(backbone)
+            base = None if field else C9.load_source_base(Path(cfg.source_dir), backbone, device)
+            tcfg = None if field else dataclasses.replace(base.train_cfg, base_epochs=int(cfg.epochs), lr=float(cfg.lr))
+            for K in Ks:
+                for s in range(int(cfg.n_adapt_seeds)):
+                    aseed = C9.adapt_seed(target, K, s, cfg.seed)
+                    if field:
+                        npz = collect_field_adapt(spec, ds_dir, f"fadapt_{target}_K{K}_s{s}", K, c6cfg, seed=aseed)
+                    else:
+                        npz = C.collect_task_dataset(spec, ds_dir, f"adapt_{target}_K{K}_s{s}", K,
+                                                     C9.SCALAR_NODES_PER_WORLD, rmcfg, base.feature_cfg, seed=aseed)
+                    for method in methods:
+                        ck = arm_ckpt_path(out_dir, target, K, s, method, backbone)
+                        bounded = ("unbounded" not in method)  # lora_bounded/full_ft/scratch => bounded=True; lora_unbounded => False
+                        if not ck.exists():
+                            if field:
+                                lora_rank = int(cfg.rank) if method.startswith("lora") else 0
+                                init = None if method == "scratch" else _field_base_ckpt(cfg.source_dir)
+                                train_field_model("unet", [npz], ck, c6cfg, device, seed=aseed,
+                                                  init_ckpt=init, lora_rank=lora_rank, alpha=float(cfg.alpha))
+                            else:
+                                if method.startswith("lora"):
+                                    train_scalar_lora(base.backbone_cfg, npz, ck, base.feature_cfg, tcfg, device,
+                                                      seed=aseed, init_ckpt=base.ckpt_path, rank=int(cfg.rank),
+                                                      alpha=float(cfg.alpha), bounded=bounded)
+                                else:
+                                    init = base.ckpt_path if method == "full_ft" else None
+                                    C9.train_scalar_model(base.backbone_cfg, npz, ck, base.feature_cfg, tcfg, device,
+                                                          seed=aseed, init_ckpt=init)
+                        arms.append(dict(target=target, K=K, seed=s, method=method, backbone=backbone,
+                                         ckpt=str(ck), bounded=bool(bounded)))
+                    print(f"[{now_str()}] c9h adapt: {target} {backbone} K={K} s={s} done", flush=True)
+    manifest = {"arms": arms, "targets": C9._parse_csv(cfg.targets), "backbones": C9._parse_csv(cfg.backbones),
+                "methods": methods, "k_grid": C9._parse_ints(cfg.k_grid), "n_adapt_seeds": int(cfg.n_adapt_seeds), "seed": int(cfg.seed)}
+    C.write_json(out_dir / "adapt_manifest.json", manifest)
+    return manifest

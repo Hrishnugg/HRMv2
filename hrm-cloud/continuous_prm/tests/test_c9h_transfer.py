@@ -99,3 +99,21 @@ def test_field_train_and_provider(tmp_path):
         prov = C9H.load_field_provider(ck, dev, grid_size=64, bounded=True)
         h = prov.node_h(w, rm, goal_idx=1)
         assert np.isfinite(h).all() and h.shape[0] == rm.points.shape[0]
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_adapt_smoke(tmp_path):
+    import torch
+    cfg = C9H.C9hConfig(source_dir=str(HERE/"runs/c7_local"), out_dir=str(tmp_path/"c9h"),
+                        targets="C_hard_bugtrap", backbones="hrm,unet",
+                        methods="lora_bounded,lora_unbounded,full_ft,scratch",
+                        k_grid="1", n_adapt_seeds=1, n_test=4, epochs=1,
+                        roadmap_nodes=192, roadmap_k=7, cpu=True, seed=7)
+    man = C9H.run_adapt(cfg, torch.device("cpu"))
+    got = {(a["backbone"], a["method"]) for a in man["arms"]}
+    assert ("hrm", "lora_bounded") in got and ("hrm", "lora_unbounded") in got
+    assert ("unet", "lora_bounded") in got and ("unet", "full_ft") in got
+    # bounded flag set correctly
+    assert all(a["bounded"] == ("unbounded" not in a["method"]) for a in man["arms"])
+    for a in man["arms"]:
+        assert Path(a["ckpt"]).exists()
