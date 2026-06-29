@@ -174,3 +174,14 @@ def test_analyze_curve_ordering(tmp_path):
     assert cur[("lora", 4)] < cur[("scratch", 4)]   # 0.4 < 0.8
     assert Path(out["comparisons"]).exists()
     assert Path(out["significance"]).exists()
+
+
+@pytest.mark.skipif(not (HERE / "runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_full_smoke(tmp_path):
+    import torch
+    cfg = C9.C9Config(source_dir=str(HERE / "runs/c7_local"), out_dir=str(tmp_path / "c9"),
+                      targets="C_hard_bugtrap", backbones="hrm", k_grid="0,1", n_adapt_seeds=1,
+                      n_test=4, adapt_epochs=1, roadmap_nodes=192, roadmap_k=7, budgets="200,400",
+                      w_values="1.0", cpu=True, seed=7)
+    out = C9.run_full(cfg, torch.device("cpu"))
+    assert Path(out["curves"]).exists() and Path(out["comparisons"]).exists() and Path(out["significance"]).exists()

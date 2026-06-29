@@ -531,3 +531,55 @@ def run_analyze(cfg: C9Config) -> dict:
     raw = Path(cfg.out_dir) / "results" / "continuous_prm_c9_eval_raw.csv"
     return analyze_from_raw(raw, Path(cfg.out_dir) / "results", seed=int(cfg.seed),
                             targets=_parse_csv(cfg.targets), backbones=_parse_csv(cfg.backbones))
+
+
+# ---------------------------------------------------------------------------
+# Task 8 — full mode, scale presets, CLI
+# ---------------------------------------------------------------------------
+
+def run_full(cfg: C9Config, device) -> dict:
+    run_adapt(cfg, device)
+    run_eval(cfg, device)
+    return run_analyze(cfg)
+
+
+def apply_scale(cfg: C9Config) -> C9Config:
+    if cfg.scale == "local":
+        return dataclasses.replace(cfg, n_adapt_seeds=cfg.n_adapt_seeds or 5, n_test=cfg.n_test or 30)
+    if cfg.scale == "smoke":
+        return dataclasses.replace(cfg, n_adapt_seeds=1, n_test=4, k_grid="0,1", adapt_epochs=1,
+                                   roadmap_nodes=192, roadmap_k=7)
+    return cfg
+
+
+def config_from_args(args) -> C9Config:
+    return C9Config(**{f.name: getattr(args, f.name) for f in dataclasses.fields(C9Config)
+                       if hasattr(args, f.name)})
+
+
+def build_argparser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="C9a few-shot transfer learning")
+    for f in dataclasses.fields(C9Config):
+        flag = f"--{f.name.replace('_', '-')}"
+        if isinstance(f.default, bool):
+            p.add_argument(flag, dest=f.name, action="store_true")
+        else:
+            p.add_argument(flag, dest=f.name, type=type(f.default), default=f.default)
+    return p
+
+
+def main():
+    import torch
+    args = build_argparser().parse_args()
+    cfg = apply_scale(config_from_args(args))
+    device = torch.device("cpu" if cfg.cpu or not torch.cuda.is_available() else "cuda")
+    print(f"[{now_str()}] C9 mode={cfg.mode} scale={cfg.scale} device={device} out={cfg.out_dir}", flush=True)
+    if cfg.mode == "adapt": run_adapt(cfg, device)
+    elif cfg.mode == "eval": run_eval(cfg, device)
+    elif cfg.mode == "analyze": run_analyze(cfg)
+    elif cfg.mode == "full": run_full(cfg, device)
+    else: raise ValueError(cfg.mode)
+
+
+if __name__ == "__main__":
+    main()
