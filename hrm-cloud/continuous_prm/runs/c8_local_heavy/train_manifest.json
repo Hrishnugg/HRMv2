@@ -1,0 +1,71 @@
+{
+  "field": {
+    "backbones": [
+      "unet",
+      "hrm"
+    ],
+    "checkpoints": {
+      "hrm": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_field__hrm.pt",
+      "unet": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_field__unet.pt"
+    },
+    "epochs": 12,
+    "grid_size": 64,
+    "in_channels": 16,
+    "window_w": 8
+  },
+  "field_blind": {
+    "backbones": [
+      "unet",
+      "hrm"
+    ],
+    "checkpoints": {
+      "hrm": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_field__hrm_blind.pt",
+      "unet": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_field__unet_blind.pt"
+    },
+    "epochs": 12,
+    "grid_size": 64,
+    "in_channels": 8,
+    "window_w": 0
+  },
+  "k_patrollers": 4,
+  "scalar": {
+    "backbones": [
+      "hrm",
+      "onlstm"
+    ],
+    "checkpoints": {
+      "hrm": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__hrm.pt",
+      "onlstm": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__onlstm.pt"
+    },
+    "epochs": 12,
+    "window_w": 8
+  },
+  "scalar_blind": {
+    "backbones": [
+      "hrm",
+      "onlstm"
+    ],
+    "checkpoints": {
+      "hrm": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__hrm_blind.pt",
+      "onlstm": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__onlstm_blind.pt"
+    },
+    "epochs": 12,
+    "window_w": 0
+  },
+  "stage": "c8_train",
+  "timestamp": "2026-06-28 21:30:49",
+  "token_dim": 20,
+  "train_tasks": [
+    "C_dyn_maze",
+    "C_dyn_rooms",
+    "C_dyn_spiral"
+  ],
+  "train_worlds": 24,
+  "usable_worlds_per_suite": {
+    "C_dyn_maze": 17,
+    "C_dyn_rooms": 19,
+    "C_dyn_spiral": 17
+  },
+  "usable_worlds_total": 53,
+  "window_w": 8
+}
