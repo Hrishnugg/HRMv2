@@ -159,40 +159,49 @@ def _build_static_spec(suite: str, base_specs: Dict[str, C.AnchorSpec]) -> Optio
 #   period_frac    : MovingCircle.period as a fraction of t_max*dt (the planning
 #                    horizon in seconds). Smaller => faster sweeps. The triangle
 #                    wave means the patroller crosses its span twice per period.
+#   lateral_frac   : max lateral jitter of each patroller's sweep centre as a
+#                    fraction of side_len. Near-zero (0.02) keeps the sweep
+#                    centred on the corridor so the gate is fully traversed and
+#                    rarely leaves a passing lane at the crossing midpoint.
+#                    Larger (0.10) allows an offset passing lane -- used only by
+#                    C_dyn_crossing (the control) to match old behaviour.
 #   v_agent        : agent speed (distance units / second).
 #   dt             : time-step duration (seconds).
 #   t_max          : maximum time-step index for the space-time search.
 #
-# Tuning intent: enough patrollers / sweep speed that for some worlds a patroller
-# is over the corridor when the agent would otherwise pass (=> timing pressure),
-# but the patroller always *clears* its span periodically (triangle wave never
-# parks on a point) so the corridor is never permanently sealed and worlds stay
-# solvable within t_max.
+# Tuning intent (time-coupling): patrollers are fast (period_frac ~0.14 => ~2.5x
+# faster than the old 0.32) and large (radius_frac 0.075-0.080), with near-zero
+# lateral_frac so the sweep centre lands on the corridor and fully seals the gate
+# for ~half the period.  This means the state of the gate at agent-commit time
+# differs from the state at agent-arrival time, creating genuine information the
+# future-window heuristic can exploit.  The triangle wave still guarantees a clear
+# window within each period so worlds remain space-time solvable.
+# C_dyn_crossing is the CONTROL (open arena, unchanged dynamics).
 
 _PARAMS: Dict[str, Dict[str, float]] = {
     DYN_MAZE: dict(  # side_len = 1.0
-        n_patrollers=3, radius_frac=0.050, span_frac=0.38, period_frac=0.32,
-        v_agent=0.060, dt=1.0, t_max=110,
+        n_patrollers=3, radius_frac=0.075, span_frac=0.38, period_frac=0.14,
+        lateral_frac=0.02, v_agent=0.060, dt=1.0, t_max=110,
     ),
     DYN_ROOMS: dict(  # side_len = 1.0
-        n_patrollers=3, radius_frac=0.050, span_frac=0.40, period_frac=0.32,
-        v_agent=0.060, dt=1.0, t_max=110,
+        n_patrollers=3, radius_frac=0.075, span_frac=0.40, period_frac=0.14,
+        lateral_frac=0.02, v_agent=0.060, dt=1.0, t_max=110,
     ),
     DYN_SPIRAL: dict(  # side_len = 1.0
-        n_patrollers=3, radius_frac=0.050, span_frac=0.38, period_frac=0.32,
-        v_agent=0.060, dt=1.0, t_max=110,
+        n_patrollers=3, radius_frac=0.075, span_frac=0.38, period_frac=0.14,
+        lateral_frac=0.02, v_agent=0.060, dt=1.0, t_max=110,
     ),
-    DYN_MAZE_DENSE: dict(  # side_len = 1.0; held out: more + faster patrollers
-        n_patrollers=4, radius_frac=0.055, span_frac=0.42, period_frac=0.26,
-        v_agent=0.060, dt=1.0, t_max=120,
+    DYN_MAZE_DENSE: dict(  # side_len = 1.0; held out: denser + faster
+        n_patrollers=4, radius_frac=0.080, span_frac=0.42, period_frac=0.13,
+        lateral_frac=0.02, v_agent=0.060, dt=1.0, t_max=120,
     ),
-    DYN_CROSSING: dict(  # side_len = 1.0; open arena, pure timing
+    DYN_CROSSING: dict(  # side_len = 1.0; open arena, CONTROL — leave unchanged
         n_patrollers=4, radius_frac=0.055, span_frac=0.50, period_frac=0.30,
-        v_agent=0.060, dt=1.0, t_max=110,
+        lateral_frac=0.10, v_agent=0.060, dt=1.0, t_max=110,
     ),
     DYN_ROOMS_LARGE: dict(  # side_len = 2.0; held out
-        n_patrollers=5, radius_frac=0.055, span_frac=0.36, period_frac=0.30,
-        v_agent=0.120, dt=1.0, t_max=130,
+        n_patrollers=5, radius_frac=0.075, span_frac=0.36, period_frac=0.14,
+        lateral_frac=0.02, v_agent=0.120, dt=1.0, t_max=130,
     ),
 }
 
@@ -408,7 +417,8 @@ def _place_patrollers(world: C.World, suite: str, seed: int) -> D.Dynamics:
         center = start + f * line
         # Lateral jitter so the sweep midpoint straddles (not perfectly centres)
         # the corridor -- keeps a thin passing lane on one side at midpoint.
-        lateral = rng.uniform(-0.10, 0.10) * side
+        lat = float(params.get("lateral_frac", 0.10))
+        lateral = rng.uniform(-lat, lat) * side
         center = center + lateral * perp
         half = 0.5 * span
         a = center - half * perp
@@ -490,6 +500,7 @@ if __name__ == "__main__":
     for suite in DYN_SUITES:
         params = dynamics_params(suite)
         valid = solved = checked = pressured = 0
+        delay_sum = 0.0
         for seed in range(80):
             res = build_dynamic_world(suite, seed)
             if res is None:
@@ -514,5 +525,8 @@ if __name__ == "__main__":
                 checked += 1
                 if arr_dyn["arrival"] > arr_static["arrival"]:
                     pressured += 1
-        print(f"{suite:18s} valid={valid:3d} solved={solved:3d} "
-              f"checked={checked:3d} pressured={pressured:3d}")
+                delay_sum += arr_dyn["arrival"] - arr_static["arrival"]
+        pressured_frac = pressured / max(checked, 1)
+        mean_delay = delay_sum / max(checked, 1)
+        print(f"{suite:18s} valid={valid:3d} solved={solved:3d} checked={checked:3d} "
+              f"pressured={pressured:3d} pressured_frac={pressured_frac:.2f} mean_delay={mean_delay:.1f}")
