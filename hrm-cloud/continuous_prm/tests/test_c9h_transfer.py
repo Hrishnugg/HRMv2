@@ -170,3 +170,14 @@ def test_analyze_c9h_curves_and_methods(tmp_path):
     assert Path(out["comparisons"]).exists() and Path(out["significance"]).exists()
     # bounded-vs-unbounded section present
     assert "bounded" in Path(out["comparisons"]).read_text().lower()
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_full_smoke(tmp_path):
+    import torch
+    cfg = C9H.C9hConfig(source_dir=str(HERE/"runs/c7_local"), out_dir=str(tmp_path/"c9h"),
+                        targets="C_hard_bugtrap", backbones="hrm,unet", methods="lora_bounded,full_ft",
+                        k_grid="1", n_adapt_seeds=1, n_test=4, epochs=1, budgets="200,400",
+                        w_values="1.0", cpu=True, seed=7)
+    out = C9H.run_full(cfg, torch.device("cpu"))
+    assert Path(out["curves"]).exists() and Path(out["comparisons"]).exists() and Path(out["significance"]).exists()

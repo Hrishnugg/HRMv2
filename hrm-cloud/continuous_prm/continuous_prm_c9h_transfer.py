@@ -654,3 +654,55 @@ def run_analyze(cfg: C9hConfig) -> dict:
         backbones=C9._parse_csv(cfg.backbones),
         methods=C9._parse_csv(cfg.methods),
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 8 — full mode, scale presets, CLI
+# ---------------------------------------------------------------------------
+
+def run_full(cfg: C9hConfig, device) -> dict:
+    run_adapt(cfg, device)
+    run_eval(cfg, device)
+    return run_analyze(cfg)
+
+
+def apply_scale(cfg: C9hConfig) -> C9hConfig:
+    if cfg.scale == "local":
+        return dataclasses.replace(cfg, n_adapt_seeds=cfg.n_adapt_seeds or 3, n_test=cfg.n_test or 30)
+    if cfg.scale == "smoke":
+        return dataclasses.replace(cfg, n_adapt_seeds=1, n_test=4, k_grid="1", epochs=1,
+                                   roadmap_nodes=192, roadmap_k=7)
+    return cfg
+
+
+def config_from_args(args) -> C9hConfig:
+    return C9hConfig(**{f.name: getattr(args, f.name) for f in dataclasses.fields(C9hConfig)
+                       if hasattr(args, f.name)})
+
+
+def build_argparser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="C9h matched-compute + field transfer hardening")
+    for f in dataclasses.fields(C9hConfig):
+        flag = f"--{f.name.replace('_','-')}"
+        if isinstance(f.default, bool):
+            p.add_argument(flag, dest=f.name, action="store_true")
+        else:
+            p.add_argument(flag, dest=f.name, type=type(f.default), default=f.default)
+    return p
+
+
+def main():
+    import torch
+    args = build_argparser().parse_args()
+    cfg = apply_scale(config_from_args(args))
+    device = torch.device("cpu" if cfg.cpu or not torch.cuda.is_available() else "cuda")
+    print(f"[{now_str()}] C9h mode={cfg.mode} scale={cfg.scale} device={device} out={cfg.out_dir}", flush=True)
+    if cfg.mode == "adapt": run_adapt(cfg, device)
+    elif cfg.mode == "eval": run_eval(cfg, device)
+    elif cfg.mode == "analyze": run_analyze(cfg)
+    elif cfg.mode == "full": run_full(cfg, device)
+    else: raise ValueError(cfg.mode)
+
+
+if __name__ == "__main__":
+    main()
