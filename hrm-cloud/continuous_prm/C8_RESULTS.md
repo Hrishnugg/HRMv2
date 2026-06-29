@@ -16,6 +16,8 @@ But the headline scientific question of C8 — **does modeling the future obstac
 
 This is the expected job of a local validation: it confirms the substrate, the pipeline, and the Euclidean-beating + additive-beating-focal results, and it flags that the temporal spotlight needs **either full-scale training or harder, more time-coupled suites (or both)** before we can claim the future window helps. Two concrete, testable reasons it likely under-delivered here are spelled out below.
 
+> **Update (2026-06-28) — hardened, time-coupled re-run.** We acted on reason #2 and rebuilt the suites to be genuinely time-coupled, then re-ran (W=8, fresh calibration). The spotlight **moved toward aware but did not decisively land at local scale.** See "[Hardened re-run](#hardened-re-run-2026-06-28--time-coupled-suites-w8)" below. Results: `runs/c8_local_hardened/`.
+
 ---
 
 ## Run configuration (this validation)
@@ -131,6 +133,35 @@ Until one of these is run, the honest statement is: **learned time-aware heurist
 
 ## Status & recommended next step
 
-**Substrate + pipeline: validated. Euclidean-beating + additive-beating-focal + OOD generalization: confirmed. Temporal spotlight: open.**
+**Substrate + pipeline: validated. Euclidean-beating + additive-beating-focal + OOD generalization: confirmed. Temporal spotlight: open (moved toward aware after hardening — see below).**
 
-Recommended next move (user's call — this matches the "full cluster-scale confirmation later" plan): a **cluster-scale run with W=8 / full data / ≥12 epochs**, ideally alongside **harder, more time-coupled dynamic suites and a raised maze_dense budget**, to give the time-aware vs time-blind question a fair test. If aware still ties blind at full scale on time-coupled suites, that is itself a publishable negative result about when temporal modeling does and doesn't pay off in space-time search.
+Recommended next move (user's call — this matches the "full cluster-scale confirmation later" plan): a **cluster-scale run with W=8 / full data / ≥12 epochs on the now time-coupled (hardened) suites**, to give the time-aware vs time-blind question a fair test. If aware still ties blind at full scale on time-coupled suites, that is itself a publishable negative result about when temporal modeling does and doesn't pay off in space-time search.
+
+---
+
+## Hardened re-run (2026-06-28) — time-coupled suites, W=8
+
+Acting on reason #2, the dynamic suites were rebuilt to be genuinely time-coupled, then re-run at W=8 with a fresh recalibration. Results in `runs/c8_local_hardened/`.
+
+**What changed in the suites** (`continuous_prm_c8_dynamic_maps.py`, commits `f813468`, `9174678`):
+- **Sealed gates, no passing lane** — new `lateral_frac` knob set to ~0.02 (was a fixed ±0.10 offset that left a lane), so the patroller sweep centers on the corridor and actually blocks it.
+- **Faster patrollers** — `period_frac` 0.13–0.14 (was 0.26–0.32), so a gate flips open↔closed *during* the agent's approach. This is the regime only the future window can anticipate.
+- **`C_dyn_crossing` kept unchanged as a control** (open arena, no chokepoint) — blind should tie aware there.
+- **`maze_dense` re-tuned** (gap 0.13, radius 0.062, period 0.17, t_max 140) to stay solvable (~32%) while strongly time-coupled.
+- Suite self-test confirmed the intent: hardened suites show mean arrival-delay 3.8–18.8 steps; the control sits at 0.9.
+
+**Run config:** identical to the first run except **W=8** (was 4 — the patroller phase flips over ~8 steps, so a 4-step lookahead was too short) and a **fresh calibration** (geometry changed). 6 epochs, 250k scalar cap, scalar {hrm,onlstm} + field {unet,hrm} with W=0 twins. ~65 min.
+
+**Recalibrated binding budgets** (5/6 now sane vs the degenerate first run): maze 1800 (euclid 0.4), rooms 1300 (0.1), spiral 2500 (0.2), crossing 150 (0.2), rooms_large 400 (0.2). **`maze_dense` remains extreme** — euclid solves only 0.1 even at 3500, so its lower band edge (150) is still 0/0 degenerate; it needs a higher binding budget (use the 3500 edge) or a dedicated calibration floor.
+
+**Gate 1 (learned ≫ euclid) still passes strongly** on the hardened suites: e.g. field_hrm rooms 0.129 @ +0.9 success (p=0.004), crossing 0.152 @ +0.8 (p=0.008), spiral field_unet 0.152 @ +0.7 (p=0.016), maze field_unet 0.168 @ +0.5.
+
+**The spotlight (Comparison 2) moved toward aware — but did not decisively land.**
+
+- **Strongest new signal — success, on `rooms_large` (hardest in-scope held-out): aware solves more than blind.** field_hrm aware 1.00 vs blind 0.50 (+0.5), scalar_hrm 1.00 vs 0.70 (+0.3), field_unet 0.90 vs 0.80 (+0.1). The future window lets the planner *solve instances blind fails on* — a stronger "helps" than expansion count.
+- **Expansion ratios tilted below 1** on the harder suites (rooms_large field_unet 0.687 / scalar_hrm 0.706; spiral scalar 0.853; maze field_unet 0.816) — more aware-leaning than the soft run.
+- **But still mixed and mostly sub-significant** at this n (matched 1–10): `scalar_onlstm` regresses (maze 1.300, p=0.006 for *blind*; crossing 1.508, p=0.027), and most other ratios are not significant.
+
+**Methodological catch (important):** the matched expansion ratio is computed only on worlds **both** arms solve, so on rooms_large it *excludes the very worlds where aware's edge is largest* (those only aware solves). There, the **success delta is the truer measure** — and it favors aware. A cluster-scale analysis should report a success-aware composite, not expansion ratio alone, when success rates differ.
+
+**Read:** hardening shifted the needle in the hypothesis's direction — genuine aware *success* advantages appear on the hardest time-coupled suite, and expansion ratios move sub-1 on the harder suites — but the local run (6 epochs, 250k cap, n≤10) still cannot declare a clean win, and one backbone regresses. This now squarely motivates **reason #1**: a cluster full-scale run (full data, ≥12 epochs) on these time-coupled suites, with success-aware reporting, is the test that should settle it.
