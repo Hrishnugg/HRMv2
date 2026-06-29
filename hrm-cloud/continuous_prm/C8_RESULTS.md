@@ -197,8 +197,17 @@ Learned space-time heuristics cut expansions **65–95%** with **+0.2 to +0.7 su
 
 **Comparison 4 nuance:** the convolutional **field_unet is the strongest backbone** (lowest ratios: maze 0.064, spiral 0.076, rooms 0.096), not the recurrent/hierarchical ones — so "recurrent wins when timing matters" is *not* supported here either.
 
+### Mechanistic ablation — heuristic accuracy, aware vs blind
+
+To pin down *why* the window doesn't help search, we measured the thing search depends on directly: the **accuracy of each model's predicted time-to-go** against the exact space-time oracle, on held-out `(node,t)` cells (`continuous_prm_c8_heuristic_accuracy.py`, results `runs/c8_local_heavy/results/c8_heuristic_accuracy.md`, commit `360f20b`). MAE in time-steps, pooled over cells; oracle-vs-oracle sanity = 0.0.
+
+**Result: the future window does not improve heuristic accuracy.** Across 24 (suite, backbone) pairs, aware is more accurate in **11** and less in **13**; **mean Δ(aware−blind) = +0.25 steps** (aware marginally *worse*). The per-pair deltas are small (mostly <1 step) and scatter around zero — there is no systematic accuracy gain from seeing the future. This is the mechanism behind the search negative: if the predicted cost-to-go is no better, the guidance can't be better.
+
+Caveat: MAE measures *calibration*, not search utility directly — on the open/easy suites (crossing, rooms_large) the inadmissible learned overestimators have larger MAE than euclid's tight underestimate yet still search far better (a loose admissible heuristic gives poor guidance). But for the **aware-vs-blind head-to-head** — same integration, same labels — MAE is a fair comparison, and it says the window adds no predictive signal.
+
 ### Bottom line for C8
 
 - **Confirmed (now significant):** learned additive space-time heuristics dominate Euclidean-time planning (65–95% fewer expansions, large success gains, generalizes OOD); additive ≫ focal under dynamics, as in C7.
-- **Careful negative (robust at heavy-local scale):** explicitly modeling the future obstacle window does **not** improve a learned heuristic over a strong time-blind (present-frame) one — and can hurt — because the present frame is a near-sufficient predictor of time-to-go for *guidance*. This is the publishable nuance: time-awareness matters for the plan, not for the heuristic that guides the search.
-- **Open for cluster:** a definitive publication run (more seeds, all backbones incl. field_onlstm, a success-aware composite metric, and an ablation that measures heuristic accuracy aware-vs-blind directly) would harden the negative and the positive. But the local evidence already points clearly.
+- **Careful negative (robust at heavy-local scale, mechanistically explained):** explicitly modeling the future obstacle window does **not** improve a learned heuristic over a strong time-blind (present-frame) one — in search expansions (7 sig blind-wins vs 1) *and* in direct predicted-time-to-go accuracy (mean Δ +0.25 steps, aware slightly worse). The present frame is a near-sufficient predictor of time-to-go for *guidance*. The publishable nuance: **time-awareness matters for the plan, not for the heuristic that guides the search.**
+- **Backbone:** the plain convolutional `field_unet` is the strongest; the recurrent/hierarchical backbones do not win here.
+- **Open for cluster:** a definitive publication run (more seeds, all backbones incl. field_onlstm, a success-aware composite metric) would harden these results, but the local evidence — positive thesis + mechanistically-explained negative — already points clearly.
