@@ -1,6 +1,6 @@
 # C8 Dynamics Comparison — Pre-registered Comparisons
 
-Binding budget per suite (lower of the calibrated band, else first budget seen): C_dyn_crossing=150, C_dyn_maze=1800, C_dyn_maze_dense=150, C_dyn_rooms=1300, C_dyn_rooms_large=400, C_dyn_spiral=2500
+Binding budget per suite (lowest calibrated-band budget where euclid success >= 0.05, so a degenerate 0%-success edge is skipped; if no band budget qualifies, the highest band budget; else the first budget seen): C_dyn_crossing=150, C_dyn_maze=1800, C_dyn_maze_dense=3500, C_dyn_rooms=1300, C_dyn_rooms_large=400, C_dyn_spiral=2500
 
 _Multiplicity: BH correction is applied ONLY to the success/McNemar grid over learned arms (see `continuous_prm_c8_significance.md`). The p-values in THESE six pre-registered comparisons are UNcorrected; treat the bootstrap 95% CIs as the primary inference._
 
@@ -20,10 +20,10 @@ Each time-aware learned arm (field_<bb>/astar, scalar_<bb>/astar) vs `euclid/ast
 |C_dyn_maze|1800|field_unet/astar|10|0.400|0.900|0.500|n/a (n<6)|4|0.168 [0.113, 0.403]|n/a (n<6)|
 |C_dyn_maze|1800|scalar_hrm/astar|10|0.400|1.000|0.600|0.031|4|0.651 [0.294, 0.804]|n/a (n<6)|
 |C_dyn_maze|1800|scalar_onlstm/astar|10|0.400|1.000|0.600|0.031|4|0.469 [0.168, 0.523]|n/a (n<6)|
-|C_dyn_maze_dense|150|field_hrm/astar|10|0.000|0.000|0.000|n/a (n<6)|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|field_unet/astar|10|0.000|0.000|0.000|n/a (n<6)|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|scalar_hrm/astar|10|0.000|0.000|0.000|n/a (n<6)|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|scalar_onlstm/astar|10|0.000|0.000|0.000|n/a (n<6)|0|n/a|n/a (n<6)|
+|C_dyn_maze_dense|3500|field_hrm/astar|10|0.100|0.800|0.700|0.016|1|0.407 [0.407, 0.407]|n/a (n<6)|
+|C_dyn_maze_dense|3500|field_unet/astar|10|0.100|0.800|0.700|0.016|1|0.523 [0.523, 0.523]|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_hrm/astar|10|0.100|0.700|0.600|0.031|1|0.229 [0.229, 0.229]|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_onlstm/astar|10|0.100|0.700|0.600|0.031|1|0.350 [0.350, 0.350]|n/a (n<6)|
 |C_dyn_rooms|1300|field_hrm/astar|10|0.100|1.000|0.900|0.004|1|0.129 [0.129, 0.129]|n/a (n<6)|
 |C_dyn_rooms|1300|field_unet/astar|10|0.100|1.000|0.900|0.004|1|0.158 [0.158, 0.158]|n/a (n<6)|
 |C_dyn_rooms|1300|scalar_hrm/astar|10|0.100|1.000|0.900|0.004|1|0.148 [0.148, 0.148]|n/a (n<6)|
@@ -52,10 +52,10 @@ Median ratio < 1 means the aware model expands fewer nodes than its blind twin (
 |C_dyn_maze|1800|scalar_onlstm|scalar_onlstm_blind|10|1.000|1.000|0.000|10|1.300 [1.044, 1.431]|0.006|
 |C_dyn_maze|1800|field_unet|field_unet_blind|10|0.900|0.900|0.000|9|0.816 [0.641, 1.233]|0.359|
 |C_dyn_maze|1800|field_hrm|field_hrm_blind|10|1.000|1.000|0.000|10|1.097 [0.666, 2.363]|0.375|
-|C_dyn_maze_dense|150|scalar_hrm|scalar_hrm_blind|10|0.000|0.000|0.000|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|scalar_onlstm|scalar_onlstm_blind|10|0.000|0.000|0.000|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|field_unet|field_unet_blind|10|0.000|0.000|0.000|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|field_hrm|field_hrm_blind|10|0.000|0.000|0.000|0|n/a|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_hrm|scalar_hrm_blind|10|0.700|0.700|0.000|7|0.863 [0.838, 0.935]|0.016|
+|C_dyn_maze_dense|3500|scalar_onlstm|scalar_onlstm_blind|10|0.700|0.900|-0.200|7|1.216 [1.053, 1.451]|0.156|
+|C_dyn_maze_dense|3500|field_unet|field_unet_blind|10|0.800|0.700|0.100|7|1.036 [1.009, 1.115]|0.078|
+|C_dyn_maze_dense|3500|field_hrm|field_hrm_blind|10|0.800|0.700|0.100|7|0.922 [0.687, 0.969]|0.016|
 |C_dyn_rooms|1300|scalar_hrm|scalar_hrm_blind|10|1.000|1.000|0.000|10|0.886 [0.693, 1.117]|0.275|
 |C_dyn_rooms|1300|scalar_onlstm|scalar_onlstm_blind|10|1.000|1.000|0.000|10|1.225 [0.798, 1.453]|0.131|
 |C_dyn_rooms|1300|field_unet|field_unet_blind|10|1.000|1.000|0.000|10|0.941 [0.743, 1.683]|0.695|
@@ -91,14 +91,14 @@ For each learned arm: its astar (additive) ratio vs euclid, and its best-w focal
 |C_dyn_maze|1800|scalar_hrm_blind|0.538 [0.211, 0.572]|1.1|0.940 [0.901, 0.971]|n/a (n<6)|
 |C_dyn_maze|1800|scalar_onlstm|0.469 [0.168, 0.523]|1.1|0.834 [0.755, 0.940]|n/a (n<6)|
 |C_dyn_maze|1800|scalar_onlstm_blind|0.360 [0.116, 0.546]|1.1|0.957 [0.929, 0.972]|n/a (n<6)|
-|C_dyn_maze_dense|150|field_hrm|n/a|n/a|n/a|n/a|
-|C_dyn_maze_dense|150|field_hrm_blind|n/a|n/a|n/a|n/a|
-|C_dyn_maze_dense|150|field_unet|n/a|n/a|n/a|n/a|
-|C_dyn_maze_dense|150|field_unet_blind|n/a|n/a|n/a|n/a|
-|C_dyn_maze_dense|150|scalar_hrm|n/a|n/a|n/a|n/a|
-|C_dyn_maze_dense|150|scalar_hrm_blind|n/a|n/a|n/a|n/a|
-|C_dyn_maze_dense|150|scalar_onlstm|n/a|n/a|n/a|n/a|
-|C_dyn_maze_dense|150|scalar_onlstm_blind|n/a|n/a|n/a|n/a|
+|C_dyn_maze_dense|3500|field_hrm|0.407 [0.407, 0.407]|1.1|0.972 [0.972, 0.972]|n/a (n<6)|
+|C_dyn_maze_dense|3500|field_hrm_blind|0.608 [0.608, 0.608]|1.1|0.938 [0.938, 0.938]|n/a (n<6)|
+|C_dyn_maze_dense|3500|field_unet|0.523 [0.523, 0.523]|1.1|0.888 [0.888, 0.888]|n/a (n<6)|
+|C_dyn_maze_dense|3500|field_unet_blind|0.537 [0.537, 0.537]|1.1|0.928 [0.928, 0.928]|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_hrm|0.229 [0.229, 0.229]|1.1|0.897 [0.897, 0.897]|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_hrm_blind|0.408 [0.408, 0.408]|1.1|0.982 [0.982, 0.982]|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_onlstm|0.350 [0.350, 0.350]|1.1|0.870 [0.870, 0.870]|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_onlstm_blind|0.569 [0.569, 0.569]|1.1|0.937 [0.937, 0.937]|n/a (n<6)|
 |C_dyn_rooms|1300|field_hrm|0.129 [0.129, 0.129]|1.1|0.987 [0.987, 0.987]|n/a (n<6)|
 |C_dyn_rooms|1300|field_hrm_blind|0.076 [0.076, 0.076]|1.1|0.924 [0.924, 0.924]|n/a (n<6)|
 |C_dyn_rooms|1300|field_unet|0.158 [0.158, 0.158]|1.1|0.983 [0.983, 0.983]|n/a (n<6)|
@@ -138,10 +138,10 @@ exp_ratio vs euclid (astar) side by side: the recurrent/hierarchical arms (scala
 |C_dyn_maze|1800|scalar_onlstm|4|0.469 [0.168, 0.523]|n/a (n<6)|
 |C_dyn_maze|1800|field_hrm|4|0.432 [0.117, 0.818]|n/a (n<6)|
 |C_dyn_maze|1800|field_unet|4|0.168 [0.113, 0.403]|n/a (n<6)|
-|C_dyn_maze_dense|150|scalar_hrm|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|scalar_onlstm|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|field_hrm|0|n/a|n/a (n<6)|
-|C_dyn_maze_dense|150|field_unet|0|n/a|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_hrm|1|0.229 [0.229, 0.229]|n/a (n<6)|
+|C_dyn_maze_dense|3500|scalar_onlstm|1|0.350 [0.350, 0.350]|n/a (n<6)|
+|C_dyn_maze_dense|3500|field_hrm|1|0.407 [0.407, 0.407]|n/a (n<6)|
+|C_dyn_maze_dense|3500|field_unet|1|0.523 [0.523, 0.523]|n/a (n<6)|
 |C_dyn_rooms|1300|scalar_hrm|1|0.148 [0.148, 0.148]|n/a (n<6)|
 |C_dyn_rooms|1300|scalar_onlstm|1|0.190 [0.190, 0.190]|n/a (n<6)|
 |C_dyn_rooms|1300|field_hrm|1|0.129 [0.129, 0.129]|n/a (n<6)|
@@ -179,14 +179,14 @@ euclid->oracle expansion gap left *uncaptured* (0 = matches oracle, 1 = no bette
 |C_dyn_maze|1800|scalar_hrm_blind/astar|4|0.474|
 |C_dyn_maze|1800|scalar_onlstm/astar|4|0.406|
 |C_dyn_maze|1800|scalar_onlstm_blind/astar|4|0.347|
-|C_dyn_maze_dense|150|field_hrm/astar|0|n/a|
-|C_dyn_maze_dense|150|field_hrm_blind/astar|0|n/a|
-|C_dyn_maze_dense|150|field_unet/astar|0|n/a|
-|C_dyn_maze_dense|150|field_unet_blind/astar|0|n/a|
-|C_dyn_maze_dense|150|scalar_hrm/astar|0|n/a|
-|C_dyn_maze_dense|150|scalar_hrm_blind/astar|0|n/a|
-|C_dyn_maze_dense|150|scalar_onlstm/astar|0|n/a|
-|C_dyn_maze_dense|150|scalar_onlstm_blind/astar|0|n/a|
+|C_dyn_maze_dense|3500|field_hrm/astar|1|0.393|
+|C_dyn_maze_dense|3500|field_hrm_blind/astar|1|0.599|
+|C_dyn_maze_dense|3500|field_unet/astar|1|0.512|
+|C_dyn_maze_dense|3500|field_unet_blind/astar|1|0.526|
+|C_dyn_maze_dense|3500|scalar_hrm/astar|1|0.211|
+|C_dyn_maze_dense|3500|scalar_hrm_blind/astar|1|0.395|
+|C_dyn_maze_dense|3500|scalar_onlstm/astar|1|0.335|
+|C_dyn_maze_dense|3500|scalar_onlstm_blind/astar|1|0.559|
 |C_dyn_rooms|1300|field_hrm/astar|1|0.113|
 |C_dyn_rooms|1300|field_hrm_blind/astar|1|0.058|
 |C_dyn_rooms|1300|field_unet/astar|1|0.142|
@@ -221,7 +221,7 @@ Best learned arm (lowest pooled matched-median exp_ratio vs euclid): **field_une
 |in-dist|C_dyn_maze|1800|4|0.168 [0.113, 0.403]|0.500|
 |in-dist|C_dyn_rooms|1300|1|0.158 [0.158, 0.158]|0.900|
 |in-dist|C_dyn_spiral|2500|2|0.152 [0.118, 0.186]|0.700|
-|held-out|C_dyn_maze_dense|150|0|n/a|0.000|
+|held-out|C_dyn_maze_dense|3500|1|0.523 [0.523, 0.523]|0.700|
 |held-out|C_dyn_crossing|150|2|0.185 [0.082, 0.289]|0.800|
 |held-out|C_dyn_rooms_large|400|2|0.426 [0.184, 0.668]|0.700|
 

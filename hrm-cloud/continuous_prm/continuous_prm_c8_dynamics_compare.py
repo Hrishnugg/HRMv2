@@ -1323,13 +1323,39 @@ def _load_calib_budgets(out_dir: Path):
         return {}
 
 
-def _binding_budget(suite: str, suite_budgets, calib_budgets) -> int:
-    """Binding budget for a suite: the LOWER of the suite's calibrated band if
-    calibration.json has it, else the first budget seen in the data."""
+def _load_calib_measurements(out_dir: Path):
+    """Return {suite: [measurement dicts]} from out_dir/calibration.json "measurements",
+    or {} if absent/unreadable."""
+    import json
+    calib_path = Path(out_dir) / "calibration.json"
+    if not calib_path.exists():
+        return {}
+    try:
+        calib = json.loads(calib_path.read_text())
+        return dict(calib.get("measurements", {}) or {})
+    except (ValueError, OSError):
+        return {}
+
+
+def _binding_budget(suite: str, suite_budgets, calib_budgets,
+                    calib_measurements=None, euclid_floor: float = 0.05) -> int:
+    """Binding budget for a suite: the lowest calibrated-band budget where euclid
+    success >= euclid_floor (so a degenerate 0%-success edge is skipped); if no
+    band budget qualifies, the highest band budget; else the first budget seen.
+
+    When calib_measurements is None (not supplied), falls back to the old behavior
+    of returning the minimum band budget unconditionally."""
     raw = calib_budgets.get(suite)
     if raw:
         try:
-            return int(min(int(b) for b in raw))
+            band = sorted(int(b) for b in raw)
+            if calib_measurements is not None and suite in calib_measurements:
+                meas = calib_measurements[suite]
+                eu = {int(m["budget"]): float(m.get("euclid") or 0.0) for m in meas}
+                qualified = [b for b in band if eu.get(b, 0.0) >= euclid_floor]
+                return int(min(qualified)) if qualified else int(max(band))
+            # No measurements available: keep original behavior.
+            return int(min(band))
         except (TypeError, ValueError):
             pass
     seen = sorted(suite_budgets.get(suite, []))
@@ -1749,7 +1775,9 @@ def write_preregistered_md(out_dir: Path, rows, cfg: C8Config, binding):
 
     lines = ["# C8 Dynamics Comparison — Pre-registered Comparisons", ""]
     lines.append(
-        "Binding budget per suite (lower of the calibrated band, else first budget seen): "
+        "Binding budget per suite (lowest calibrated-band budget where euclid success >= 0.05, "
+        "so a degenerate 0%-success edge is skipped; if no band budget qualifies, the highest "
+        "band budget; else the first budget seen): "
         + ", ".join(f"{s}={binding[s]}" for s in suites)
     )
     lines.append("")
@@ -2099,7 +2127,8 @@ def run_analyze(cfg: C8Config, out_dir: Path) -> Dict[str, object]:
 
     _, _, suite_budgets = _index_rows(rows)
     calib_budgets = _load_calib_budgets(out_dir)
-    binding = {s: _binding_budget(s, suite_budgets, calib_budgets) for s in suite_budgets}
+    calib_meas = _load_calib_measurements(out_dir)
+    binding = {s: _binding_budget(s, suite_budgets, calib_budgets, calib_meas) for s in suite_budgets}
 
     # 1. Summary CSV
     summary = build_summary(rows, cfg)
