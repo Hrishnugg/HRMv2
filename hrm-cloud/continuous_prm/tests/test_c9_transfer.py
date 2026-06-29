@@ -143,3 +143,34 @@ def test_run_eval_smoke(tmp_path):
     assert any(p.startswith("zeroshot_hrm") for p in provs)
     assert any(p.startswith("lora_hrm") for p in provs)
     assert all("target" in r and "K" in r for r in rows)
+
+
+def _write_synth_raw(path):
+    import csv
+    rows = []
+    def row(provider, method, K, wi, exp, found=True):
+        return dict(target="C_hard_bugtrap", K=K, seed=0, method=method, backbone="hrm",
+                    suite="C_hard_bugtrap", world_index=wi, provider=provider, mode="astar",
+                    w="", budget=400, found=found, expansions=exp, closed=exp, cost=1.0,
+                    optimal=1.0, suboptimality=1.0, nonfinite=0)
+    for wi in (0, 1):
+        rows.append(row("euclid", "euclid", -1, wi, 100))
+        rows.append(row("oracle", "oracle", -1, wi, 20))
+        rows.append(row("lora_hrm_K4_s0", "lora", 4, wi, 40))
+        rows.append(row("scratch_hrm_K4_s0", "scratch", 4, wi, 80))
+        rows.append(row("zeroshot_hrm", "zero_shot", 0, wi, 60))
+    cols = C9.RAW_COLS
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
+        for r in rows: w.writerow({k: r.get(k, "") for k in cols})
+
+
+def test_analyze_curve_ordering(tmp_path):
+    import csv
+    raw = tmp_path / "raw.csv"; _write_synth_raw(raw)
+    out = C9.analyze_from_raw(raw, tmp_path, seed=0, targets=["C_hard_bugtrap"], backbones=["hrm"])
+    cur = {(r["method"], int(r["K"])): float(r["exp_ratio_median"])
+           for r in csv.DictReader(open(out["curves"], newline="")) if r["exp_ratio_median"]}
+    assert cur[("lora", 4)] < cur[("scratch", 4)]   # 0.4 < 0.8
+    assert Path(out["comparisons"]).exists()
+    assert Path(out["significance"]).exists()

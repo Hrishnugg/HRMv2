@@ -329,3 +329,168 @@ def run_eval(cfg: C9Config, device) -> Path:
             wri.writerow({k: r.get(k, "") for k in RAW_COLS})
     print(f"[{now_str()}] c9 eval: merged {len(all_rows)} rows -> {raw}", flush=True)
     return raw
+
+
+# ---------------------------------------------------------------------------
+# Task 7 — analyze mode (adaptation curves CSV + comparisons + significance MD)
+# ---------------------------------------------------------------------------
+
+from continuous_prm_c6_heatmap_value_field import mcnemar_exact_p, bh_q_values
+from continuous_prm_c7_integration_compare import wilcoxon_signed_rank_p, bootstrap_median_ci
+
+
+def _load_rows(raw_csv): return list(_csv.DictReader(open(raw_csv, newline="")))
+def _astar(rows): return [r for r in rows if r.get("mode") == "astar"]
+def _is_found(r): return str(r.get("found")) in ("True", "1", "true")
+
+
+def _euclid_exp_by_world(rows, target):
+    out = {}
+    for r in _astar(rows):
+        if r["target"] == target and r["provider"] == "euclid" and _is_found(r):
+            out[int(r["world_index"])] = float(r["expansions"])
+    return out
+
+
+def analyze_from_raw(raw_csv, out_dir, seed, targets, backbones):
+    rows = _load_rows(raw_csv)
+    res_dir = Path(out_dir); C.ensure_dir(res_dir)
+    methods = ["zero_shot", "lora", "full_ft", "scratch"]
+    curves = []
+    for target in targets:
+        eu = _euclid_exp_by_world(rows, target)
+        for backbone in backbones:
+            for method in methods:
+                by_K, succ_by_K = {}, {}
+                for r in _astar(rows):
+                    if r["target"] != target or r["method"] != method:
+                        continue
+                    if method != "zero_shot" and r.get("backbone") != backbone:
+                        continue
+                    if method == "zero_shot" and r.get("backbone") not in ("", backbone):
+                        continue
+                    K = int(r["K"]); wi = int(r["world_index"]); found = _is_found(r)
+                    succ_by_K.setdefault(K, []).append(1 if found else 0)
+                    if found and wi in eu and eu[wi] > 0:
+                        by_K.setdefault(K, []).append(float(r["expansions"]) / eu[wi])
+                for K in sorted(set(list(by_K) + list(succ_by_K))):
+                    med, lo, hi = bootstrap_median_ci(by_K.get(K, []), seed=seed)
+                    succ = float(np.mean(succ_by_K.get(K, []))) if succ_by_K.get(K) else float("nan")
+                    curves.append(dict(target=target, backbone=backbone, method=method, K=K,
+                                       n_matched=len(by_K.get(K, [])), exp_ratio_median=med,
+                                       ci_lo=lo, ci_hi=hi, success=succ))
+    curves_csv = res_dir / "continuous_prm_c9_curves.csv"
+    cols = ["target", "backbone", "method", "K", "n_matched", "exp_ratio_median", "ci_lo", "ci_hi", "success"]
+    with open(curves_csv, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=cols); wri.writeheader()
+        for c in curves:
+            wri.writerow({k: ("" if c[k] is None or (isinstance(c[k], float) and not np.isfinite(c[k])) else c[k]) for k in cols})
+    comp_md = res_dir / "continuous_prm_c9_comparisons.md"
+    _write_comparisons_md(comp_md, curves)
+    sig_md = res_dir / "continuous_prm_c9_significance.md"
+    _write_significance_md(sig_md, rows, targets, backbones, methods)
+    print(f"[{now_str()}] c9 analyze: wrote {curves_csv}, {comp_md}, {sig_md}", flush=True)
+    return {"curves": curves_csv, "comparisons": comp_md, "significance": sig_md}
+
+
+def _write_comparisons_md(path, curves):
+    by = {(c["target"], c["backbone"], c["method"], c["K"]): c for c in curves}
+    lines = ["# C9 Transfer — Pre-registered Comparisons", "",
+             "Adaptation curves: matched A* expansion-ratio vs euclid (median, 95% CI) per K.",
+             "lora vs scratch = transfer helps; lora vs full_ft = sample-efficiency; vs K=0 = adaptation helps. Lower = fewer expansions.", ""]
+    targets = sorted({c["target"] for c in curves}); backbones = sorted({c["backbone"] for c in curves})
+    Ks = sorted({c["K"] for c in curves})
+    for target in targets:
+        for backbone in backbones:
+            lines += [f"## {target} / {backbone}", "|K|zero_shot|lora|full_ft|scratch|", "|---:|---|---|---|---|"]
+            for K in Ks:
+                cells = []
+                for m in ("zero_shot", "lora", "full_ft", "scratch"):
+                    c = by.get((target, backbone, m, K))
+                    cells.append("n/a" if not c or not np.isfinite(c["exp_ratio_median"])
+                                 else f'{c["exp_ratio_median"]:.3f} [{c["ci_lo"]:.3f},{c["ci_hi"]:.3f}] (succ {c["success"]:.2f}, n{c["n_matched"]})')
+                lines.append(f"|{K}|" + "|".join(cells) + "|")
+            lines.append("")
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_significance_md(path, rows, targets, backbones, methods):
+    """McNemar + BH success grid: learned arms vs euclid, per (target, backbone, method, K)."""
+    astar_rows = _astar(rows)
+    # Build euclid found-by-world index: {target: {wi: bool}}
+    eu_found: Dict[str, Dict[int, bool]] = {}
+    for r in astar_rows:
+        if r["provider"] == "euclid":
+            eu_found.setdefault(r["target"], {})[int(r["world_index"])] = _is_found(r)
+
+    comparisons = []
+    pvals = []
+    for target in targets:
+        eu_by_wi = eu_found.get(target, {})
+        for backbone in backbones:
+            for method in methods:
+                # Collect all K values present for this arm
+                Ks_present: Dict[int, Dict[int, bool]] = {}  # K -> {wi: found}
+                for r in astar_rows:
+                    if r["target"] != target or r["method"] != method:
+                        continue
+                    if method != "zero_shot" and r.get("backbone") != backbone:
+                        continue
+                    if method == "zero_shot" and r.get("backbone") not in ("", backbone):
+                        continue
+                    K = int(r["K"]); wi = int(r["world_index"])
+                    Ks_present.setdefault(K, {})[wi] = _is_found(r)
+                for K, arm_by_wi in sorted(Ks_present.items()):
+                    shared = sorted(set(eu_by_wi) & set(arm_by_wi))
+                    n = len(shared)
+                    if n == 0:
+                        continue
+                    gain = sum(1 for wi in shared if arm_by_wi[wi] and not eu_by_wi.get(wi, False))
+                    loss = sum(1 for wi in shared if eu_by_wi.get(wi, False) and not arm_by_wi[wi])
+                    eu_succ = float(np.mean([1.0 if eu_by_wi.get(wi, False) else 0.0 for wi in shared]))
+                    arm_succ = float(np.mean([1.0 if arm_by_wi[wi] else 0.0 for wi in shared]))
+                    p = mcnemar_exact_p(gain, loss)
+                    pvals.append(p)
+                    comparisons.append(dict(target=target, backbone=backbone, method=method, K=K,
+                                            n=n, euclid_succ=eu_succ, arm_succ=arm_succ,
+                                            gain=gain, loss=loss, mcnemar_p=p))
+    qvals = bh_q_values(pvals)
+    for row, q in zip(comparisons, qvals):
+        row["bh_q"] = q
+
+    def _fmt_p(p, disc):
+        if disc < 2:
+            return "n/a"
+        return f"{p:.4f}" if p is not None and np.isfinite(p) else "n/a"
+
+    def _fmt_num(v):
+        if v is None or (isinstance(v, float) and not np.isfinite(v)):
+            return "n/a"
+        return f"{v:.3f}"
+
+    lines = [
+        "# C9 Transfer — Significance",
+        "",
+        "McNemar exact test (learned arm found & euclid not = gain; euclid found & arm not = loss).",
+        "BH correction applied across all comparisons in this table.",
+        "n/a when fewer than 2 discordant pairs.",
+        "",
+        "|target|backbone|method|K|n|euclid_succ|arm_succ|gain|loss|McNemar p|BH q|",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    if not comparisons:
+        lines.append("|<none>|-|-|-|-|-|-|-|-|-|-|")
+    for r in comparisons:
+        disc = r["gain"] + r["loss"]
+        lines.append(
+            f"|{r['target']}|{r['backbone']}|{r['method']}|{r['K']}|{r['n']}|"
+            f"{_fmt_num(r['euclid_succ'])}|{_fmt_num(r['arm_succ'])}|{r['gain']}|{r['loss']}|"
+            f"{_fmt_p(r['mcnemar_p'], disc)}|{_fmt_num(r.get('bh_q'))}|"
+        )
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def run_analyze(cfg: C9Config) -> dict:
+    raw = Path(cfg.out_dir) / "results" / "continuous_prm_c9_eval_raw.csv"
+    return analyze_from_raw(raw, Path(cfg.out_dir) / "results", seed=int(cfg.seed),
+                            targets=_parse_csv(cfg.targets), backbones=_parse_csv(cfg.backbones))
