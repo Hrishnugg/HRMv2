@@ -1,0 +1,489 @@
+{
+  "budgets": {
+    "C_dyn_crossing": [
+      150,
+      250
+    ],
+    "C_dyn_maze": [
+      1800,
+      2500
+    ],
+    "C_dyn_maze_dense": [
+      150,
+      3500
+    ],
+    "C_dyn_rooms": [
+      1300,
+      1800
+    ],
+    "C_dyn_rooms_large": [
+      400,
+      600
+    ],
+    "C_dyn_spiral": [
+      2500,
+      3500
+    ]
+  },
+  "grid": [
+    150,
+    250,
+    400,
+    600,
+    900,
+    1300,
+    1800,
+    2500,
+    3500
+  ],
+  "measurements": {
+    "C_dyn_crossing": [
+      {
+        "budget": 150,
+        "euclid": 0.2,
+        "euclid_exp": 96.5,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 250,
+        "euclid": 0.8,
+        "euclid_exp": 157.5,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 400,
+        "euclid": 0.9,
+        "euclid_exp": 171.78,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 600,
+        "euclid": 1.0,
+        "euclid_exp": 196.2,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 900,
+        "euclid": 1.0,
+        "euclid_exp": 196.2,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 1300,
+        "euclid": 1.0,
+        "euclid_exp": 196.2,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 1800,
+        "euclid": 1.0,
+        "euclid_exp": 196.2,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 2500,
+        "euclid": 1.0,
+        "euclid_exp": 196.2,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      },
+      {
+        "budget": 3500,
+        "euclid": 1.0,
+        "euclid_exp": 196.2,
+        "oracle": 1.0,
+        "oracle_exp": 26.8,
+        "worlds": 10
+      }
+    ],
+    "C_dyn_maze": [
+      {
+        "budget": 150,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.7,
+        "oracle_exp": 68.29,
+        "worlds": 10
+      },
+      {
+        "budget": 250,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.7,
+        "oracle_exp": 68.29,
+        "worlds": 10
+      },
+      {
+        "budget": 400,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.8,
+        "oracle_exp": 102.38,
+        "worlds": 10
+      },
+      {
+        "budget": 600,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 148.33,
+        "worlds": 10
+      },
+      {
+        "budget": 900,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 148.33,
+        "worlds": 10
+      },
+      {
+        "budget": 1300,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 1.0,
+        "oracle_exp": 247.3,
+        "worlds": 10
+      },
+      {
+        "budget": 1800,
+        "euclid": 0.4,
+        "euclid_exp": 1626.5,
+        "oracle": 1.0,
+        "oracle_exp": 247.3,
+        "worlds": 10
+      },
+      {
+        "budget": 2500,
+        "euclid": 0.8,
+        "euclid_exp": 1903.25,
+        "oracle": 1.0,
+        "oracle_exp": 247.3,
+        "worlds": 10
+      },
+      {
+        "budget": 3500,
+        "euclid": 1.0,
+        "euclid_exp": 2160.5,
+        "oracle": 1.0,
+        "oracle_exp": 247.3,
+        "worlds": 10
+      }
+    ],
+    "C_dyn_maze_dense": [
+      {
+        "budget": 150,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.2,
+        "oracle_exp": 112.0,
+        "worlds": 10
+      },
+      {
+        "budget": 250,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.2,
+        "oracle_exp": 112.0,
+        "worlds": 10
+      },
+      {
+        "budget": 400,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.3,
+        "oracle_exp": 165.0,
+        "worlds": 10
+      },
+      {
+        "budget": 600,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.5,
+        "oracle_exp": 286.2,
+        "worlds": 10
+      },
+      {
+        "budget": 900,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.6,
+        "oracle_exp": 362.5,
+        "worlds": 10
+      },
+      {
+        "budget": 1300,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.6,
+        "oracle_exp": 362.5,
+        "worlds": 10
+      },
+      {
+        "budget": 1800,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.7,
+        "oracle_exp": 498.0,
+        "worlds": 10
+      },
+      {
+        "budget": 2500,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 808.0,
+        "worlds": 10
+      },
+      {
+        "budget": 3500,
+        "euclid": 0.1,
+        "euclid_exp": 3494.0,
+        "oracle": 0.9,
+        "oracle_exp": 808.0,
+        "worlds": 10
+      }
+    ],
+    "C_dyn_rooms": [
+      {
+        "budget": 150,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.7,
+        "oracle_exp": 42.0,
+        "worlds": 10
+      },
+      {
+        "budget": 250,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.8,
+        "oracle_exp": 62.75,
+        "worlds": 10
+      },
+      {
+        "budget": 400,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 1.0,
+        "oracle_exp": 101.0,
+        "worlds": 10
+      },
+      {
+        "budget": 600,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 1.0,
+        "oracle_exp": 101.0,
+        "worlds": 10
+      },
+      {
+        "budget": 900,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 1.0,
+        "oracle_exp": 101.0,
+        "worlds": 10
+      },
+      {
+        "budget": 1300,
+        "euclid": 0.1,
+        "euclid_exp": 1192.0,
+        "oracle": 1.0,
+        "oracle_exp": 101.0,
+        "worlds": 10
+      },
+      {
+        "budget": 1800,
+        "euclid": 0.8,
+        "euclid_exp": 1483.0,
+        "oracle": 1.0,
+        "oracle_exp": 101.0,
+        "worlds": 10
+      },
+      {
+        "budget": 2500,
+        "euclid": 1.0,
+        "euclid_exp": 1597.9,
+        "oracle": 1.0,
+        "oracle_exp": 101.0,
+        "worlds": 10
+      },
+      {
+        "budget": 3500,
+        "euclid": 1.0,
+        "euclid_exp": 1597.9,
+        "oracle": 1.0,
+        "oracle_exp": 101.0,
+        "worlds": 10
+      }
+    ],
+    "C_dyn_rooms_large": [
+      {
+        "budget": 150,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 62.22,
+        "worlds": 10
+      },
+      {
+        "budget": 250,
+        "euclid": 0.1,
+        "euclid_exp": 241.0,
+        "oracle": 0.9,
+        "oracle_exp": 62.22,
+        "worlds": 10
+      },
+      {
+        "budget": 400,
+        "euclid": 0.2,
+        "euclid_exp": 262.0,
+        "oracle": 1.0,
+        "oracle_exp": 82.4,
+        "worlds": 10
+      },
+      {
+        "budget": 600,
+        "euclid": 0.8,
+        "euclid_exp": 448.62,
+        "oracle": 1.0,
+        "oracle_exp": 82.4,
+        "worlds": 10
+      },
+      {
+        "budget": 900,
+        "euclid": 0.9,
+        "euclid_exp": 485.0,
+        "oracle": 1.0,
+        "oracle_exp": 82.4,
+        "worlds": 10
+      },
+      {
+        "budget": 1300,
+        "euclid": 1.0,
+        "euclid_exp": 532.4,
+        "oracle": 1.0,
+        "oracle_exp": 82.4,
+        "worlds": 10
+      },
+      {
+        "budget": 1800,
+        "euclid": 1.0,
+        "euclid_exp": 532.4,
+        "oracle": 1.0,
+        "oracle_exp": 82.4,
+        "worlds": 10
+      },
+      {
+        "budget": 2500,
+        "euclid": 1.0,
+        "euclid_exp": 532.4,
+        "oracle": 1.0,
+        "oracle_exp": 82.4,
+        "worlds": 10
+      },
+      {
+        "budget": 3500,
+        "euclid": 1.0,
+        "euclid_exp": 532.4,
+        "oracle": 1.0,
+        "oracle_exp": 82.4,
+        "worlds": 10
+      }
+    ],
+    "C_dyn_spiral": [
+      {
+        "budget": 150,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.3,
+        "oracle_exp": 103.67,
+        "worlds": 10
+      },
+      {
+        "budget": 250,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.6,
+        "oracle_exp": 148.33,
+        "worlds": 10
+      },
+      {
+        "budget": 400,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.8,
+        "oracle_exp": 190.0,
+        "worlds": 10
+      },
+      {
+        "budget": 600,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 215.33,
+        "worlds": 10
+      },
+      {
+        "budget": 900,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 215.33,
+        "worlds": 10
+      },
+      {
+        "budget": 1300,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 215.33,
+        "worlds": 10
+      },
+      {
+        "budget": 1800,
+        "euclid": 0.0,
+        "euclid_exp": null,
+        "oracle": 0.9,
+        "oracle_exp": 215.33,
+        "worlds": 10
+      },
+      {
+        "budget": 2500,
+        "euclid": 0.2,
+        "euclid_exp": 2207.0,
+        "oracle": 0.9,
+        "oracle_exp": 215.33,
+        "worlds": 10
+      },
+      {
+        "budget": 3500,
+        "euclid": 0.2,
+        "euclid_exp": 2207.0,
+        "oracle": 0.9,
+        "oracle_exp": 215.33,
+        "worlds": 10
+      }
+    ]
+  },
+  "warnings": [
+    "C_dyn_spiral: no usable difficulty point (no chosen budget has euclid_success in [0.35, 0.95]; euclid@chosen=[0.2, 0.2])",
+    "C_dyn_maze_dense: no usable difficulty point (no chosen budget has euclid_success in [0.35, 0.95]; euclid@chosen=[0.0, 0.1])"
+  ]
+}
