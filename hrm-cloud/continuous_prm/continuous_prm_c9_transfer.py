@@ -336,7 +336,7 @@ def run_eval(cfg: C9Config, device) -> Path:
 # ---------------------------------------------------------------------------
 
 from continuous_prm_c6_heatmap_value_field import mcnemar_exact_p, bh_q_values
-from continuous_prm_c7_integration_compare import wilcoxon_signed_rank_p, bootstrap_median_ci
+from continuous_prm_c7_integration_compare import bootstrap_median_ci
 
 
 def _load_rows(raw_csv): return list(_csv.DictReader(open(raw_csv, newline="")))
@@ -344,10 +344,26 @@ def _astar(rows): return [r for r in rows if r.get("mode") == "astar"]
 def _is_found(r): return str(r.get("found")) in ("True", "1", "true")
 
 
-def _euclid_exp_by_world(rows, target):
+def _binding_budget_for(rows, target, euclid_floor=0.05):
+    # euclid astar success per budget for this target
+    found, total = {}, {}
+    for r in _astar(rows):
+        if r["target"] != target or r["provider"] != "euclid":
+            continue
+        b = int(r["budget"]); total[b] = total.get(b, 0) + 1
+        found[b] = found.get(b, 0) + (1 if _is_found(r) else 0)
+    if not total:
+        return None
+    budgets = sorted(total)
+    qual = [b for b in budgets if (found[b] / total[b]) >= euclid_floor]
+    return qual[0] if qual else budgets[-1]
+
+
+def _euclid_exp_by_world(rows, target, budget):
     out = {}
     for r in _astar(rows):
-        if r["target"] == target and r["provider"] == "euclid" and _is_found(r):
+        if (r["target"] == target and r["provider"] == "euclid"
+                and int(r["budget"]) == budget and _is_found(r)):
             out[int(r["world_index"])] = float(r["expansions"])
     return out
 
@@ -356,20 +372,27 @@ def analyze_from_raw(raw_csv, out_dir, seed, targets, backbones):
     rows = _load_rows(raw_csv)
     res_dir = Path(out_dir); C.ensure_dir(res_dir)
     methods = ["zero_shot", "lora", "full_ft", "scratch"]
+    # ONE binding budget per target (mirrors C8): avoids collapsing the multi-budget
+    # band onto world_index and pairing arm expansions against a different-budget euclid.
+    binding = {t: _binding_budget_for(rows, t) for t in targets}
     curves = []
     for target in targets:
-        eu = _euclid_exp_by_world(rows, target)
+        bb = binding[target]
+        eu = _euclid_exp_by_world(rows, target, bb) if bb is not None else {}
         for backbone in backbones:
             for method in methods:
                 by_K, succ_by_K = {}, {}
                 for r in _astar(rows):
                     if r["target"] != target or r["method"] != method:
                         continue
+                    if bb is None or int(r["budget"]) != bb:
+                        continue
                     if method != "zero_shot" and r.get("backbone") != backbone:
                         continue
                     if method == "zero_shot" and r.get("backbone") not in ("", backbone):
                         continue
                     K = int(r["K"]); wi = int(r["world_index"]); found = _is_found(r)
+                    # pools naturally over (world x adapt-seed): one append per arm row
                     succ_by_K.setdefault(K, []).append(1 if found else 0)
                     if found and wi in eu and eu[wi] > 0:
                         by_K.setdefault(K, []).append(float(r["expansions"]) / eu[wi])
@@ -386,18 +409,20 @@ def analyze_from_raw(raw_csv, out_dir, seed, targets, backbones):
         for c in curves:
             wri.writerow({k: ("" if c[k] is None or (isinstance(c[k], float) and not np.isfinite(c[k])) else c[k]) for k in cols})
     comp_md = res_dir / "continuous_prm_c9_comparisons.md"
-    _write_comparisons_md(comp_md, curves)
+    _write_comparisons_md(comp_md, curves, binding)
     sig_md = res_dir / "continuous_prm_c9_significance.md"
-    _write_significance_md(sig_md, rows, targets, backbones, methods)
+    _write_significance_md(sig_md, rows, targets, backbones, methods, binding)
     print(f"[{now_str()}] c9 analyze: wrote {curves_csv}, {comp_md}, {sig_md}", flush=True)
     return {"curves": curves_csv, "comparisons": comp_md, "significance": sig_md}
 
 
-def _write_comparisons_md(path, curves):
+def _write_comparisons_md(path, curves, binding):
     by = {(c["target"], c["backbone"], c["method"], c["K"]): c for c in curves}
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
     lines = ["# C9 Transfer — Pre-registered Comparisons", "",
              "Adaptation curves: matched A* expansion-ratio vs euclid (median, 95% CI) per K.",
-             "lora vs scratch = transfer helps; lora vs full_ft = sample-efficiency; vs K=0 = adaptation helps. Lower = fewer expansions.", ""]
+             "lora vs scratch = transfer helps; lora vs full_ft = sample-efficiency; vs K=0 = adaptation helps. Lower = fewer expansions.",
+             f"All results are at the per-target binding budget ({binding_str}); expansion-ratios are pooled over adapt-seeds (n = #worlds x #seeds).", ""]
     targets = sorted({c["target"] for c in curves}); backbones = sorted({c["backbone"] for c in curves})
     Ks = sorted({c["K"] for c in curves})
     for target in targets:
@@ -414,41 +439,51 @@ def _write_comparisons_md(path, curves):
     Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 
-def _write_significance_md(path, rows, targets, backbones, methods):
-    """McNemar + BH success grid: learned arms vs euclid, per (target, backbone, method, K)."""
+def _write_significance_md(path, rows, targets, backbones, methods, binding):
+    """McNemar + BH success grid: learned arms vs euclid, per (target, backbone, method, K).
+    Restricted to each target's binding budget; arm observations are paired over
+    (world, adapt-seed) — each arm row vs that world's euclid-found — so n = #worlds x #seeds."""
     astar_rows = _astar(rows)
-    # Build euclid found-by-world index: {target: {wi: bool}}
+    # euclid found-by-world at the binding budget: {target: {wi: bool}}
     eu_found: Dict[str, Dict[int, bool]] = {}
     for r in astar_rows:
-        if r["provider"] == "euclid":
-            eu_found.setdefault(r["target"], {})[int(r["world_index"])] = _is_found(r)
+        if r["provider"] != "euclid":
+            continue
+        bb = binding.get(r["target"])
+        if bb is None or int(r["budget"]) != bb:
+            continue
+        eu_found.setdefault(r["target"], {})[int(r["world_index"])] = _is_found(r)
 
     comparisons = []
     pvals = []
     for target in targets:
+        bb = binding.get(target)
         eu_by_wi = eu_found.get(target, {})
         for backbone in backbones:
             for method in methods:
-                # Collect all K values present for this arm
-                Ks_present: Dict[int, Dict[int, bool]] = {}  # K -> {wi: found}
+                # K -> list of (world_index, arm_found) pairs, pooled over adapt-seeds
+                Ks_present: Dict[int, list] = {}
                 for r in astar_rows:
                     if r["target"] != target or r["method"] != method:
+                        continue
+                    if bb is None or int(r["budget"]) != bb:
                         continue
                     if method != "zero_shot" and r.get("backbone") != backbone:
                         continue
                     if method == "zero_shot" and r.get("backbone") not in ("", backbone):
                         continue
                     K = int(r["K"]); wi = int(r["world_index"])
-                    Ks_present.setdefault(K, {})[wi] = _is_found(r)
-                for K, arm_by_wi in sorted(Ks_present.items()):
-                    shared = sorted(set(eu_by_wi) & set(arm_by_wi))
-                    n = len(shared)
+                    Ks_present.setdefault(K, []).append((wi, _is_found(r)))
+                for K, obs in sorted(Ks_present.items()):
+                    # keep only observations whose world has a euclid result at this budget
+                    pairs = [(wi, af) for (wi, af) in obs if wi in eu_by_wi]
+                    n = len(pairs)
                     if n == 0:
                         continue
-                    gain = sum(1 for wi in shared if arm_by_wi[wi] and not eu_by_wi.get(wi, False))
-                    loss = sum(1 for wi in shared if eu_by_wi.get(wi, False) and not arm_by_wi[wi])
-                    eu_succ = float(np.mean([1.0 if eu_by_wi.get(wi, False) else 0.0 for wi in shared]))
-                    arm_succ = float(np.mean([1.0 if arm_by_wi[wi] else 0.0 for wi in shared]))
+                    gain = sum(1 for (wi, af) in pairs if af and not eu_by_wi[wi])
+                    loss = sum(1 for (wi, af) in pairs if eu_by_wi[wi] and not af)
+                    eu_succ = float(np.mean([1.0 if eu_by_wi[wi] else 0.0 for (wi, _) in pairs]))
+                    arm_succ = float(np.mean([1.0 if af else 0.0 for (_, af) in pairs]))
                     p = mcnemar_exact_p(gain, loss)
                     pvals.append(p)
                     comparisons.append(dict(target=target, backbone=backbone, method=method, K=K,
@@ -468,12 +503,14 @@ def _write_significance_md(path, rows, targets, backbones, methods):
             return "n/a"
         return f"{v:.3f}"
 
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
     lines = [
         "# C9 Transfer — Significance",
         "",
         "McNemar exact test (learned arm found & euclid not = gain; euclid found & arm not = loss).",
         "BH correction applied across all comparisons in this table.",
         "n/a when fewer than 2 discordant pairs.",
+        f"All results are at the per-target binding budget ({binding_str}); McNemar pairs are pooled over adapt-seeds (n = #worlds x #seeds).",
         "",
         "|target|backbone|method|K|n|euclid_succ|arm_succ|gain|loss|McNemar p|BH q|",
         "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
