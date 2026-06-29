@@ -40,3 +40,36 @@ def apply_conv_lora(unet: nn.Module, rank: int, alpha: float, init_scale: float 
             conv, "weight", C.SingleAdapterLoRA(w.data, rank, alpha, init_scale=init_scale), unsafe=True)
         wrapped += 1
     return wrapped
+
+
+@dataclass
+class C9hConfig:
+    source_dir: str = "hrm-cloud/continuous_prm/runs/c7_local"
+    out_dir: str = "hrm-cloud/continuous_prm/runs/c9h_local"
+    targets: str = "C_hard_maze_dense,C_hard_bugtrap,C_hard_rooms_large"
+    backbones: str = "hrm,onlstm,unet"
+    methods: str = "lora_bounded,lora_unbounded,full_ft,scratch"
+    k_grid: str = "1,4,16"
+    n_adapt_seeds: int = 3
+    n_test: int = 30
+    epochs: int = 10
+    lr: float = 2.0e-4
+    rank: int = 8
+    alpha: float = 1.0
+    grid_size: int = 64
+    roadmap_nodes: int = 192
+    roadmap_k: int = 7
+    budgets: str = ""
+    w_values: str = "1.0,1.1"
+    seed: int = 1234
+    scale: str = "local"
+    mode: str = "full"
+    cpu: bool = False
+
+
+def _is_field(backbone: str) -> bool:
+    return backbone == "unet"
+
+
+def now_str() -> str:
+    return C.now_str()

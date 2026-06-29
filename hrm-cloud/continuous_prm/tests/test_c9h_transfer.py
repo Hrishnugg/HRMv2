@@ -36,3 +36,13 @@ def test_conv_lora_changes_output_after_step():
     loss = unet(x).pow(2).mean()
     opt.zero_grad(); loss.backward(); opt.step()
     assert not torch.allclose(base_out, unet(x), atol=1e-6)
+
+
+def test_c9hconfig_defaults():
+    cfg = C9H.C9hConfig()
+    assert cfg.backbones == "hrm,onlstm,unet"
+    assert cfg.methods == "lora_bounded,lora_unbounded,full_ft,scratch"
+    assert cfg.k_grid == "1,4,16"
+    assert cfg.n_adapt_seeds == 3
+    assert cfg.epochs == 10 and abs(cfg.lr - 2e-4) < 1e-12
+    assert cfg.source_dir.endswith("c7_local")
