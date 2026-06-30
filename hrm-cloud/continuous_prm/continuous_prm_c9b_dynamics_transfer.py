@@ -4,7 +4,7 @@ heuristics (aware + blind) to held-out dynamic families via zero_shot/LoRA/full_
 New-file-only; reuses C8 + C9/C9h + common. See docs/superpowers/specs/2026-06-30-c9b-dynamics-transfer-design.md.
 """
 from __future__ import annotations
-import argparse, dataclasses, csv as _csv, json, hashlib
+import argparse, dataclasses, csv as _csv, json, hashlib, functools
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -109,11 +109,25 @@ def _build_world_only(suite: str, seed: int):
     return None if res is None else res[0]
 
 
-def _valid_world_seed(suite: str, seed: int, cfg: C9bConfig) -> bool:
+@functools.lru_cache(maxsize=64)
+def _collect_world_labels_memo(suite: str, seed: int, grid_size: int) -> Optional[dict]:
+    """Bounded memo around M8._collect_world_labels keyed by (suite, seed, grid_size).
+
+    `_collect_world_labels` runs a ~9s backward space-time Dijkstra per world;
+    both `_valid_world_seed` (selection) and `collect_temporal_dataset` (Task 3)
+    call it on the SAME seeds, so caching avoids doing that work twice per seed.
+    grid_size is part of the key for forward-compat even though
+    `_collect_world_labels` itself does not currently read it.
+    """
+    cfg = C9bConfig(grid_size=int(grid_size))
     try:
-        lab = M8._collect_world_labels(suite, int(seed), _c8cfg(cfg))
+        return M8._collect_world_labels(suite, int(seed), _c8cfg(cfg))
     except Exception:
-        return False
+        return None
+
+
+def _valid_world_seed(suite: str, seed: int, cfg: C9bConfig) -> bool:
+    lab = _collect_world_labels_memo(suite, int(seed), int(cfg.grid_size))
     return lab is not None
 
 
@@ -139,3 +153,161 @@ def adapt_world_seeds(target: str, K: int, seed_idx: int, cfg: C9bConfig) -> Lis
         if _valid_world_seed(target, s, cfg):
             out.append(s)
     return out
+
+
+# -----------------------------------------------------------------------------
+# Task 3 — temporal dataset collection (aware/blind, scalar/field)
+# -----------------------------------------------------------------------------
+#
+# Build a K-shot dataset of TEMPORAL FEATURES + space-time-oracle RESIDUAL
+# TARGETS for a given backbone (scalar_* or field_*) and window_w (W>0 = aware,
+# W=0 = blind). The schema MUST mirror what C8's own trainers
+# (`M8._train_scalar` / `M8._train_field`) consume, since the frozen C8 source
+# checkpoints we adapt here were trained on exactly that representation.
+#
+# Scalar schema (mirrors M8._build_scalar_dataset, used by M8._train_scalar):
+#   Per world: Xw = DP.build_scalar_temporal_features(world, rm, dyn, t_max, dt,
+#     W, k_patrollers, goal_idx=1)              # (N, t_max+1, W+1, token_dim)
+#   flattened to (N*(t_max+1), W+1, token_dim); yw = node_residual.reshape(-1);
+#   mw = reachable.reshape(-1); concatenated across worlds; THEN masked down to
+#   reachable rows only (M8._train_scalar does `Xk = X[mask_np]` before training)
+#   -> x: (M, W+1, token_dim) float32, y: (M,) float32. We mask at collection
+#   time (we are building the trainer's input directly, not the pre-mask pool).
+#
+# Field schema (mirrors M8._FieldTemporalDataset / M8._train_field's loader):
+#   Per (world, t): occ = DP.build_field_occupancy_stack(world, dyn, grid_size,
+#     t, W, dt, static_base=...)                # (8+W, G, G)
+#   cells = per-PRM-node integer grid-cells (N, 2) [ix, iy] (constant over t,
+#   via M8._build_field_node_cells using the SAME gather convention C6 uses);
+#   target = node_residual[:, t] (N,) float32; mask = reachable[:, t] (N,) bool.
+#   We store the FLAT (un-padded, un-batched) per-(world,t) samples; Task 5's
+#   trainer is expected to do its own batching/padding (mirroring
+#   M8._field_collate) since variable-N concatenation here would lose the
+#   per-sample N needed to reconstruct (cells, target, mask) triples. Keys:
+#     occ    (S, 8+W, G, G) float32 — S = sum over worlds of (t_max+1)
+#     cells  (S, N, 2)      int64   — ragged N zero-padded to max N across ALL
+#                                     samples (cells_valid marks real rows)
+#     target (S, N)         float32
+#     mask   (S, N)         bool    — reachable AND not-a-padding-row
+#   (padding follows M8._field_collate's convention: mask=False on padded rows)
+
+
+def collect_temporal_dataset(
+    target: str,
+    seeds: List[int],
+    backbone: str,
+    window_w: int,
+    k_patrollers: int,
+    grid_size: int,
+    out_npz: "str | Path",
+) -> Path:
+    """Build and save a K-shot temporal dataset for `target` over `seeds`.
+
+    `backbone` selects scalar vs field schema via `_is_field`. `window_w` is W
+    (0 = time-blind, >0 = time-aware with that lookback). `k_patrollers` MUST
+    match the frozen C8 source checkpoint's k_patrollers so token_dim lines up
+    (scalar only; field has no k_patrollers dependence). Returns the Path the
+    dataset was saved to (== Path(out_npz)).
+    """
+    out_npz = Path(out_npz)
+    out_npz.parent.mkdir(parents=True, exist_ok=True)
+    W = int(window_w)
+    G = int(grid_size)
+    is_field = _is_field(backbone)
+
+    labelsets: List[dict] = []
+    for s in seeds:
+        lab = _collect_world_labels_memo(target, int(s), G)
+        if lab is None:
+            # Selected seeds are expected to always yield a labelset (Task 2's
+            # selection already filtered on this); guard defensively anyway.
+            continue
+        labelsets.append(lab)
+
+    if not is_field:
+        # --- Scalar branch: mirrors M8._build_scalar_dataset exactly ---------
+        token_dim = 4 + 4 * int(k_patrollers)
+        Xs: List[np.ndarray] = []
+        ys: List[np.ndarray] = []
+        for lab in labelsets:
+            world, rm, dyn = lab["world"], lab["rm"], lab["dyn"]
+            params = lab["params"]
+            dt = float(params["dt"])
+            t_max = int(params["t_max"])
+            Xw = DP.build_scalar_temporal_features(
+                world, rm, dyn, t_max, dt, W, int(k_patrollers), goal_idx=1
+            )  # (N, t_max+1, W+1, token_dim)
+            N = Xw.shape[0]
+            Xw = Xw.reshape(N * (t_max + 1), W + 1, token_dim).astype(np.float32)
+            yw = lab["node_residual"].reshape(-1).astype(np.float32)
+            mw = lab["reachable"].reshape(-1).astype(np.bool_)
+            # Mask down to reachable rows now (mirrors _train_scalar's Xk = X[mask]).
+            Xs.append(Xw[mw])
+            ys.append(yw[mw])
+        if Xs:
+            x = np.concatenate(Xs, axis=0)
+            y = np.concatenate(ys, axis=0)
+        else:
+            x = np.zeros((0, W + 1, token_dim), dtype=np.float32)
+            y = np.zeros((0,), dtype=np.float32)
+        np.savez(
+            out_npz,
+            x=x,
+            y=y,
+            seeds=np.asarray(seeds, dtype=np.int64),
+            window_w=np.asarray(W, dtype=np.int64),
+            k_patrollers=np.asarray(int(k_patrollers), dtype=np.int64),
+            token_dim=np.asarray(token_dim, dtype=np.int64),
+        )
+        return out_npz
+
+    # --- Field branch: mirrors M8._FieldTemporalDataset / _train_field's loader.
+    occs: List[np.ndarray] = []
+    cells_l: List[np.ndarray] = []
+    targets_l: List[np.ndarray] = []
+    masks_l: List[np.ndarray] = []
+    for lab in labelsets:
+        world, dyn, rm = lab["world"], lab["dyn"], lab["rm"]
+        dt = float(lab["params"]["dt"])
+        t_max = int(lab["params"]["t_max"])
+        static_base = DP.compute_field_static_base(world, G)
+        node_cells = M8._build_field_node_cells(rm, float(world.side_len), G)  # (N, 2)
+        for t in range(t_max + 1):
+            occ = DP.build_field_occupancy_stack(world, dyn, G, t, W, dt, static_base=static_base)
+            occs.append(np.ascontiguousarray(occ, dtype=np.float32))           # (8+W, G, G)
+            cells_l.append(node_cells)
+            targets_l.append(lab["node_residual"][:, t].astype(np.float32))    # (N,)
+            masks_l.append(lab["reachable"][:, t].astype(np.bool_))            # (N,)
+
+    S = len(occs)
+    in_channels = 8 + W
+    if S == 0:
+        occ_arr = np.zeros((0, in_channels, G, G), dtype=np.float32)
+        cells_arr = np.zeros((0, 0, 2), dtype=np.int64)
+        target_arr = np.zeros((0, 0), dtype=np.float32)
+        mask_arr = np.zeros((0, 0), dtype=np.bool_)
+    else:
+        Nmax = max(int(c.shape[0]) for c in cells_l)
+        occ_arr = np.stack(occs, axis=0)                                       # (S, 8+W, G, G)
+        cells_arr = np.zeros((S, Nmax, 2), dtype=np.int64)
+        target_arr = np.zeros((S, Nmax), dtype=np.float32)
+        mask_arr = np.zeros((S, Nmax), dtype=np.bool_)
+        for i in range(S):
+            n = int(cells_l[i].shape[0])
+            cells_arr[i, :n] = cells_l[i]
+            target_arr[i, :n] = targets_l[i]
+            mask_arr[i, :n] = masks_l[i]
+            # rows >= n stay mask=False (padding), matching M8._field_collate.
+
+    np.savez(
+        out_npz,
+        occ=occ_arr,
+        cells=cells_arr,
+        target=target_arr,
+        mask=mask_arr,
+        seeds=np.asarray(seeds, dtype=np.int64),
+        window_w=np.asarray(W, dtype=np.int64),
+        grid_size=np.asarray(G, dtype=np.int64),
+        in_channels=np.asarray(in_channels, dtype=np.int64),
+    )
+    return out_npz

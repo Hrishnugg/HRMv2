@@ -32,3 +32,16 @@ def test_adapt_test_disjoint():
     fa = {C9.world_fingerprint(C9B._build_world_only("C_dyn_crossing", s)) for s in adapt}
     ft = {C9.world_fingerprint(C9B._build_world_only("C_dyn_crossing", s)) for s in test}
     assert fa.isdisjoint(ft)
+
+
+@pytest.mark.skipif(not (HERE / "runs/c8_local_heavy/checkpoints/c8_scalar__hrm.pt").exists(), reason="c8 sources missing")
+def test_temporal_dataset_shapes(tmp_path):
+    C9B.install()
+    cfg = C9B.C9bConfig(out_dir=str(tmp_path / "c9b"))
+    seeds = C9B.adapt_world_seeds("C_dyn_crossing", K=2, seed_idx=0, cfg=cfg)
+    sa = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="scalar_hrm", window_w=8, k_patrollers=2, grid_size=64, out_npz=tmp_path / "sa.npz")
+    sb = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="scalar_hrm", window_w=0, k_patrollers=2, grid_size=64, out_npz=tmp_path / "sb.npz")
+    A = np.load(sa); B = np.load(sb)
+    assert A["x"].ndim == 3 and A["x"].shape[1] == 9      # (M, W+1=9, token_dim)
+    assert B["x"].shape[1] == 1                            # blind seq dim 1
+    assert A["y"].shape[0] == A["x"].shape[0] and A["x"].shape[0] > 0
