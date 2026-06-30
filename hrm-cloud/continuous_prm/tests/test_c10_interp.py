@@ -22,3 +22,16 @@ def test_family_grid_specs_and_bracketing():
     z = C10.family_descriptor_centroid(specs["C10_maze_tgt"], n=8, seed=3)
     ok, viol = C10.bracketing_ok(z, [C10.family_descriptor_centroid(specs[f], n=8, seed=3) for f in C10.SOURCE_FAMILIES])
     assert isinstance(ok, bool)
+
+
+def test_rbf_weights():
+    cent = [np.array([0.,0.]), np.array([1.,0.]), np.array([0.,1.])]
+    z = np.array([0.1, 0.1])
+    w = C10.rbf_weights(z, cent, sigma=1.0)
+    assert abs(float(w.sum()) - 1.0) < 1e-6 and w.shape == (3,)
+    assert int(np.argmax(w)) == 0  # nearest centroid gets most weight
+    w0 = C10.rbf_weights(z, cent, sigma=1e-4)  # sigma->0 => one-hot on nearest
+    assert w0[0] > 0.99
+    assert C10.nearest_weights(z, cent).tolist() == [1.0, 0.0, 0.0]
+    u = C10.uniform_weights(3)
+    assert np.allclose(u, 1/3)

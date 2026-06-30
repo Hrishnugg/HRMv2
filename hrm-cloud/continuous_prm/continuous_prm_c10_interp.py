@@ -93,3 +93,52 @@ def bracketing_ok(z_t, source_centroids, rel_tol: float = 0.05) -> Tuple[bool, L
         if z[d] < lo[d] - tol or z[d] > hi[d] + tol:
             viol.append(int(d))
     return (len(viol) == 0, viol)
+
+
+@dataclass
+class C10Config:
+    source_dir: str = "hrm-cloud/continuous_prm/runs/c7_local"
+    out_dir: str = "hrm-cloud/continuous_prm/runs/c10_local"
+    backbones: str = "hrm,onlstm"
+    n_src_worlds: int = 48
+    n_centroid_worlds: int = 24
+    n_test: int = 30
+    rank: int = 8
+    alpha: float = 1.0
+    rbf_sigma: float = 1.0
+    epochs: int = 10
+    lr: float = 2.0e-4
+    roadmap_nodes: int = 192
+    roadmap_k: int = 7
+    budgets: str = "150,250,400,600,900,1300"   # eval grid; binding budget chosen in analyze
+    w_values: str = "1.0,1.1"
+    seed: int = 1234
+    scale: str = "local"
+    mode: str = "full"
+    cpu: bool = False
+
+
+def now_str() -> str:
+    return C.now_str()
+
+
+def rbf_weights(z_t, centroids, sigma: float) -> np.ndarray:
+    Z = np.stack([np.asarray(c, dtype=np.float64) for c in centroids], 0)
+    s = Z.std(0); s = np.where(s < 1e-6, 1.0, s)        # per-dim scale, epsilon-floored
+    d2 = (((np.asarray(z_t, dtype=np.float64)[None, :] - Z) / s) ** 2).sum(1)
+    logits = -d2 / (2.0 * max(1e-12, float(sigma) ** 2))
+    logits -= logits.max()
+    w = np.exp(logits); w /= w.sum()
+    return w
+
+
+def nearest_weights(z_t, centroids) -> np.ndarray:
+    Z = np.stack([np.asarray(c, dtype=np.float64) for c in centroids], 0)
+    s = Z.std(0); s = np.where(s < 1e-6, 1.0, s)
+    d2 = (((np.asarray(z_t, dtype=np.float64)[None, :] - Z) / s) ** 2).sum(1)
+    w = np.zeros(Z.shape[0]); w[int(np.argmin(d2))] = 1.0
+    return w
+
+
+def uniform_weights(n: int) -> np.ndarray:
+    return np.full(int(n), 1.0 / int(n), dtype=np.float64)
