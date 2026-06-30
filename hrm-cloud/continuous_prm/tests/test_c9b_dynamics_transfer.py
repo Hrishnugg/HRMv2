@@ -39,9 +39,25 @@ def test_temporal_dataset_shapes(tmp_path):
     C9B.install()
     cfg = C9B.C9bConfig(out_dir=str(tmp_path / "c9b"))
     seeds = C9B.adapt_world_seeds("C_dyn_crossing", K=2, seed_idx=0, cfg=cfg)
-    sa = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="scalar_hrm", window_w=8, k_patrollers=2, grid_size=64, out_npz=tmp_path / "sa.npz")
-    sb = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="scalar_hrm", window_w=0, k_patrollers=2, grid_size=64, out_npz=tmp_path / "sb.npz")
+    sa = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="scalar_hrm", window_w=8, k_patrollers=4, grid_size=64, out_npz=tmp_path / "sa.npz")
+    sb = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="scalar_hrm", window_w=0, k_patrollers=4, grid_size=64, out_npz=tmp_path / "sb.npz")
     A = np.load(sa); B = np.load(sb)
     assert A["x"].ndim == 3 and A["x"].shape[1] == 9      # (M, W+1=9, token_dim)
     assert B["x"].shape[1] == 1                            # blind seq dim 1
     assert A["y"].shape[0] == A["x"].shape[0] and A["x"].shape[0] > 0
+
+
+@pytest.mark.skipif(not (HERE / "runs/c8_local_heavy/checkpoints/c8_field__unet.pt").exists(), reason="c8 sources missing")
+def test_temporal_dataset_field_shapes(tmp_path):
+    C9B.install()
+    cfg = C9B.C9bConfig(out_dir=str(tmp_path / "c9b"))
+    seeds = C9B.adapt_world_seeds("C_dyn_crossing", K=2, seed_idx=0, cfg=cfg)
+    f = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="field_unet", window_w=8,
+                                     k_patrollers=4, grid_size=64, out_npz=tmp_path / "f.npz")
+    F = np.load(f)
+    assert F["occ"].ndim == 4 and F["occ"].shape[1] == 16          # 8 + W(=8)
+    assert F["occ"].shape[2] == 64 and F["occ"].shape[3] == 64
+    assert F["occ"].shape[0] > 0
+    assert F["cells"].shape[0] == F["occ"].shape[0] and F["cells"].shape[2] == 2
+    assert F["target"].shape == F["mask"].shape == F["cells"].shape[:2]
+    assert F["mask"].dtype == np.bool_
