@@ -311,3 +311,120 @@ def collect_temporal_dataset(
         in_channels=np.asarray(in_channels, dtype=np.int64),
     )
     return out_npz
+
+
+# -----------------------------------------------------------------------------
+# Task 4 — scalar temporal trainer (scratch / full_ft / lora, matched recipe)
+# -----------------------------------------------------------------------------
+#
+# `source_ckpt` is ALWAYS provided (even for method="scratch") because the
+# MODEL ARCHITECTURE (backbone_cfg, window_w, k_patrollers, token_dim,
+# max_norm_residual) lives in the frozen C8 scalar source payload — we never
+# re-derive or default those from cfg. `method` only controls weight loading:
+#   scratch  -> build same-architecture model, random init (no source weights)
+#   full_ft  -> build + load source weights, train ALL params
+#   lora     -> build + load source weights + C.apply_lora + freeze non-LoRA
+# Mirrors M8._train_scalar's model build / smooth-L1 loss / AdamW / grad-clip
+# / epoch loop (continuous_prm_c8_dynamics_compare.py:348-452), and
+# C9H.train_scalar_lora's apply_lora + freeze-non-LoRA + bounded handling
+# pattern (continuous_prm_c9h_transfer.py:82-119).
+
+SCALAR_METHODS = ("scratch", "full_ft", "lora")
+
+
+def train_scalar_temporal(
+    dataset_npz: "str | Path",
+    out_ckpt: "str | Path",
+    source_ckpt: "str | Path",
+    method: str,
+    cfg: C9bConfig,
+    device,
+    seed: int,
+) -> Path:
+    """Train a scalar temporal adapter at matched compute from a frozen C8 source.
+
+    Loads the C8 scalar source payload (cpu) to recover the model ARCHITECTURE
+    (backbone_cfg, window_w, k_patrollers, token_dim, max_norm_residual) —
+    these are never defaulted from cfg. `method` selects weight loading:
+    scratch=random-init, full_ft=load+train-all, lora=load+apply_lora+freeze
+    non-LoRA params. Asserts the dataset npz's window_w/token_dim/k_patrollers
+    match the source's (schema guard). Returns the Path the checkpoint was
+    saved to (== Path(out_ckpt)).
+    """
+    import torch.nn.functional as F
+
+    if method not in SCALAR_METHODS:
+        raise ValueError(f"unknown scalar temporal method {method!r}; have {SCALAR_METHODS}")
+
+    out_ckpt = Path(out_ckpt)
+    source_ckpt = Path(source_ckpt)
+
+    source = torch.load(source_ckpt, map_location="cpu")
+    backbone_cfg = C.BackboneConfig(**source["backbone_cfg"])
+    window_w = int(source["window_w"])
+    k_patrollers = int(source["k_patrollers"])
+    token_dim = int(source["token_dim"])
+    max_norm_residual = float(source["max_norm_residual"])
+    backbone_name = source["backbone"]
+
+    npz = np.load(dataset_npz)
+    if int(npz["window_w"]) != window_w:
+        raise ValueError(f"dataset window_w={int(npz['window_w'])} != source window_w={window_w}")
+    if int(npz["token_dim"]) != token_dim:
+        raise ValueError(f"dataset token_dim={int(npz['token_dim'])} != source token_dim={token_dim}")
+    if int(npz["k_patrollers"]) != k_patrollers:
+        raise ValueError(f"dataset k_patrollers={int(npz['k_patrollers'])} != source k_patrollers={k_patrollers}")
+    x = np.ascontiguousarray(npz["x"])
+    y = np.ascontiguousarray(npz["y"])
+
+    C.set_global_seed(int(seed))
+
+    model = C.ContinuousHeuristicModel(
+        backbone_cfg, token_dim=token_dim, max_norm_residual=max_norm_residual
+    ).to(device)
+
+    if method != "scratch":
+        C.safe_load_state(model, source_ckpt)
+    if method == "lora":
+        C.apply_lora(model, rank=int(cfg.rank), alpha=float(cfg.alpha))
+        C.set_lora_trainable(model)
+
+    params = [p for p in model.parameters() if p.requires_grad]
+    opt = torch.optim.AdamW(params, lr=float(cfg.lr))
+
+    ds = C.ArrayDataset(x, y)
+    loader = C.make_loader(ds, batch_size=256, shuffle=True, num_workers=0)
+
+    grad_clip = 1.0
+    model.train()
+    for _ep in range(int(cfg.epochs)):
+        for xb, yb in loader:
+            xb = xb.to(device); yb = yb.to(device)
+            pred = model(xb)
+            if not torch.isfinite(pred).all():
+                raise FloatingPointError(f"scalar temporal train {method}: non-finite prediction")
+            loss = F.smooth_l1_loss(pred, yb)
+            if not torch.isfinite(loss):
+                raise FloatingPointError(f"scalar temporal train {method}: non-finite loss")
+            opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, grad_clip)
+            opt.step()
+
+    payload = {
+        "model": model.state_dict(),
+        "backbone_cfg": asdict(backbone_cfg),
+        "window_w": int(window_w),
+        "k_patrollers": int(k_patrollers),
+        "token_dim": int(token_dim),
+        "max_norm_residual": float(max_norm_residual),
+        "backbone": backbone_name,
+        "method": method,
+    }
+    if method == "lora":
+        payload["lora_rank"] = int(cfg.rank)
+        payload["alpha"] = float(cfg.alpha)
+
+    out_ckpt.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(payload, out_ckpt)
+    return out_ckpt
