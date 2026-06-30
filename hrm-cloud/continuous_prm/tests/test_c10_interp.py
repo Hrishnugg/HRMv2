@@ -113,3 +113,6 @@ def test_pred_mix_provider(tmp_path):
     H7.install_c7_hard_maps(); specs = C.build_anchor_specs()
     w = C.build_world(specs["C_hard_bugtrap"], 7, 0.45); rm = C.build_prm(w, C.RoadmapConfig(n_nodes=64,k_neighbors=7), seed=24)
     assert np.allclose(prov.node_h(w, rm), p0.node_h(w, rm), atol=1e-5)
+    prov1 = C10.make_pred_mix_provider([e0, e1], np.array([0.0, 1.0]), dev, name="pmix1")
+    p1 = C9H.load_scalar_provider_c9h(e1, dev)
+    assert np.allclose(prov1.node_h(w, rm), p1.node_h(w, rm), atol=1e-5)

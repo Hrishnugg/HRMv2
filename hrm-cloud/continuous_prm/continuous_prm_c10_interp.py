@@ -284,6 +284,8 @@ class _PredMixProvider(P.HeuristicProvider):
         yhat = np.clip(acc, 0.0, self.max_resid)
         euclid = P.euclid_to_goal(roadmap, goal_idx)
         h = euclid + world.side_len * yhat
+        if not np.all(np.isfinite(h)):
+            raise FloatingPointError("_PredMixProvider produced non-finite h")
         return np.maximum(h, 0.0)
 
 
