@@ -922,3 +922,391 @@ def run_eval(cfg: C9bConfig, device, only_targets: Optional[List[str]] = None) -
             wri.writerow({k: r.get(k, "") for k in C9B_RAW_COLS})
     print(f"[{now_str()}] c9b eval: merged {len(all_rows)} rows -> {raw}", flush=True)
     return raw
+
+
+# -----------------------------------------------------------------------------
+# Task 9 — analyze mode (crossover curves + significance + aware-vs-blind
+# success-composite probe)
+# -----------------------------------------------------------------------------
+#
+# Mirrors C9.analyze_from_raw (continuous_prm_c9_transfer.py:371-416) but adds
+# the `awareness` axis throughout (C9b has no single "method" curve per
+# (target, backbone) — every arm is also split aware/blind) and adds a THIRD
+# artifact, the probe, which is the headline report: does adaptation let the
+# time-aware arm pull ahead of time-blind on cells where C8's local-scale
+# spotlight (see c8-dynamics memory) did not land zero-shot? C_dyn_crossing is
+# the time-coupling CONTROL suite (less time-coupled than the hardened
+# suites), so it is expected to stay ~tied aware vs blind even after
+# adaptation; a genuine flip would show up on the harder dynamic suites.
+#
+# Primary metric is `expansions` on mode=="astar" rows (matched A*
+# expansion-ratio vs euclid), exactly as in C9 — arrival/suboptimality are
+# makespan and not part of this curve.
+
+from continuous_prm_c6_heatmap_value_field import mcnemar_exact_p, bh_q_values
+from continuous_prm_c7_integration_compare import bootstrap_median_ci
+
+C9B_ARMS = ["zero_shot", "lora", "full_ft", "scratch"]
+
+
+def analyze_from_raw_c9b(raw_csv, out_dir, seed, targets, backbones, awareness) -> dict:
+    """Write the C9b curves CSV + comparisons/significance/probe MD from a raw eval CSV.
+
+    Mirrors C9.analyze_from_raw, with an added `awareness` axis on every curve
+    cell (zero_shot/lora/full_ft/scratch x aware/blind), plus a third artifact
+    (`probe`) — the aware-vs-blind success-composite report. Returns a dict of
+    the four output Paths: {"curves", "comparisons", "significance", "probe"}.
+    """
+    rows = C9._load_rows(raw_csv)
+    res = Path(out_dir); C.ensure_dir(res)
+    binding = {t: C9._binding_budget_for(rows, t) for t in targets}
+    curves = []
+    for target in targets:
+        bb = binding[target]
+        eu = C9._euclid_exp_by_world(rows, target, bb) if bb is not None else {}
+        for backbone in backbones:
+            for aware in awareness:
+                for arm in C9B_ARMS:
+                    # pool over (world, seed) at the binding budget
+                    by_k_ratios, by_k_succ = {}, {}
+                    for r in C9._astar(rows):
+                        if r["target"] != target or r["method"] != arm: continue
+                        if r.get("backbone") != backbone or r.get("awareness") != aware: continue
+                        if bb is None or int(r["budget"]) != bb: continue
+                        K = int(r["K"]); wi = int(r["world_index"]); found = C9._is_found(r)
+                        by_k_succ.setdefault(K, []).append(1 if found else 0)
+                        if found and wi in eu and eu[wi] > 0:
+                            by_k_ratios.setdefault(K, []).append(float(r["expansions"]) / eu[wi])
+                    for K in sorted(set(list(by_k_ratios) + list(by_k_succ))):
+                        med, lo, hi = bootstrap_median_ci(by_k_ratios.get(K, []), seed=seed)
+                        succ = float(np.mean(by_k_succ.get(K, []))) if by_k_succ.get(K) else float("nan")
+                        curves.append(dict(target=target, backbone=backbone, awareness=aware, arm=arm, K=K,
+                                           binding_budget=bb, n_matched=len(by_k_ratios.get(K, [])),
+                                           exp_ratio_median=med, ci_lo=lo, ci_hi=hi, success=succ))
+    curves_csv = res / "continuous_prm_c9b_curves.csv"
+    cols = ["target","backbone","awareness","arm","K","binding_budget","n_matched","exp_ratio_median","ci_lo","ci_hi","success"]
+    with open(curves_csv, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=cols); wri.writeheader()
+        for c in curves:
+            wri.writerow({k: ("" if c[k] is None or (isinstance(c[k], float) and not np.isfinite(c[k])) else c[k]) for k in cols})
+    comp_md = res / "continuous_prm_c9b_comparisons.md"; _write_comparisons_md_c9b(comp_md, curves, binding)
+    sig_md  = res / "continuous_prm_c9b_significance.md"; _write_significance_md_c9b(sig_md, rows, targets, backbones, awareness, binding)
+    probe_md = res / "continuous_prm_c9b_probe.md";       _write_probe_md_c9b(probe_md, rows, targets, backbones, binding, seed)
+    print(f"[{now_str()}] c9b analyze: wrote {curves_csv}, {comp_md}, {sig_md}, {probe_md}", flush=True)
+    return {"curves": curves_csv, "comparisons": comp_md, "significance": sig_md, "probe": probe_md}
+
+
+def _fmt_num_c9b(v):
+    if v is None or (isinstance(v, float) and not np.isfinite(v)):
+        return "n/a"
+    return f"{v:.3f}"
+
+
+def _write_comparisons_md_c9b(path, curves, binding):
+    """Per (target, backbone, awareness): a K-row table of the 4 arms' exp-ratio
+    [CI] (succ, n). Mirrors C9's _write_comparisons_md, with awareness as an
+    extra grouping level. Adds a one-line crossover read per block: full_ft
+    should be worst at K=1 (high-variance full fine-tune on a tiny K-shot set)
+    and best at K>=4..16 (high ceiling once it has enough data); lora should
+    track close to zero_shot (robust, sample-efficient, low ceiling); both
+    lora and full_ft should beat scratch at K=1 (transfer beats from-scratch
+    learning in the few-shot regime)."""
+    by = {(c["target"], c["backbone"], c["awareness"], c["arm"], c["K"]): c for c in curves}
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
+    lines = ["# C9b Dynamics Transfer — Pre-registered Comparisons", "",
+             "Adaptation curves: matched A* expansion-ratio vs euclid (median, 95% CI) per K, split by awareness.",
+             "lora vs scratch = transfer helps; lora vs full_ft = sample-efficiency; vs K=0 (zero_shot) = adaptation helps. Lower = fewer expansions.",
+             f"All results are at the per-target binding budget ({binding_str}); expansion-ratios are pooled over adapt-seeds (n = #worlds x #seeds).", ""]
+    targets = sorted({c["target"] for c in curves}); backbones = sorted({c["backbone"] for c in curves})
+    awareness_list = sorted({c["awareness"] for c in curves})
+    Ks = sorted({c["K"] for c in curves})
+    for target in targets:
+        for backbone in backbones:
+            for aware in awareness_list:
+                lines += [f"## {target} / {backbone} / {aware}", "|K|zero_shot|lora|full_ft|scratch|", "|---:|---|---|---|---|"]
+                for K in Ks:
+                    cells = []
+                    for arm in C9B_ARMS:
+                        c = by.get((target, backbone, aware, arm, K))
+                        cells.append("n/a" if not c or not np.isfinite(c["exp_ratio_median"])
+                                     else f'{c["exp_ratio_median"]:.3f} [{c["ci_lo"]:.3f},{c["ci_hi"]:.3f}] (succ {c["success"]:.2f}, n{c["n_matched"]})')
+                    lines.append(f"|{K}|" + "|".join(cells) + "|")
+                # crossover read: full_ft worst@min-K, best@max-K; lora≈zero_shot; both≫scratch@min-K.
+                Ks_pos = [k for k in Ks if k > 0]
+                if Ks_pos:
+                    k_lo, k_hi = min(Ks_pos), max(Ks_pos)
+                    full_lo = by.get((target, backbone, aware, "full_ft", k_lo))
+                    full_hi = by.get((target, backbone, aware, "full_ft", k_hi))
+                    lora_lo = by.get((target, backbone, aware, "lora", k_lo))
+                    scratch_lo = by.get((target, backbone, aware, "scratch", k_lo))
+                    zero = by.get((target, backbone, aware, "zero_shot", 0))
+
+                    def _r(c): return c["exp_ratio_median"] if c and np.isfinite(c["exp_ratio_median"]) else None
+                    fr_lo, fr_hi, lr_lo, sr_lo, zr = _r(full_lo), _r(full_hi), _r(lora_lo), _r(scratch_lo), _r(zero)
+                    bits = []
+                    if fr_lo is not None and fr_hi is not None:
+                        bits.append(f"full_ft K{k_lo}->K{k_hi}: {fr_lo:.3f}->{fr_hi:.3f} ({'improves' if fr_hi < fr_lo else 'does not improve'})")
+                    if lr_lo is not None and zr is not None:
+                        bits.append(f"lora K{k_lo} vs zero_shot: {lr_lo:.3f} vs {zr:.3f} ({'close' if abs(lr_lo - zr) < 0.1 * max(zr, 1e-9) else 'diverges'})")
+                    if lr_lo is not None and sr_lo is not None:
+                        bits.append(f"lora vs scratch @K{k_lo}: {lr_lo:.3f} vs {sr_lo:.3f} ({'transfer wins' if lr_lo < sr_lo else 'transfer does not win'})")
+                    lines.append("Crossover read: " + ("; ".join(bits) if bits else "n/a (insufficient cells)"))
+                lines.append("")
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_significance_md_c9b(path, rows, targets, backbones, awareness, binding):
+    """McNemar + BH success grid: learned arms vs euclid, per (target, backbone,
+    awareness, arm, K). Restricted to each target's binding budget; arm
+    observations paired over (world, adapt-seed) against that world's
+    euclid-found at the SAME budget. Mirrors C9's _write_significance_md, with
+    an added awareness column/filter (`r["awareness"] == aware`)."""
+    astar_rows = C9._astar(rows)
+    eu_found: Dict[str, Dict[int, bool]] = {}
+    for r in astar_rows:
+        if r["provider"] != "euclid":
+            continue
+        bb = binding.get(r["target"])
+        if bb is None or int(r["budget"]) != bb:
+            continue
+        eu_found.setdefault(r["target"], {})[int(r["world_index"])] = C9._is_found(r)
+
+    comparisons = []
+    pvals = []
+    for target in targets:
+        bb = binding.get(target)
+        eu_by_wi = eu_found.get(target, {})
+        for backbone in backbones:
+            for aware in awareness:
+                for arm in C9B_ARMS:
+                    Ks_present: Dict[int, list] = {}
+                    for r in astar_rows:
+                        if r["target"] != target or r["method"] != arm: continue
+                        if r.get("backbone") != backbone or r.get("awareness") != aware: continue
+                        if bb is None or int(r["budget"]) != bb: continue
+                        K = int(r["K"]); wi = int(r["world_index"])
+                        Ks_present.setdefault(K, []).append((wi, C9._is_found(r)))
+                    for K, obs in sorted(Ks_present.items()):
+                        pairs = [(wi, af) for (wi, af) in obs if wi in eu_by_wi]
+                        n = len(pairs)
+                        if n == 0:
+                            continue
+                        gain = sum(1 for (wi, af) in pairs if af and not eu_by_wi[wi])
+                        loss = sum(1 for (wi, af) in pairs if eu_by_wi[wi] and not af)
+                        eu_succ = float(np.mean([1.0 if eu_by_wi[wi] else 0.0 for (wi, _) in pairs]))
+                        arm_succ = float(np.mean([1.0 if af else 0.0 for (_, af) in pairs]))
+                        p = mcnemar_exact_p(gain, loss)
+                        pvals.append(p)
+                        comparisons.append(dict(target=target, backbone=backbone, awareness=aware, arm=arm, K=K,
+                                                n=n, euclid_succ=eu_succ, arm_succ=arm_succ,
+                                                gain=gain, loss=loss, mcnemar_p=p))
+    qvals = bh_q_values(pvals)
+    for row, q in zip(comparisons, qvals):
+        row["bh_q"] = q
+
+    def _fmt_p(p, disc):
+        if disc < 2:
+            return "n/a"
+        return f"{p:.4f}" if p is not None and np.isfinite(p) else "n/a"
+
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
+    lines = [
+        "# C9b Dynamics Transfer — Significance",
+        "",
+        "McNemar exact test (learned arm found & euclid not = gain; euclid found & arm not = loss).",
+        "BH correction applied across all comparisons in this table.",
+        "n/a when fewer than 2 discordant pairs.",
+        f"All results are at the per-target binding budget ({binding_str}); McNemar pairs are pooled over adapt-seeds (n = #worlds x #seeds).",
+        "",
+        "|target|backbone|awareness|arm|K|n|euclid_succ|arm_succ|gain|loss|McNemar p|BH q|",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    if not comparisons:
+        lines.append("|<none>|-|-|-|-|-|-|-|-|-|-|-|")
+    for r in comparisons:
+        disc = r["gain"] + r["loss"]
+        lines.append(
+            f"|{r['target']}|{r['backbone']}|{r['awareness']}|{r['arm']}|{r['K']}|{r['n']}|"
+            f"{_fmt_num_c9b(r['euclid_succ'])}|{_fmt_num_c9b(r['arm_succ'])}|{r['gain']}|{r['loss']}|"
+            f"{_fmt_p(r['mcnemar_p'], disc)}|{_fmt_num_c9b(r.get('bh_q'))}|"
+        )
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+# C_dyn_crossing is the time-coupling CONTROL suite (less time-coupled than
+# the hardened maze_dense/rooms_large suites — see c8-dynamics memory); the
+# pre-registered expectation is that it stays a ~tie aware-vs-blind (no
+# significant success_delta) even after adaptation, while any real spotlight
+# flip should show up on the harder dynamic suites.
+C_DYN_CROSSING_CONTROL = "C_dyn_crossing"
+PROBE_TIE_EPS = 0.05  # |succ_delta| below this counts as "~tie" for the control read
+
+
+def _write_probe_md_c9b(path, rows, targets, backbones, binding, seed):
+    """THE HEADLINE: per (target, backbone, method, K), compare aware vs blind
+    with a SUCCESS COMPOSITE.
+
+    succ_aware/succ_blind = mean `found` over ALL test worlds at the binding
+    budget for that awareness arm (not just the worlds both solve — this is
+    the fix for C8's "matched-ratio excludes worlds only aware solves"
+    lesson). succ_delta = succ_aware - succ_blind.
+
+    matched exp-ratio is reported SEPARATELY on the SHARED-SOLVED set (worlds
+    both aware and blind find a path at the binding budget): median ratio (vs
+    euclid) for aware vs blind on exactly that shared set, via
+    bootstrap_median_ci. The two metrics are reported side by side and a verdict
+    line flags where they disagree (matched-ratio can look like a tie or even
+    favor blind while the success composite shows aware solving more worlds
+    outright -- this was exactly the gap C8's hardened-suite results warned
+    about: never read matched-ratio alone when success differs).
+
+    Flags the pre-registered cell: full_ft @ K=16 with succ_delta > 0 (aware
+    better) while C_dyn_crossing (the time-coupling control) stays ~tied
+    (|succ_delta| <= PROBE_TIE_EPS) is the signature of "the C8 negative flips
+    under adaptation but only on the genuinely time-coupled suites, not the
+    control" -- the cleanest possible read of this experiment.
+    """
+    astar_rows = C9._astar(rows)
+
+    def _found_set(target, backbone, awareness, arm, K, bb):
+        out = {}
+        for r in astar_rows:
+            if r["target"] != target or r["method"] != arm: continue
+            if r.get("backbone") != backbone or r.get("awareness") != awareness: continue
+            if bb is None or int(r["budget"]) != bb: continue
+            if int(r["K"]) != K: continue
+            wi = int(r["world_index"])
+            out[wi] = out.get(wi, False) or C9._is_found(r)
+        return out
+
+    def _ratios_for(target, backbone, awareness, arm, K, bb, eu, worlds):
+        out = []
+        for r in astar_rows:
+            if r["target"] != target or r["method"] != arm: continue
+            if r.get("backbone") != backbone or r.get("awareness") != awareness: continue
+            if bb is None or int(r["budget"]) != bb: continue
+            if int(r["K"]) != K: continue
+            wi = int(r["world_index"])
+            if wi not in worlds: continue
+            if C9._is_found(r) and wi in eu and eu[wi] > 0:
+                out.append(float(r["expansions"]) / eu[wi])
+        return out
+
+    cells = []
+    for target in targets:
+        bb = binding.get(target)
+        eu = C9._euclid_exp_by_world(rows, target, bb) if bb is not None else {}
+        for backbone in backbones:
+            for arm in C9B_ARMS:
+                Ks = sorted({int(r["K"]) for r in astar_rows
+                             if r["target"] == target and r["method"] == arm
+                             and r.get("backbone") == backbone})
+                for K in Ks:
+                    found_aware = _found_set(target, backbone, "aware", arm, K, bb)
+                    found_blind = _found_set(target, backbone, "blind", arm, K, bb)
+                    if not found_aware and not found_blind:
+                        continue
+                    n_aware_tot = len(found_aware); n_blind_tot = len(found_blind)
+                    succ_aware = float(np.mean(list(found_aware.values()))) if found_aware else float("nan")
+                    succ_blind = float(np.mean(list(found_blind.values()))) if found_blind else float("nan")
+                    succ_delta = (succ_aware - succ_blind) if np.isfinite(succ_aware) and np.isfinite(succ_blind) else float("nan")
+
+                    shared = {wi for wi in found_aware if found_aware.get(wi) and found_blind.get(wi)}
+                    aware_ratios = _ratios_for(target, backbone, "aware", arm, K, bb, eu, shared)
+                    blind_ratios = _ratios_for(target, backbone, "blind", arm, K, bb, eu, shared)
+                    a_med, a_lo, a_hi = bootstrap_median_ci(aware_ratios, seed=seed)
+                    b_med, b_lo, b_hi = bootstrap_median_ci(blind_ratios, seed=seed)
+
+                    is_headline = (arm == "full_ft" and K == 16)
+                    aware_wins_succ = np.isfinite(succ_delta) and succ_delta > 0
+                    is_control = (target == C_DYN_CROSSING_CONTROL)
+                    control_tie = np.isfinite(succ_delta) and abs(succ_delta) <= PROBE_TIE_EPS
+
+                    disagree = (
+                        np.isfinite(a_med) and np.isfinite(b_med) and np.isfinite(succ_delta)
+                        and ((succ_delta > 0 and a_med >= b_med) or (succ_delta < 0 and a_med <= b_med))
+                    )
+
+                    cells.append(dict(
+                        target=target, backbone=backbone, arm=arm, K=K,
+                        n_aware_tot=n_aware_tot, n_blind_tot=n_blind_tot,
+                        succ_aware=succ_aware, succ_blind=succ_blind, succ_delta=succ_delta,
+                        n_shared=len(shared),
+                        aware_ratio_median=a_med, aware_ratio_lo=a_lo, aware_ratio_hi=a_hi,
+                        blind_ratio_median=b_med, blind_ratio_lo=b_lo, blind_ratio_hi=b_hi,
+                        is_headline=is_headline, aware_wins_succ=aware_wins_succ,
+                        is_control=is_control, control_tie=control_tie, disagree=disagree,
+                    ))
+
+    lines = [
+        "# C9b Dynamics Transfer — Aware-vs-Blind Success-Composite Probe",
+        "",
+        "Per (target, backbone, method, K): succ_aware/succ_blind = mean `found` over ALL test",
+        "worlds at the binding budget (NOT just the shared-solved set); succ_delta = succ_aware - succ_blind.",
+        "Matched exp-ratio (vs euclid) is reported separately on the SHARED-SOLVED set only (worlds",
+        "both aware and blind solve) -- per C8's lesson, matched-ratio alone can miss/invert the read",
+        "when success differs, since it silently drops the worlds only one arm solves.",
+        "",
+        f"Pre-registered headline cell: full_ft @ K=16 with succ_delta > 0 (aware better) while the",
+        f"time-coupling control ({C_DYN_CROSSING_CONTROL}) stays ~tied (|succ_delta| <= {PROBE_TIE_EPS}) is the",
+        "signature of 'the C8 spotlight negative flips under adaptation, but only on genuinely",
+        "time-coupled suites, not the control'.",
+        "",
+        "|target|backbone|arm|K|succ_aware (n)|succ_blind (n)|succ_delta|n_shared|aware ratio [CI]|blind ratio [CI]|verdict|",
+        "|---|---|---|---:|---|---|---:|---:|---|---|---|",
+    ]
+    if not cells:
+        lines.append("|<none>|-|-|-|-|-|-|-|-|-|-|")
+
+    for c in cells:
+        verdict_bits = []
+        if c["is_headline"]:
+            verdict_bits.append("HEADLINE(full_ft@K16)")
+            verdict_bits.append("aware>blind(succ)" if c["aware_wins_succ"] else "aware<=blind(succ)")
+        if c["is_control"]:
+            verdict_bits.append("CONTROL:tie" if c["control_tie"] else "CONTROL:NOT-tie")
+        if c["disagree"]:
+            verdict_bits.append("DISAGREES-with-matched-ratio")
+        verdict = "; ".join(verdict_bits) if verdict_bits else "-"
+        lines.append(
+            f"|{c['target']}|{c['backbone']}|{c['arm']}|{c['K']}|"
+            f"{_fmt_num_c9b(c['succ_aware'])} ({c['n_aware_tot']})|{_fmt_num_c9b(c['succ_blind'])} ({c['n_blind_tot']})|"
+            f"{_fmt_num_c9b(c['succ_delta'])}|{c['n_shared']}|"
+            f"{_fmt_num_c9b(c['aware_ratio_median'])} [{_fmt_num_c9b(c['aware_ratio_lo'])},{_fmt_num_c9b(c['aware_ratio_hi'])}]|"
+            f"{_fmt_num_c9b(c['blind_ratio_median'])} [{_fmt_num_c9b(c['blind_ratio_lo'])},{_fmt_num_c9b(c['blind_ratio_hi'])}]|"
+            f"{verdict}|"
+        )
+
+    lines += ["", "## Summary", ""]
+    headline_cells = [c for c in cells if c["is_headline"]]
+    if not headline_cells:
+        lines.append("No full_ft @ K=16 cells present in this raw CSV.")
+    else:
+        flips = [c for c in headline_cells if c["aware_wins_succ"]]
+        ties_held = [c for c in headline_cells if c["is_control"] and c["control_tie"]]
+        control_broke = [c for c in headline_cells if c["is_control"] and not c["control_tie"]]
+        lines.append(
+            f"full_ft @ K=16: {len(flips)}/{len(headline_cells)} (target, backbone) cell(s) show "
+            f"aware beating blind on the success composite (succ_delta > 0)."
+        )
+        if any(c["is_control"] for c in headline_cells):
+            if ties_held and not control_broke:
+                lines.append(
+                    f"Control ({C_DYN_CROSSING_CONTROL}) holds as a ~tie at full_ft@K16 "
+                    f"(|succ_delta| <= {PROBE_TIE_EPS}) as pre-registered."
+                )
+            elif control_broke:
+                lines.append(
+                    f"Control ({C_DYN_CROSSING_CONTROL}) did NOT stay a tie at full_ft@K16 "
+                    f"(|succ_delta| > {PROBE_TIE_EPS}) -- re-examine whether this suite is truly time-decoupled."
+                )
+        disagreements = [c for c in cells if c["disagree"]]
+        if disagreements:
+            lines.append(
+                f"{len(disagreements)} cell(s) where the success composite and the shared-solved matched-ratio "
+                f"disagree on direction -- inspect these individually rather than trusting matched-ratio alone."
+            )
+        else:
+            lines.append("No cells where the success composite and matched-ratio disagree on direction.")
+
+    Path(path).write_text("\n".join(lines), encoding="utf-8")

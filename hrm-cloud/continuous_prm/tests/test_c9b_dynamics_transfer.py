@@ -142,3 +142,130 @@ def test_run_eval_smoke(tmp_path):
     assert any(p.startswith("lora_scalar_hrm_blind") for p in provs)
     for r in rows:
         assert r["target"] == "C_dyn_crossing" and r["method"] and r["awareness"] in ("aware","blind","")
+
+
+# -----------------------------------------------------------------------------
+# Task 9 — analyze mode (synthetic, CPU-only, no models)
+# -----------------------------------------------------------------------------
+#
+# Builds a synthetic raw CSV by hand using the EXACT C9B_RAW_COLS schema (no
+# eval/training involved) for 1 target (C_dyn_crossing), 1 backbone
+# (scalar_hrm), both awareness arms, euclid + the 4 C9b method arms, K in
+# {1, 16} for the trained arms (zero_shot fixed at K=0), at a single budget
+# (150) over a handful of worlds. full_ft is constructed so that at K=16
+# "aware" beats "blind" (lower expansions AND higher success), giving the
+# probe a clean positive cell to detect; C_dyn_crossing itself is the time-
+# coupling CONTROL (see c8-dynamics memory), so elsewhere (zero_shot/lora/
+# scratch, and full_ft at K=1) aware and blind are built to be a ~tie.
+
+def _write_c9b_raw_row(wri, **kw):
+    row = {k: "" for k in C9B.C9B_RAW_COLS}
+    row.update(kw)
+    wri.writerow(row)
+
+
+def _build_synthetic_c9b_raw(path):
+    import csv as _csv
+    target = "C_dyn_crossing"
+    backbone = "scalar_hrm"
+    budget = 150
+    n_worlds = 6
+    euclid_exp = {wi: 100.0 + 5.0 * wi for wi in range(n_worlds)}
+
+    with open(path, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=C9B.C9B_RAW_COLS)
+        wri.writeheader()
+
+        # --- euclid: always found, defines the matched-ratio denominator ----
+        for wi in range(n_worlds):
+            _write_c9b_raw_row(
+                wri, target=target, backbone="", awareness="", method="euclid", K=-1,
+                seed=-1, world_index=wi, provider="euclid", mode="astar", w="",
+                budget=budget, found=True, expansions=euclid_exp[wi], arrival=10.0,
+                optimal_arrival=10.0, suboptimality=1.0, closed=20, nonfinite=0,
+            )
+
+        # --- oracle: also always found (not used by the probe but part of the
+        # real schema; included so analyze code that scans all rows is exercised
+        # against a representative file). ------------------------------------
+        for wi in range(n_worlds):
+            _write_c9b_raw_row(
+                wri, target=target, backbone="", awareness="", method="oracle", K=-1,
+                seed=-1, world_index=wi, provider="oracle", mode="astar", w="",
+                budget=budget, found=True, expansions=euclid_exp[wi] * 0.5, arrival=9.0,
+                optimal_arrival=9.0, suboptimality=1.0, closed=15, nonfinite=0,
+            )
+
+        def arm_block(method, K, aware_ratio, blind_ratio, aware_succ_n, blind_succ_n,
+                       provider_suffix):
+            # aware_ratio/blind_ratio: matched expansion-ratio (vs euclid) on solved worlds.
+            # aware_succ_n/blind_succ_n: number of worlds (out of n_worlds) that are FOUND.
+            for awareness, ratio, succ_n in (
+                ("aware", aware_ratio, aware_succ_n), ("blind", blind_ratio, blind_succ_n)
+            ):
+                provider = f"{provider_suffix}_{backbone}_{awareness}_K{K}_s0"
+                for wi in range(n_worlds):
+                    found = wi < succ_n
+                    exp = euclid_exp[wi] * ratio if found else ""
+                    _write_c9b_raw_row(
+                        wri, target=target, backbone=backbone, awareness=awareness,
+                        method=method, K=K, seed=0, world_index=wi, provider=provider,
+                        mode="astar", w="", budget=budget, found=found,
+                        expansions=exp, arrival=(11.0 if found else ""),
+                        optimal_arrival=10.0, suboptimality=(1.1 if found else ""),
+                        closed=25, nonfinite=0,
+                    )
+
+        # zero_shot: K fixed at 0, aware ~= blind (tie; control stays a tie).
+        arm_block("zero_shot", 0, 0.9, 0.9, n_worlds, n_worlds, "zeroshot")
+
+        # lora: K in {1, 16}, aware ~= blind throughout.
+        for K in (1, 16):
+            arm_block("lora", K, 0.8, 0.8, n_worlds, n_worlds, "lora")
+
+        # scratch: K in {1, 16}, much worse than euclid (ratio > 1), aware ~= blind.
+        for K in (1, 16):
+            arm_block("scratch", K, 1.5, 1.5, n_worlds - 2, n_worlds - 2, "scratch")
+
+        # full_ft: the headline cell. K=1 aware~=blind (tie, matches the control's
+        # expectation pre-adaptation); K=16 aware BEATS blind (lower ratio + more
+        # successes) -- this is the pre-registered positive the probe should flag.
+        arm_block("full_ft", 1, 1.0, 1.0, n_worlds - 1, n_worlds - 1, "full_ft")
+        arm_block("full_ft", 16, 0.6, 1.1, n_worlds, n_worlds - 2, "full_ft")
+
+    return path
+
+
+def test_analyze_c9b(tmp_path):
+    raw = _build_synthetic_c9b_raw(tmp_path / "c9b_raw.csv")
+    res = tmp_path / "results"
+    out = C9B.analyze_from_raw_c9b(
+        raw, res, seed=1,
+        targets=["C_dyn_crossing"], backbones=["scalar_hrm"], awareness=["aware", "blind"],
+    )
+    assert set(out) == {"curves", "comparisons", "significance", "probe"}
+    for p in out.values():
+        assert Path(p).exists()
+
+    import csv as _csv
+    curve_rows = list(_csv.DictReader(open(out["curves"], newline="")))
+    assert curve_rows
+    expected_cols = ["target", "backbone", "awareness", "arm", "K", "binding_budget",
+                      "n_matched", "exp_ratio_median", "ci_lo", "ci_hi", "success"]
+    assert list(curve_rows[0].keys()) == expected_cols
+    # full_ft K=16 aware row should show a lower exp_ratio_median than blind.
+    aware16 = next(r for r in curve_rows if r["arm"] == "full_ft" and r["K"] == "16" and r["awareness"] == "aware")
+    blind16 = next(r for r in curve_rows if r["arm"] == "full_ft" and r["K"] == "16" and r["awareness"] == "blind")
+    assert float(aware16["exp_ratio_median"]) < float(blind16["exp_ratio_median"])
+    assert float(aware16["success"]) > float(blind16["success"])
+
+    comp_text = Path(out["comparisons"]).read_text(encoding="utf-8")
+    assert "C_dyn_crossing" in comp_text and "scalar_hrm" in comp_text
+
+    sig_text = Path(out["significance"]).read_text(encoding="utf-8")
+    assert "aware" in sig_text and "blind" in sig_text
+
+    probe_text = Path(out["probe"]).read_text(encoding="utf-8")
+    # the headline full_ft K=16 aware-vs-blind cell must be named explicitly.
+    assert "full_ft" in probe_text and "16" in probe_text
+    assert "C_dyn_crossing" in probe_text
