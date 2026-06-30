@@ -112,3 +112,15 @@ def test_provider_loaders(tmp_path):
     lab = C9B._collect_world_labels_memo("C_dyn_crossing", seeds[0], 64)
     ht = prov.h_table(lab["world"], lab["rm"], lab["dyn"], lab["params"]["v_agent"], lab["params"]["dt"], int(lab["params"]["t_max"]))
     assert ht.shape[0] == lab["rm"].points.shape[0]
+
+
+@pytest.mark.skipif(not (HERE/"runs/c8_local_heavy/checkpoints/c8_scalar__hrm.pt").exists(), reason="c8 sources missing")
+def test_run_adapt_smoke(tmp_path):
+    import torch
+    cfg = C9B.C9bConfig(out_dir=str(tmp_path/"c9b"), backbones="scalar_hrm", awareness="aware,blind",
+                        methods="lora,scratch", k_grid="1", n_adapt_seeds=1, n_test=4, epochs=1, cpu=True, seed=7)
+    man = C9B.run_adapt(cfg, torch.device("cpu"), only_targets=["C_dyn_crossing"])
+    assert len(man["arms"]) == 4   # 1 target x 1 bb x 2 awareness x 2 methods x 1 K x 1 seed
+    for a in man["arms"]:
+        assert Path(a["ckpt"]).exists() and a["awareness"] in ("aware","blind") and a["method"] in ("lora","scratch")
+    assert (Path(cfg.out_dir)/"adapt_manifest.json").exists()

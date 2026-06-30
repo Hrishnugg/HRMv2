@@ -683,3 +683,100 @@ def load_temporal_provider(ckpt: "str | Path", backbone: str, device, bounded: b
         model, grid_size, device, backbone_name, window_w,
         max_norm_residual=mnr, time_blind=time_blind,
     )
+
+
+# -----------------------------------------------------------------------------
+# Task 7 — adapt mode + manifest
+# -----------------------------------------------------------------------------
+#
+# Orchestrates training EVERY adapter arm: for each target x backbone x
+# awareness x method x K x seed, resolve the frozen C8 source for
+# (backbone, awareness), read window_w/k_patrollers FROM THAT SOURCE PAYLOAD
+# (never defaulted from cfg — aware sources carry window_w=8, blind carry
+# window_w=0; scalar sources carry k_patrollers=4; field sources have none),
+# collect (or reuse) a K-shot temporal dataset ONCE per
+# (target, substrate, awareness, K, seed) cell — scalar_hrm and scalar_onlstm
+# share the same "scalar" substrate dataset since collect_temporal_dataset's
+# scalar schema does not depend on which scalar backbone will consume it —
+# then dispatch the scalar/field trainer per method. zero_shot is NOT trained
+# here: it is just the frozen source, recorded under manifest["sources"];
+# Task 8 (eval) builds the zero_shot arm directly from those paths. Mirrors
+# C9.run_adapt's resume/manifest pattern (continuous_prm_c9_transfer.py:222).
+
+
+def run_adapt(cfg: C9bConfig, device, only_targets: Optional[List[str]] = None) -> dict:
+    install()
+    out_dir = Path(cfg.out_dir)
+    ds_dir = out_dir / "datasets"
+    ck_dir = out_dir / "checkpoints"
+    C.ensure_dir(ds_dir)
+    C.ensure_dir(ck_dir)
+
+    sources = resolve_sources(cfg)
+    targets = only_targets if only_targets is not None else _parse_csv(cfg.targets)
+    backbones = _parse_csv(cfg.backbones)
+    awareness_list = cfg.awareness_list()
+    methods = _parse_csv(cfg.methods)
+    Ks = [k for k in _parse_ints(cfg.k_grid) if k > 0]
+
+    arms: List[dict] = []
+    for target in targets:
+        for backbone in backbones:
+            substrate = "field" if _is_field(backbone) else "scalar"
+            for awareness in awareness_list:
+                source_ckpt = sources[(backbone, awareness)]
+                source_payload = torch.load(source_ckpt, map_location="cpu")
+                window_w = int(source_payload["window_w"])
+                if _is_field(backbone):
+                    k_patrollers = int(source_payload.get("k_patrollers", 0))
+                else:
+                    k_patrollers = int(source_payload["k_patrollers"])
+
+                for K in Ks:
+                    for seed_idx in range(int(cfg.n_adapt_seeds)):
+                        seeds = adapt_world_seeds(target, K, seed_idx, cfg)
+                        ds_npz = ds_dir / (
+                            f"c9b__{target}__{substrate}__{awareness}__K{K}__s{seed_idx}.npz"
+                        )
+                        if not ds_npz.exists():
+                            collect_temporal_dataset(
+                                target, seeds, backbone, window_w, k_patrollers,
+                                cfg.grid_size, ds_npz,
+                            )
+
+                        for method in methods:
+                            ck = ck_dir / (
+                                f"c9b__{target}__{backbone}__{awareness}__{method}__K{K}__s{seed_idx}.pt"
+                            )
+                            train_seed = C9.adapt_seed(target, K, seed_idx, cfg.seed)
+                            if not ck.exists():
+                                if _is_field(backbone):
+                                    train_field_temporal(
+                                        ds_npz, ck, source_ckpt=source_ckpt, method=method,
+                                        cfg=cfg, device=device, seed=train_seed,
+                                    )
+                                else:
+                                    train_scalar_temporal(
+                                        ds_npz, ck, source_ckpt=source_ckpt, method=method,
+                                        cfg=cfg, device=device, seed=train_seed,
+                                    )
+                            arms.append(dict(
+                                target=target, backbone=backbone, awareness=awareness,
+                                method=method, K=K, seed=seed_idx, window_w=window_w,
+                                ckpt=str(ck),
+                            ))
+                        print(f"[{now_str()}] c9b adapt: {target} {backbone} {awareness} K={K} s={seed_idx} done", flush=True)
+
+    manifest = {
+        "arms": arms,
+        "targets": targets,
+        "backbones": backbones,
+        "awareness": awareness_list,
+        "methods": methods,
+        "k_grid": Ks,
+        "n_adapt_seeds": int(cfg.n_adapt_seeds),
+        "seed": int(cfg.seed),
+        "sources": {f"{b}__{a}": str(path) for (b, a), path in sources.items()},
+    }
+    C.write_json(out_dir / "adapt_manifest.json", manifest)
+    return manifest
