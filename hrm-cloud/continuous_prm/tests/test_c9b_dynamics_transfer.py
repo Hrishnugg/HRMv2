@@ -124,3 +124,21 @@ def test_run_adapt_smoke(tmp_path):
     for a in man["arms"]:
         assert Path(a["ckpt"]).exists() and a["awareness"] in ("aware","blind") and a["method"] in ("lora","scratch")
     assert (Path(cfg.out_dir)/"adapt_manifest.json").exists()
+
+
+@pytest.mark.skipif(not (HERE/"runs/c8_local_heavy/checkpoints/c8_scalar__hrm.pt").exists(), reason="c8 sources missing")
+def test_run_eval_smoke(tmp_path):
+    import torch, csv
+    cfg = C9B.C9bConfig(out_dir=str(tmp_path/"c9b"), backbones="scalar_hrm", awareness="aware,blind",
+                        methods="lora,scratch", k_grid="1", n_adapt_seeds=1, n_test=3, epochs=1,
+                        budgets="150,250", cpu=True, seed=7)
+    C9B.run_adapt(cfg, torch.device("cpu"), only_targets=["C_dyn_crossing"])
+    raw = C9B.run_eval(cfg, torch.device("cpu"), only_targets=["C_dyn_crossing"])
+    rows = list(csv.DictReader(open(raw, newline="")))
+    assert rows
+    provs = {r["provider"] for r in rows}
+    assert "euclid" in provs and "oracle" in provs
+    assert any(p.startswith("zeroshot_scalar_hrm_aware") for p in provs)
+    assert any(p.startswith("lora_scalar_hrm_blind") for p in provs)
+    for r in rows:
+        assert r["target"] == "C_dyn_crossing" and r["method"] and r["awareness"] in ("aware","blind","")

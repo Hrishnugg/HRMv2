@@ -780,3 +780,145 @@ def run_adapt(cfg: C9bConfig, device, only_targets: Optional[List[str]] = None) 
     }
     C.write_json(out_dir / "adapt_manifest.json", manifest)
     return manifest
+
+
+# -----------------------------------------------------------------------------
+# Task 8 — eval mode (space-time arms over the budget grid -> raw CSV)
+# -----------------------------------------------------------------------------
+#
+# Builds every provider for a target — euclid/oracle (no model), a frozen
+# zero_shot provider per (backbone, awareness) straight from manifest["sources"],
+# and one provider per adapted arm in manifest["arms"] — then runs C8's
+# space-time A*/focal eval (`DP.run_world_arms_spacetime`) on TEST worlds
+# (materialized via the SAME memoized label collector Task 3 uses, so the world/
+# rm/dyn triple is byte-identical to what adaptation could have seen — modulo
+# the adapt/test seed split enforced by Task 2). Mirrors C9.run_eval's
+# providers/meta-dict + per-target shard + merged-CSV pattern
+# (continuous_prm_c9_transfer.py:281-331), but reuses C8's space-time arm
+# runner (continuous_prm_dynamic_providers.py:300-359) instead of C9's static
+# P.run_world_arms, since C9b targets are dynamic (moving-patroller) worlds.
+#
+# `run_world_arms_spacetime` emits one record dict per (provider, mode[, w],
+# budget) via `_arm_record_st` with EXACTLY these keys: provider, mode, w,
+# budget, found, expansions, arrival, optimal_arrival, suboptimality, closed,
+# nonfinite (confirmed by reading continuous_prm_dynamic_providers.py:362-371).
+# That matches C9B_RAW_COLS's tail verbatim, so no key renaming is needed here
+# — only target/backbone/awareness/method/K/seed/world_index are added via the
+# meta dict (built per-provider, keyed by provider name) the way C9.run_eval
+# does it.
+
+C9B_RAW_COLS = ["target", "backbone", "awareness", "method", "K", "seed", "world_index",
+                "provider", "mode", "w", "budget", "found", "expansions", "arrival",
+                "optimal_arrival", "suboptimality", "closed", "nonfinite"]
+
+
+def budgets_for(target: str, cfg: C9bConfig) -> List[int]:
+    """Resolve the budget grid to eval `target` at.
+
+    If cfg.budgets is set (explicit CLI/test override), use it verbatim for
+    EVERY target (this is what the smoke test exercises). Otherwise read C8's
+    calibration.json (written by C8's own T12 calibration pass) and use the
+    single binding (lowest) budget of the calibrated band for `target` — the
+    fair-fight point C9b's analysis is anchored on (see module docstring /
+    task spec). Raises if neither is available, since silently picking an
+    arbitrary budget would make the eval not comparable across arms.
+    """
+    if str(cfg.budgets).strip():
+        return _parse_ints(cfg.budgets)
+    calib = Path(cfg.source_dir) / "calibration.json"
+    band = (json.loads(calib.read_text()).get("budgets", {}) or {}).get(target) if calib.exists() else None
+    if not band:
+        raise RuntimeError(f"no budget band for {target}: pass --budgets or provide {calib}")
+    return [int(min(band))]
+
+
+def run_eval(cfg: C9bConfig, device, only_targets: Optional[List[str]] = None) -> Path:
+    """Eval every provider (euclid, oracle, frozen zero_shot per (backbone,
+    awareness), and every adapted arm) on TEST worlds via C8's space-time A*,
+    writing a per-target shard CSV plus a merged raw CSV (C9B_RAW_COLS).
+    Returns the Path of the merged raw CSV.
+    """
+    install()
+    out_dir = Path(cfg.out_dir)
+    res_dir = out_dir / "results"
+    shard_dir = res_dir / "_shards"
+    C.ensure_dir(shard_dir)
+
+    w_values = [float(x) for x in _parse_csv(cfg.w_values)]
+    manifest = json.loads((out_dir / "adapt_manifest.json").read_text())
+    targets = only_targets if only_targets is not None else _parse_csv(cfg.targets)
+
+    all_rows: List[dict] = []
+    for target in targets:
+        budgets = budgets_for(target, cfg)
+
+        # Materialize TEST worlds once (world, rm, dyn, params), reusing Task 3's
+        # memoized label collector so this is the SAME world the labelset/
+        # adaptation pipeline would see for this (target, seed).
+        seeds = test_world_seeds(target, cfg)
+        worlds = []
+        for wi, s in enumerate(seeds):
+            lab = _collect_world_labels_memo(target, s, cfg.grid_size)
+            if lab is None:
+                continue
+            worlds.append((wi, lab))
+
+        providers: Dict[str, object] = {"euclid": DP.EuclidTimeProvider(), "oracle": DP.OracleProvider()}
+        meta: Dict[str, dict] = {
+            "euclid": dict(method="euclid", backbone="", awareness="", K=-1, seed=-1),
+            "oracle": dict(method="oracle", backbone="", awareness="", K=-1, seed=-1),
+        }
+
+        # Frozen zero_shot providers, one per (backbone, awareness) actually
+        # adapted from in this run (manifest["sources"] is the authoritative
+        # backbone/awareness -> frozen-C8-checkpoint map Task 7 recorded).
+        for backbone in _parse_csv(cfg.backbones):
+            for awareness in cfg.awareness_list():
+                src = manifest["sources"][f"{backbone}__{awareness}"]
+                p = load_temporal_provider(Path(src), backbone, device)
+                key = f"zeroshot_{backbone}_{awareness}"
+                p.name = key
+                providers[key] = p
+                meta[key] = dict(method="zero_shot", backbone=backbone, awareness=awareness, K=0, seed=-1)
+
+        # Adapted arms for THIS target only.
+        for a in manifest["arms"]:
+            if a["target"] != target:
+                continue
+            p = load_temporal_provider(Path(a["ckpt"]), a["backbone"], device)
+            key = f'{a["method"]}_{a["backbone"]}_{a["awareness"]}_K{a["K"]}_s{a["seed"]}'
+            p.name = key
+            providers[key] = p
+            meta[key] = dict(method=a["method"], backbone=a["backbone"], awareness=a["awareness"],
+                              K=a["K"], seed=a["seed"])
+
+        rows: List[dict] = []
+        for wi, lab in worlds:
+            pp = lab["params"]
+            recs = DP.run_world_arms_spacetime(
+                lab["world"], lab["rm"], lab["dyn"], providers, budgets, w_values,
+                pp["v_agent"], pp["dt"], int(pp["t_max"]),
+            )
+            for r in recs:
+                m = meta.get(r["provider"], dict(method=r["provider"], backbone="", awareness="", K=-1, seed=-1))
+                r.update(dict(target=target, world_index=wi, **m))
+                rows.append(r)
+
+        sp = shard_dir / f"{target}.csv"
+        with open(sp, "w", newline="") as f:
+            wri = _csv.DictWriter(f, fieldnames=C9B_RAW_COLS)
+            wri.writeheader()
+            for r in rows:
+                wri.writerow({k: r.get(k, "") for k in C9B_RAW_COLS})
+        all_rows.extend(rows)
+        print(f"[{now_str()}] c9b eval {target}: {len(rows)} rows "
+              f"({len(providers)} providers x {len(worlds)} worlds x {len(budgets)} budgets)", flush=True)
+
+    raw = res_dir / "continuous_prm_c9b_eval_raw.csv"
+    with open(raw, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=C9B_RAW_COLS)
+        wri.writeheader()
+        for r in all_rows:
+            wri.writerow({k: r.get(k, "") for k in C9B_RAW_COLS})
+    print(f"[{now_str()}] c9b eval: merged {len(all_rows)} rows -> {raw}", flush=True)
+    return raw
