@@ -608,3 +608,78 @@ def train_field_temporal(
     out_ckpt.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, out_ckpt)
     return out_ckpt
+
+
+# -----------------------------------------------------------------------------
+# Task 6 — temporal provider loaders (LoRA-aware, aware/blind, scalar+field)
+# -----------------------------------------------------------------------------
+#
+# Loads a checkpoint into the matching C8 temporal provider. Handles BOTH
+# payload shapes:
+#   - frozen C8 source (zero_shot arm): no "lora_rank", no "method" key.
+#   - C9b adapter (Task 4 scalar / Task 5 field output): carries "method", and
+#     "lora_rank"/"alpha" iff method == "lora".
+# Branches scalar-vs-field via `_is_field(backbone)` and LoRA-vs-plain via
+# `"lora_rank" in payload` (mirrors C9H.load_scalar_provider_c9h's pattern:
+# apply_lora/apply_conv_lora BEFORE load_state_dict(strict=True), since the
+# LoRA A/B parametrization params are part of the saved state_dict). `bounded`
+# only affects the field provider's max_norm_residual (scalar always uses the
+# source's own clamp, which is already baked into the payload).
+
+
+def load_temporal_provider(ckpt: "str | Path", backbone: str, device, bounded: bool = True):
+    """Load `ckpt` (frozen C8 source OR C9b adapter) into a C8 temporal provider.
+
+    `backbone` selects scalar vs field schema via `_is_field` (must match the
+    checkpoint's own architecture — it is only used for branching/the
+    provider's display name, never to override payload-derived shapes).
+    Awareness (time_blind) is derived from the payload's own `window_w`
+    (`time_blind = (window_w == 0)`), NOT from `cfg.awareness`, since the
+    checkpoint's window_w is authoritative for what it was trained/built with.
+    Returns an eval-mode `DP.ScalarTemporalProvider` or
+    `DP.ValueFieldTemporalProvider` wrapping the loaded model.
+    """
+    ckpt = Path(ckpt)
+    payload = torch.load(ckpt, map_location="cpu")
+    window_w = int(payload["window_w"])
+    time_blind = window_w == 0
+    is_lora = "lora_rank" in payload
+
+    if not _is_field(backbone):
+        backbone_cfg = C.BackboneConfig(**payload["backbone_cfg"])
+        token_dim = int(payload["token_dim"])
+        max_norm_residual = float(payload["max_norm_residual"])
+        k_patrollers = int(payload["k_patrollers"])
+        backbone_name = payload["backbone"]
+
+        model = C.ContinuousHeuristicModel(
+            backbone_cfg, token_dim=token_dim, max_norm_residual=max_norm_residual
+        )
+        if is_lora:
+            C.apply_lora(model, rank=int(payload["lora_rank"]), alpha=float(payload["alpha"]))
+        model.load_state_dict(payload["model"], strict=True)
+        model = model.to(device).eval()
+
+        return DP.ScalarTemporalProvider(
+            model, device, backbone_name, window_w, k_patrollers, max_norm_residual,
+            time_blind=time_blind,
+        )
+
+    # --- Field branch -------------------------------------------------------
+    import continuous_prm_c6_heatmap_value_field as C6
+
+    in_channels = int(payload["in_channels"])
+    grid_size = int(payload["grid_size"])
+    backbone_name = payload["backbone"]
+
+    model = C6.build_model(backbone_name, in_channels=in_channels)
+    if is_lora:
+        C9H.apply_conv_lora(model, rank=int(payload["lora_rank"]), alpha=float(payload["alpha"]))
+    model.load_state_dict(payload["model"], strict=True)
+    model = model.to(device).eval()
+
+    mnr = float(payload.get("max_norm_residual", 4.0)) if bounded else float("inf")
+    return DP.ValueFieldTemporalProvider(
+        model, grid_size, device, backbone_name, window_w,
+        max_norm_residual=mnr, time_blind=time_blind,
+    )

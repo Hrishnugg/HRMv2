@@ -96,3 +96,19 @@ def test_field_trainer_methods(tmp_path):
         assert p["in_channels"] == 16 and p["window_w"] == 8 and p["method"] == method
         if method == "lora":
             assert p["lora_rank"] == 8
+
+
+@pytest.mark.skipif(not (HERE/"runs/c8_local_heavy/checkpoints/c8_scalar__hrm.pt").exists(), reason="c8 sources missing")
+def test_provider_loaders(tmp_path):
+    C9B.install(); import torch
+    import continuous_prm_c8_dynamic_maps as M8MAPS
+    import continuous_prm_common as C
+    dev = torch.device("cpu")
+    src = HERE/"runs/c8_local_heavy/checkpoints/c8_scalar__hrm.pt"
+    prov = C9B.load_temporal_provider(src, backbone="scalar_hrm", device=dev)
+    assert prov.name.startswith("scalar_hrm")
+    # smoke a forward on one valid crossing world (use _collect_world_labels for a guaranteed-valid world+rm+dyn)
+    seeds = C9B.test_world_seeds("C_dyn_crossing", C9B.C9bConfig(n_test=1))
+    lab = C9B._collect_world_labels_memo("C_dyn_crossing", seeds[0], 64)
+    ht = prov.h_table(lab["world"], lab["rm"], lab["dyn"], lab["params"]["v_agent"], lab["params"]["dt"], int(lab["params"]["t_max"]))
+    assert ht.shape[0] == lab["rm"].points.shape[0]
