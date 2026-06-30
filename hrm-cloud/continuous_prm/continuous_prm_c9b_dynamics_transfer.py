@@ -81,13 +81,27 @@ def _is_field(backbone: str) -> bool: return backbone.startswith("field")
 # -----------------------------------------------------------------------------
 # ADAPT/TEST world split (C8 dynamic generator)
 # -----------------------------------------------------------------------------
-# C8's true world-acceptance rule (see continuous_prm_c8_dynamics_compare.py
-# `_collect_world_labels`, :174-227) is stricter than "PRM connects start to
-# goal": it additionally requires the world to be *space-time solvable* from
-# (start, t=0) -- i.e. `hstar[0, 0]` from the backward space-time Dijkstra must
-# be finite, since a static-only-reachable world can still be unsolvable once
-# the moving patrollers are accounted for. We mirror that exactly here so
-# ADAPT/TEST worlds are valid the same way C8's training worlds were.
+# A world counts as "valid" iff C8 can actually produce a usable supervised
+# labelset for it. To keep selection consistent with Task 3's label collection
+# (which calls the SAME function), `_valid_world_seed` delegates to C8's
+# `_collect_world_labels` (continuous_prm_c8_dynamics_compare.py:174-227) rather
+# than re-deriving acceptance. That function:
+#   - builds the dynamic world (None -> reject),
+#   - builds the PRM with cfg.roadmap_nodes/cfg.roadmap_k at the SAME `seed`
+#     (no offset) and rejects when rm is None or start (node 0) is not
+#     connected to goal,
+#   - rejects when the world is space-time-unsolvable from (start, t=0)
+#     (`hstar[0, 0]` not finite once moving patrollers are accounted for).
+# Using the identical seed -> roadmap mapping (previously this used `seed + 17`)
+# guarantees a seed we mark "valid" yields a non-None labelset when Task 3
+# collects on the same seed.
+
+
+def _c8cfg(cfg: C9bConfig) -> "M8.C8Config":
+    """A C8Config for label collection that matches C9b's knobs (grid_size, etc.).
+    Only override fields C9b cares about; leave C8 defaults (roadmap 192/k7,
+    k_patrollers, window) intact. Reused by Task 3 for the actual collection."""
+    return M8.C8Config(grid_size=int(cfg.grid_size))
 
 
 def _build_world_only(suite: str, seed: int):
@@ -95,20 +109,12 @@ def _build_world_only(suite: str, seed: int):
     return None if res is None else res[0]
 
 
-def _valid_world_seed(suite: str, seed: int) -> bool:
-    res = M8MAPS.build_dynamic_world(suite, int(seed))
-    if res is None:
+def _valid_world_seed(suite: str, seed: int, cfg: C9bConfig) -> bool:
+    try:
+        lab = M8._collect_world_labels(suite, int(seed), _c8cfg(cfg))
+    except Exception:
         return False
-    world, dyn = res
-    rm = C.build_prm(world, C.RoadmapConfig(n_nodes=192, k_neighbors=7), seed=int(seed) + 17)
-    if rm is None or not bool(rm.connected_to_goal[0]):
-        return False
-    params = M8MAPS.dynamics_params(suite)
-    v_agent = float(params["v_agent"])
-    dt = float(params["dt"])
-    t_max = int(params["t_max"])
-    hstar = ST.backward_spacetime_dijkstra(rm.adj, rm.points, dyn, v_agent, dt, t_max, goal=1)
-    return bool(np.isfinite(hstar[0, 0]))
+    return lab is not None
 
 
 def test_world_seeds(target: str, cfg: C9bConfig) -> List[int]:
@@ -116,7 +122,7 @@ def test_world_seeds(target: str, cfg: C9bConfig) -> List[int]:
     out, tries = [], 0
     while len(out) < cfg.n_test and tries < cfg.n_test * 200:
         s = int(rng.integers(0, 2**31 - 1)); tries += 1
-        if _valid_world_seed(target, s):
+        if _valid_world_seed(target, s, cfg):
             out.append(s)
     return out
 
@@ -130,6 +136,6 @@ def adapt_world_seeds(target: str, K: int, seed_idx: int, cfg: C9bConfig) -> Lis
         s = int(rng.integers(0, 2**31 - 1)); tries += 1
         if s in test_set:
             continue
-        if _valid_world_seed(target, s):
+        if _valid_world_seed(target, s, cfg):
             out.append(s)
     return out
