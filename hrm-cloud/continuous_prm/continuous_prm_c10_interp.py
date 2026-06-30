@@ -187,3 +187,74 @@ def train_source_experts(cfg: C10Config, device, only_families=None) -> dict:
     man = {"experts": experts, "source_families": fams, "backbones": C9._parse_csv(cfg.backbones)}
     C.write_json(out_dir / "source_manifest.json", man)
     return man
+
+
+# ---------------------------------------------------------------------------
+# Task 4 — Weight-merge baker
+# ---------------------------------------------------------------------------
+
+def bake_weight_merge(base_ckpt, expert_ckpts, weights, out_ckpt, device) -> Path:
+    """Bake W' = W_base + Σ_k w_k · scale_k · (B_k @ A_k) into a plain merged checkpoint.
+
+    Loads the plain avgbase weights, adds the weighted LoRA deltas for every
+    LoRA target, and saves a plain checkpoint (no LoRA params) that can be
+    loaded by load_scalar_provider_c9h without apply_lora.
+
+    MHA in_proj_weight special case: iter_lora_targets yields
+    name="…attn.in_proj" and sub=MultiheadAttention, but PyTorch registers the
+    parametrization on the MHA module itself, so the state-dict prefix is
+    name[:-len(".in_proj")] (i.e., "…attn") not "…attn.in_proj".
+    """
+    import torch.nn as nn
+
+    base_payload = torch.load(Path(base_ckpt), map_location="cpu")
+    bb = C.BackboneConfig(**base_payload["backbone_cfg"])
+    fc = C.FeatureConfig(**base_payload["feature_cfg"])
+    tc = C.TrainingConfig(**base_payload["train_cfg"])
+    model = C.build_model(bb, fc, tc, device)
+    C.safe_load_state(model, Path(base_ckpt))   # plain base weights at {layer}.weight
+
+    states = [torch.load(Path(p), map_location="cpu")["model"] for p in expert_ckpts]
+    w = np.asarray(weights, dtype=np.float64)
+
+    seen: set = set()
+    for name, sub, attr in C.iter_lora_targets(model):
+        key_id = (id(sub), attr)
+        if key_id in seen:
+            continue
+        seen.add(key_id)
+
+        # Derive the state-dict prefix that PyTorch actually used when
+        # registering the parametrization.  For MHA in_proj_weight the
+        # parametrization is registered on the MHA module (sub), whose
+        # named_modules() name does NOT have the ".in_proj" suffix that
+        # iter_lora_targets appends to name.
+        if isinstance(sub, nn.MultiheadAttention) and attr == "in_proj_weight":
+            sd_prefix = name[: -len(".in_proj")]
+        else:
+            sd_prefix = name
+
+        W = getattr(sub, attr).data    # [out, in] or [3*embed, embed] for MHA
+
+        delta = torch.zeros_like(W)
+        for k, st in enumerate(states):
+            if abs(float(w[k])) < 1e-12:
+                continue
+            A = st[f"{sd_prefix}.parametrizations.{attr}.0.A"]
+            B = st[f"{sd_prefix}.parametrizations.{attr}.0.B"]
+            scale = float(st[f"{sd_prefix}.parametrizations.{attr}.0.adapter_scale"])
+            delta = delta + float(w[k]) * scale * (B.to(W.dtype) @ A.to(W.dtype)).reshape(W.shape)
+
+        with torch.no_grad():
+            getattr(sub, attr).add_(delta.to(W.device, W.dtype))
+
+    payload = {
+        "model": model.state_dict(),
+        "backbone_cfg": asdict(bb),
+        "feature_cfg": asdict(fc),
+        "train_cfg": asdict(tc),
+        "max_norm_residual": float(tc.max_norm_residual),
+    }
+    C.ensure_dir(Path(out_ckpt).parent)
+    torch.save(payload, Path(out_ckpt))
+    return Path(out_ckpt)

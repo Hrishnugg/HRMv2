@@ -6,6 +6,8 @@ HERE = Path(__file__).resolve().parents[1]
 import numpy as np
 import continuous_prm_c10_interp as C10
 import continuous_prm_common as C
+import continuous_prm_c9_transfer as C9
+import continuous_prm_c9h_transfer as C9H
 
 
 def test_family_grid_specs_and_bracketing():
@@ -48,3 +50,30 @@ def test_train_source_experts_smoke(tmp_path):
     assert len(man["experts"]) == 2
     for e in man["experts"]:
         assert Path(e["ckpt"]).exists() and "centroid" in e and len(e["centroid"]) == 8
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_weight_merge_baker(tmp_path):
+    import torch, numpy as np
+    dev = torch.device("cpu")
+    base = C9.load_source_base(HERE/"runs/c7_local", "hrm", dev)
+    def tiny(seed):
+        n = 16
+        x = np.random.RandomState(seed).randn(n, base.feature_cfg.seq_len, base.feature_cfg.token_dim).astype("float32")
+        y = np.abs(np.random.RandomState(seed + 1).randn(n)).astype("float32")
+        p = tmp_path / f"t{seed}.npz"
+        np.savez_compressed(p, x=x, y=y, euclid=np.ones(n, "float32"), side=np.ones(n, "float32"))
+        return p
+    import dataclasses as dc
+    tcfg = dc.replace(base.train_cfg, base_epochs=1, lr=2e-4)
+    e0 = C9H.train_scalar_lora(base.backbone_cfg, tiny(0), tmp_path/"e0.pt", base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=True)
+    e1 = C9H.train_scalar_lora(base.backbone_cfg, tiny(5), tmp_path/"e1.pt", base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=True)
+    merged = C10.bake_weight_merge(base.ckpt_path, [e0, e1], np.array([1.0, 0.0]), tmp_path/"m.pt", dev)
+    pm = C9H.load_scalar_provider_c9h(merged, dev)
+    pe = C9H.load_scalar_provider_c9h(e0, dev)
+    xb = torch.randn(4, base.feature_cfg.seq_len, base.feature_cfg.token_dim)
+    with torch.no_grad():
+        import numpy as _np
+        a = pm.model(xb).detach().numpy()
+        b = pe.model(xb).detach().numpy()
+    assert _np.allclose(a, b, atol=1e-4)
