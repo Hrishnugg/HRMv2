@@ -35,3 +35,16 @@ def test_rbf_weights():
     assert C10.nearest_weights(z, cent).tolist() == [1.0, 0.0, 0.0]
     u = C10.uniform_weights(3)
     assert np.allclose(u, 1/3)
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_train_source_experts_smoke(tmp_path):
+    import torch
+    cfg = C10.C10Config(source_dir=str(HERE/"runs/c7_local"), out_dir=str(tmp_path/"c10"),
+                        backbones="hrm", n_src_worlds=2, n_centroid_worlds=4, epochs=1,
+                        roadmap_nodes=192, roadmap_k=7, cpu=True, seed=7)
+    man = C10.train_source_experts(cfg, torch.device("cpu"),
+                                   only_families=["C10_maze_d1", "C10_rooms_s20"])
+    assert len(man["experts"]) == 2
+    for e in man["experts"]:
+        assert Path(e["ckpt"]).exists() and "centroid" in e and len(e["centroid"]) == 8

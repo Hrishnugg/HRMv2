@@ -142,3 +142,48 @@ def nearest_weights(z_t, centroids) -> np.ndarray:
 
 def uniform_weights(n: int) -> np.ndarray:
     return np.full(int(n), 1.0 / int(n), dtype=np.float64)
+
+
+# ---------------------------------------------------------------------------
+# Task 3 — Source-expert training + descriptor centroids
+# ---------------------------------------------------------------------------
+
+import hashlib
+
+
+def _stable_offset(s: str) -> int:
+    """Deterministic per-string seed offset (Python's hash() is salted across processes)."""
+    return int(hashlib.md5(s.encode("utf-8")).hexdigest(), 16) & 0xFFFF
+
+
+def _expert_ckpt(out_dir, family, backbone):
+    return Path(out_dir) / "checkpoints" / f"c10_src__{family}__{backbone}.pt"
+
+
+def train_source_experts(cfg: C10Config, device, only_families=None) -> dict:
+    specs = c10_family_specs()
+    fams = only_families or SOURCE_FAMILIES
+    out_dir = Path(cfg.out_dir); ds_dir = out_dir / "datasets"
+    C.ensure_dir(out_dir / "checkpoints"); C.ensure_dir(ds_dir)
+    rmcfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    experts = []
+    for backbone in C9._parse_csv(cfg.backbones):
+        base = C9.load_source_base(Path(cfg.source_dir), backbone, device)
+        tcfg = dataclasses.replace(base.train_cfg, base_epochs=int(cfg.epochs), lr=float(cfg.lr))
+        for fam in fams:
+            spec = specs[fam]
+            seed = int(cfg.seed) + _stable_offset(fam)
+            npz = C.collect_task_dataset(spec, ds_dir, f"src_{fam}", int(cfg.n_src_worlds),
+                                         C9.SCALAR_NODES_PER_WORLD, rmcfg, base.feature_cfg, seed=seed)
+            ck = _expert_ckpt(out_dir, fam, backbone)
+            if not ck.exists():
+                C9H.train_scalar_lora(base.backbone_cfg, npz, ck, base.feature_cfg, tcfg, device,
+                                      seed=seed, init_ckpt=base.ckpt_path, rank=int(cfg.rank),
+                                      alpha=float(cfg.alpha), bounded=True)
+            cent = family_descriptor_centroid(spec, int(cfg.n_centroid_worlds), seed + 1)
+            experts.append(dict(family=fam, backbone=backbone, ckpt=str(ck),
+                                centroid=[float(v) for v in cent]))
+            print(f"[{now_str()}] c10 source expert: {fam} {backbone} done", flush=True)
+    man = {"experts": experts, "source_families": fams, "backbones": C9._parse_csv(cfg.backbones)}
+    C.write_json(out_dir / "source_manifest.json", man)
+    return man
