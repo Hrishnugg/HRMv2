@@ -49,6 +49,7 @@ class C9bConfig:
     alpha: float = 1.0
     epochs: int = 10
     lr: float = 2.0e-4
+    weight_decay: float = 1.0e-4
     grid_size: int = 64
     budgets: str = ""
     w_values: str = "1.0,1.1"
@@ -376,6 +377,8 @@ def train_scalar_temporal(
         raise ValueError(f"dataset k_patrollers={int(npz['k_patrollers'])} != source k_patrollers={k_patrollers}")
     x = np.ascontiguousarray(npz["x"])
     y = np.ascontiguousarray(npz["y"])
+    if x.shape[0] == 0:
+        raise RuntimeError(f"scalar temporal train [{method}]: empty/all-masked dataset {dataset_npz}")
 
     C.set_global_seed(int(seed))
 
@@ -390,10 +393,11 @@ def train_scalar_temporal(
         C.set_lora_trainable(model)
 
     params = [p for p in model.parameters() if p.requires_grad]
-    opt = torch.optim.AdamW(params, lr=float(cfg.lr))
+    opt = torch.optim.AdamW(params, lr=float(cfg.lr), weight_decay=float(cfg.weight_decay))
 
+    train_cfg = C.TrainingConfig()
     ds = C.ArrayDataset(x, y)
-    loader = C.make_loader(ds, batch_size=256, shuffle=True, num_workers=0)
+    loader = C.make_loader(ds, batch_size=train_cfg.batch_size, shuffle=True, num_workers=train_cfg.num_workers)
 
     grad_clip = 1.0
     model.train()
