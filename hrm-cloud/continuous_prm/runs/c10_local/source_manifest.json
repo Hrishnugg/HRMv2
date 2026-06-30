@@ -1,0 +1,258 @@
+{
+  "backbones": [
+    "hrm",
+    "onlstm"
+  ],
+  "experts": [
+    {
+      "backbone": "hrm",
+      "centroid": [
+        0.0,
+        0.0895833345130086,
+        0.7460258404413859,
+        0.07859325222671032,
+        0.9214067483941714,
+        1.0,
+        0.6750000144044558,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d0__hrm.pt",
+      "family": "C10_maze_d0"
+    },
+    {
+      "backbone": "hrm",
+      "centroid": [
+        0.0,
+        0.11291666546215613,
+        0.6448898240923882,
+        0.08883427890638511,
+        0.9111657266815504,
+        1.0,
+        0.5363053741554419,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d1__hrm.pt",
+      "family": "C10_maze_d1"
+    },
+    {
+      "backbone": "hrm",
+      "centroid": [
+        0.0,
+        0.15166666731238365,
+        0.5281412079930305,
+        0.10271342967947324,
+        0.8972865690787634,
+        1.0,
+        0.3985374967257182,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d2__hrm.pt",
+      "family": "C10_maze_d2"
+    },
+    {
+      "backbone": "hrm",
+      "centroid": [
+        0.0,
+        0.17958333405355612,
+        0.4773977572719256,
+        0.1122944022839268,
+        0.8877055943012238,
+        1.0,
+        0.3369410087664922,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d3__hrm.pt",
+      "family": "C10_maze_d3"
+    },
+    {
+      "backbone": "hrm",
+      "centroid": [
+        0.0,
+        0.4374999950329463,
+        0.4459526650607586,
+        0.34745340421795845,
+        0.6525465895732244,
+        1.0,
+        0.23301890740791956,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s10__hrm.pt",
+      "family": "C10_rooms_s10"
+    },
+    {
+      "backbone": "hrm",
+      "centroid": [
+        0.6931471824645996,
+        0.4570833295583725,
+        0.3590346450606982,
+        0.18946339872976145,
+        0.8105366006493568,
+        1.0,
+        0.2221576596299807,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s20__hrm.pt",
+      "family": "C10_rooms_s20"
+    },
+    {
+      "backbone": "hrm",
+      "centroid": [
+        1.0986123085021973,
+        0.44208333144585293,
+        0.3341708965599537,
+        0.1392577470590671,
+        0.8607422560453415,
+        1.0,
+        0.23129139778514704,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s30__hrm.pt",
+      "family": "C10_rooms_s30"
+    },
+    {
+      "backbone": "hrm",
+      "centroid": [
+        1.3862943649291992,
+        0.4299999997019768,
+        0.32418398062388104,
+        0.12204958560566108,
+        0.8779504174987475,
+        1.0,
+        0.23765578058858713,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s40__hrm.pt",
+      "family": "C10_rooms_s40"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        0.0,
+        0.0895833345130086,
+        0.7460258404413859,
+        0.07859325222671032,
+        0.9214067483941714,
+        1.0,
+        0.6750000144044558,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d0__onlstm.pt",
+      "family": "C10_maze_d0"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        0.0,
+        0.11291666546215613,
+        0.6448898240923882,
+        0.08883427890638511,
+        0.9111657266815504,
+        1.0,
+        0.5363053741554419,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d1__onlstm.pt",
+      "family": "C10_maze_d1"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        0.0,
+        0.15166666731238365,
+        0.5281412079930305,
+        0.10271342967947324,
+        0.8972865690787634,
+        1.0,
+        0.3985374967257182,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d2__onlstm.pt",
+      "family": "C10_maze_d2"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        0.0,
+        0.17958333405355612,
+        0.4773977572719256,
+        0.1122944022839268,
+        0.8877055943012238,
+        1.0,
+        0.3369410087664922,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_maze_d3__onlstm.pt",
+      "family": "C10_maze_d3"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        0.0,
+        0.4374999950329463,
+        0.4459526650607586,
+        0.34745340421795845,
+        0.6525465895732244,
+        1.0,
+        0.23301890740791956,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s10__onlstm.pt",
+      "family": "C10_rooms_s10"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        0.6931471824645996,
+        0.4570833295583725,
+        0.3590346450606982,
+        0.18946339872976145,
+        0.8105366006493568,
+        1.0,
+        0.2221576596299807,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s20__onlstm.pt",
+      "family": "C10_rooms_s20"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        1.0986123085021973,
+        0.44208333144585293,
+        0.3341708965599537,
+        0.1392577470590671,
+        0.8607422560453415,
+        1.0,
+        0.23129139778514704,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s30__onlstm.pt",
+      "family": "C10_rooms_s30"
+    },
+    {
+      "backbone": "onlstm",
+      "centroid": [
+        1.3862943649291992,
+        0.4299999997019768,
+        0.32418398062388104,
+        0.12204958560566108,
+        0.8779504174987475,
+        1.0,
+        0.23765578058858713,
+        0.0
+      ],
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c10_local\\checkpoints\\c10_src__C10_rooms_s40__onlstm.pt",
+      "family": "C10_rooms_s40"
+    }
+  ],
+  "source_families": [
+    "C10_maze_d0",
+    "C10_maze_d1",
+    "C10_maze_d2",
+    "C10_maze_d3",
+    "C10_rooms_s10",
+    "C10_rooms_s20",
+    "C10_rooms_s30",
+    "C10_rooms_s40"
+  ]
+}

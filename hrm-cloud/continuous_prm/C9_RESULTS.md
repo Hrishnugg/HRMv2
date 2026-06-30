@@ -4,7 +4,7 @@
 **Experiment:** `continuous_prm_c9_transfer.py` (spec: `../../docs/superpowers/specs/2026-06-29-c9-transfer-design.md`, plan: `../../docs/superpowers/plans/2026-06-29-c9-transfer.md`)
 **Scope:** C9a (static) — few-shot adaptation of a learned additive-residual PRM heuristic to *unseen* hard task families, comparing zero-shot / LoRA / full fine-tune / from-scratch. Builds on C7 (the pooled `avgbase` source) and the C3 bounded-residual task-LoRA mechanism.
 
-Related: [`C9H_RESULTS.md`](C9H_RESULTS.md) (matched-compute + field hardening of this result), [`C7_RESULTS.md`](C7_RESULTS.md) (static integration; source base), [`C8_RESULTS.md`](C8_RESULTS.md) (dynamics), [`continuous_prm_experiment_ladder_repo_coupled.md`](continuous_prm_experiment_ladder_repo_coupled.md) (C1–C4 transfer lineage).
+Related: [`C9H_RESULTS.md`](C9H_RESULTS.md) (matched-compute + field hardening of this result), [`C10_RESULTS.md`](C10_RESULTS.md) (zero-label parameter-space interpolation of these adapters — a clean null: interpolation can't pass the LoRA plateau), [`C7_RESULTS.md`](C7_RESULTS.md) (static integration; source base), [`C8_RESULTS.md`](C8_RESULTS.md) (dynamics), [`continuous_prm_experiment_ladder_repo_coupled.md`](continuous_prm_experiment_ladder_repo_coupled.md) (C1–C4 transfer lineage).
 
 ---
 
