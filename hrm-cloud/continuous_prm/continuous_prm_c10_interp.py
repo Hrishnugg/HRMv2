@@ -258,3 +258,45 @@ def bake_weight_merge(base_ckpt, expert_ckpts, weights, out_ckpt, device) -> Pat
     C.ensure_dir(Path(out_ckpt).parent)
     torch.save(payload, Path(out_ckpt))
     return Path(out_ckpt)
+
+
+# ---------------------------------------------------------------------------
+# Task 5 — Prediction-mix provider
+# ---------------------------------------------------------------------------
+
+class _PredMixProvider(P.HeuristicProvider):
+    """RBF-weighted prediction-space mix: h = euclid + side*clip(Σ w_k ŷ_k, 0, B)."""
+    def __init__(self, models, weights, feature_cfg, device, max_resid, name):
+        self.models = models; self.w = np.asarray(weights, dtype=np.float64)
+        self.feature_cfg = feature_cfg; self.device = device
+        self.max_resid = float(max_resid); self.name = name
+
+    def node_h(self, world, roadmap, goal_idx: int = 1) -> np.ndarray:
+        feats = C5.make_hard_features_for_roadmap(world, roadmap, self.feature_cfg)
+        acc = None
+        for wk, m in zip(self.w, self.models):
+            if abs(float(wk)) < 1e-12:
+                continue
+            yk = np.asarray(C.predict_norm_residuals(m, feats, self.device), dtype=np.float64)
+            acc = (wk * yk) if acc is None else acc + wk * yk
+        if acc is None:
+            acc = np.zeros(roadmap.points.shape[0])
+        yhat = np.clip(acc, 0.0, self.max_resid)
+        euclid = P.euclid_to_goal(roadmap, goal_idx)
+        h = euclid + world.side_len * yhat
+        return np.maximum(h, 0.0)
+
+
+def make_pred_mix_provider(expert_ckpts, weights, device, name) -> "_PredMixProvider":
+    """Build a prediction-mix provider from a list of expert checkpoint paths and blend weights.
+
+    Loads each expert via load_scalar_provider_c9h (applies LoRA, sets max_norm_residual),
+    extracts the model, and wraps all experts in a _PredMixProvider.  feature_cfg and
+    max_norm_residual are taken from the last loaded expert (all experts share the same
+    backbone config so these values are identical across experts).
+    """
+    models, fc, mnr = [], None, 4.0
+    for p in expert_ckpts:
+        prov = C9H.load_scalar_provider_c9h(Path(p), device)   # builds + loads expert model (LoRA applied)
+        models.append(prov.model); fc = prov.feature_cfg; mnr = prov.max_norm_residual
+    return _PredMixProvider(models, weights, fc, device, mnr, name)

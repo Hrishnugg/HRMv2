@@ -90,3 +90,26 @@ def test_weight_merge_baker(tmp_path):
     ms = torch.load(mh, map_location="cpu")["model"]; s0 = torch.load(e0, map_location="cpu")["model"]; s1 = torch.load(e1, map_location="cpu")["model"]; bs = torch.load(base.ckpt_path, map_location="cpu")["model"]
     k = "backbone.L_blocks.0.ffn.w1"
     assert torch.allclose(ms[k + ".weight"], bs[k + ".weight"] + 0.5 * _delta(s0, k) + 0.5 * _delta(s1, k), atol=1e-5)
+
+
+import continuous_prm_c7_hard_maps as H7
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_pred_mix_provider(tmp_path):
+    import torch, numpy as np
+    dev = torch.device("cpu")
+    base = C9.load_source_base(HERE/"runs/c7_local", "hrm", dev)
+    import dataclasses as dc
+    def tiny(seed):
+        n=16; x=np.random.RandomState(seed).randn(n, base.feature_cfg.seq_len, base.feature_cfg.token_dim).astype("float32")
+        y=np.abs(np.random.RandomState(seed+1).randn(n)).astype("float32")
+        p=tmp_path/f"t{seed}.npz"; np.savez_compressed(p,x=x,y=y,euclid=np.ones(n,"float32"),side=np.ones(n,"float32")); return p
+    tcfg = dc.replace(base.train_cfg, base_epochs=1, lr=2e-4)
+    e0 = C9H.train_scalar_lora(base.backbone_cfg, tiny(0), tmp_path/"e0.pt", base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=True)
+    e1 = C9H.train_scalar_lora(base.backbone_cfg, tiny(5), tmp_path/"e1.pt", base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=True)
+    prov = C10.make_pred_mix_provider([e0, e1], np.array([1.0, 0.0]), dev, name="pmix")
+    p0 = C9H.load_scalar_provider_c9h(e0, dev)
+    H7.install_c7_hard_maps(); specs = C.build_anchor_specs()
+    w = C.build_world(specs["C_hard_bugtrap"], 7, 0.45); rm = C.build_prm(w, C.RoadmapConfig(n_nodes=64,k_neighbors=7), seed=24)
+    assert np.allclose(prov.node_h(w, rm), p0.node_h(w, rm), atol=1e-5)
