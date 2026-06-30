@@ -79,3 +79,20 @@ def test_scalar_trainer_methods(tmp_path):
         assert payload["k_patrollers"] == 4 and payload["token_dim"] == 20
         if method == "lora":
             assert payload["lora_rank"] == 8
+
+
+@pytest.mark.skipif(not (HERE/"runs/c8_local_heavy/checkpoints/c8_field__unet.pt").exists(), reason="c8 sources missing")
+def test_field_trainer_methods(tmp_path):
+    C9B.install(); import torch
+    cfg = C9B.C9bConfig(out_dir=str(tmp_path/"c9b"), epochs=1, cpu=True)
+    seeds = C9B.adapt_world_seeds("C_dyn_crossing", K=2, seed_idx=0, cfg=cfg)
+    npz = C9B.collect_temporal_dataset("C_dyn_crossing", seeds, backbone="field_unet", window_w=8,
+                                       k_patrollers=4, grid_size=64, out_npz=tmp_path/"f.npz")
+    src = HERE/"runs/c8_local_heavy/checkpoints/c8_field__unet.pt"
+    for method in ("lora", "full_ft", "scratch"):
+        ck = C9B.train_field_temporal(npz, tmp_path/f"{method}.pt", source_ckpt=src,
+                                      method=method, cfg=cfg, device=torch.device("cpu"), seed=0)
+        p = torch.load(ck, map_location="cpu")
+        assert p["in_channels"] == 16 and p["window_w"] == 8 and p["method"] == method
+        if method == "lora":
+            assert p["lora_rank"] == 8

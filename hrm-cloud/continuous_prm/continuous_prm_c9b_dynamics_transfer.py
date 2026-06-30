@@ -432,3 +432,179 @@ def train_scalar_temporal(
     out_ckpt.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, out_ckpt)
     return out_ckpt
+
+
+# -----------------------------------------------------------------------------
+# Task 5 — field temporal trainer (scratch / full_ft / lora-via-conv-LoRA,
+# matched recipe)
+# -----------------------------------------------------------------------------
+#
+# `source_ckpt` is ALWAYS provided (even for method="scratch") because the
+# MODEL ARCHITECTURE (in_channels, window_w, grid_size, backbone name) lives in
+# the frozen C8 field source payload — we never re-derive or default those from
+# cfg. `method` only controls weight loading:
+#   scratch  -> build same-architecture U-Net, random init (no source weights)
+#   full_ft  -> build + C.safe_load_state(model, source_ckpt), train ALL params
+#   lora     -> build + load source + C9H.apply_conv_lora + freeze non-LoRA
+#               params (mirrors C9H.train_field_model's freeze pattern)
+#
+# CRITICAL: the loss/forward/gather/mask mirrors M8._train_field EXACTLY
+# (continuous_prm_c8_dynamics_compare.py:584-708) — NOT C9H.train_field_model's
+# C6 heatmap loss (ranking/path/consistency), since the frozen C8 field source
+# was trained with `_train_field`'s loss (plain masked smooth-L1 against the
+# gathered node residual), not C6's multi-term heatmap loss:
+#   pred_grid = C6.model_output_residual(model(occ))     # (B, G, G)
+#   ix, iy = cells[..., 0].clamp(0, G-1), cells[..., 1].clamp(0, G-1)
+#   pred_nodes = gather(pred_grid.reshape(B, G*G), 1, ix*G + iy)   # (B, N)
+#   loss = F.smooth_l1_loss(pred_nodes[mask], target[mask])
+#
+# T3's field npz pre-pads (cells, target, mask) to a GLOBAL Nmax across all
+# (world, t) samples (mask=False on padded rows), so we build a flat Dataset
+# directly over the npz arrays (no re-batching/re-padding needed — it is
+# already padded) rather than reusing M8._FieldTemporalDataset/_field_collate
+# (which pad per-BATCH from ragged per-world N; T3's on-disk schema differs).
+
+FIELD_METHODS = ("scratch", "full_ft", "lora")
+
+
+class _FieldTemporalArrayDataset(torch.utils.data.Dataset):
+    """Flat (S,) dataset over T3's pre-padded field npz arrays.
+
+    Each item is one (world, t) sample: occ (8+W, G, G), cells (Nmax, 2),
+    target (Nmax,), mask (Nmax,) — already padded by collect_temporal_dataset
+    (mask=False on padded rows), so no further collate-time padding is needed;
+    the default `torch.utils.data.DataLoader` collate (stacking on dim 0) is
+    correct as-is since Nmax is constant across all samples in the npz.
+    """
+
+    def __init__(self, occ: np.ndarray, cells: np.ndarray, target: np.ndarray, mask: np.ndarray):
+        self.occ = occ
+        self.cells = cells
+        self.target = target
+        self.mask = mask
+
+    def __len__(self) -> int:
+        return int(self.occ.shape[0])
+
+    def __getitem__(self, i: int):
+        return (
+            torch.from_numpy(np.ascontiguousarray(self.occ[i])),
+            torch.from_numpy(np.ascontiguousarray(self.cells[i])),
+            torch.from_numpy(np.ascontiguousarray(self.target[i])),
+            torch.from_numpy(np.ascontiguousarray(self.mask[i])),
+        )
+
+
+def train_field_temporal(
+    dataset_npz: "str | Path",
+    out_ckpt: "str | Path",
+    source_ckpt: "str | Path",
+    method: str,
+    cfg: C9bConfig,
+    device,
+    seed: int,
+) -> Path:
+    """Train a field temporal adapter at matched compute from a frozen C8 source.
+
+    Loads the C8 field source payload (cpu) to recover the model ARCHITECTURE
+    (in_channels, window_w, grid_size, backbone name) — never defaulted from
+    cfg. `method` selects weight loading: scratch=random-init,
+    full_ft=load+train-all, lora=load+apply_conv_lora+freeze non-LoRA params.
+    Asserts the dataset npz's window_w/in_channels/grid_size match the
+    source's (schema guard). Mirrors M8._train_field's forward (U-Net ->
+    model_output_residual) -> gather-at-cells -> mask -> smooth-L1 loss,
+    AdamW + grad-clip, matched recipe (cfg.epochs/lr/weight_decay). Returns
+    the Path the checkpoint was saved to (== Path(out_ckpt)).
+    """
+    import torch.nn.functional as F
+    import continuous_prm_c6_heatmap_value_field as C6
+
+    if method not in FIELD_METHODS:
+        raise ValueError(f"unknown field temporal method {method!r}; have {FIELD_METHODS}")
+
+    out_ckpt = Path(out_ckpt)
+    source_ckpt = Path(source_ckpt)
+
+    source = torch.load(source_ckpt, map_location="cpu")
+    in_channels = int(source["in_channels"])
+    window_w = int(source["window_w"])
+    grid_size = int(source["grid_size"])
+    backbone_name = source["backbone"]
+
+    npz = np.load(dataset_npz)
+    if int(npz["window_w"]) != window_w:
+        raise ValueError(f"dataset window_w={int(npz['window_w'])} != source window_w={window_w}")
+    if int(npz["in_channels"]) != in_channels:
+        raise ValueError(f"dataset in_channels={int(npz['in_channels'])} != source in_channels={in_channels}")
+    if int(npz["grid_size"]) != grid_size:
+        raise ValueError(f"dataset grid_size={int(npz['grid_size'])} != source grid_size={grid_size}")
+
+    occ = np.ascontiguousarray(npz["occ"])
+    cells = np.ascontiguousarray(npz["cells"])
+    target = np.ascontiguousarray(npz["target"])
+    mask = np.ascontiguousarray(npz["mask"])
+    if occ.shape[0] == 0:
+        raise RuntimeError(f"field temporal train [{method}]: empty dataset {dataset_npz}")
+
+    C.set_global_seed(int(seed))
+
+    model = C6.build_model(backbone_name, in_channels=in_channels).to(device)
+
+    if method != "scratch":
+        C.safe_load_state(model, source_ckpt)
+    if method == "lora":
+        C9H.apply_conv_lora(model, rank=int(cfg.rank), alpha=float(cfg.alpha))
+        C.set_lora_trainable(model)
+
+    params = [p for p in model.parameters() if p.requires_grad]
+    opt = torch.optim.AdamW(params, lr=float(cfg.lr), weight_decay=float(cfg.weight_decay))
+
+    ds = _FieldTemporalArrayDataset(occ, cells, target, mask)
+    loader = torch.utils.data.DataLoader(ds, batch_size=8, shuffle=True, num_workers=0)
+
+    grad_clip = 1.0
+    model.train()
+    for _ep in range(int(cfg.epochs)):
+        for occ_b, cells_b, target_b, mask_b in loader:
+            occ_b = occ_b.to(device=device, dtype=torch.float32)
+            cells_b = cells_b.to(device)
+            target_b = target_b.to(device=device, dtype=torch.float32)
+            mask_b = mask_b.to(device)
+
+            pred_grid = C6.model_output_residual(model(occ_b))
+            if not torch.isfinite(pred_grid).all():
+                raise FloatingPointError(f"field temporal train {method}: non-finite grid")
+
+            B, G, _ = pred_grid.shape
+            ix = cells_b[..., 0].clamp(0, G - 1)
+            iy = cells_b[..., 1].clamp(0, G - 1)
+            flat = pred_grid.reshape(B, G * G)
+            lin = ix * G + iy
+            pred_nodes = torch.gather(flat, 1, lin)
+
+            m = mask_b.bool()
+            if not bool(m.any()):
+                continue
+            loss = F.smooth_l1_loss(pred_nodes[m], target_b[m])
+            if not torch.isfinite(loss):
+                raise FloatingPointError(f"field temporal train {method}: non-finite loss")
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, grad_clip)
+            opt.step()
+
+    payload = {
+        "model": model.state_dict(),
+        "in_channels": int(in_channels),
+        "window_w": int(window_w),
+        "grid_size": int(grid_size),
+        "backbone": backbone_name,
+        "method": method,
+    }
+    if method == "lora":
+        payload["lora_rank"] = int(cfg.rank)
+        payload["alpha"] = float(cfg.alpha)
+
+    out_ckpt.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(payload, out_ckpt)
+    return out_ckpt
