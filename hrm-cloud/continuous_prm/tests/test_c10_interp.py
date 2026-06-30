@@ -92,6 +92,28 @@ def test_weight_merge_baker(tmp_path):
     assert torch.allclose(ms[k + ".weight"], bs[k + ".weight"] + 0.5 * _delta(s0, k) + 0.5 * _delta(s1, k), atol=1e-5)
 
 
+@pytest.mark.skipif(not __import__("torch").cuda.is_available() or not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="no cuda or base missing")
+def test_weight_merge_baker_cuda(tmp_path):
+    import torch, numpy as np
+    dev = torch.device("cuda")
+    base = C9.load_source_base(HERE/"runs/c7_local", "hrm", dev)
+    import dataclasses as dc
+    def tiny(seed):
+        n=16; x=np.random.RandomState(seed).randn(n, base.feature_cfg.seq_len, base.feature_cfg.token_dim).astype("float32")
+        y=np.abs(np.random.RandomState(seed+1).randn(n)).astype("float32")
+        p=tmp_path/f"t{seed}.npz"; np.savez_compressed(p,x=x,y=y,euclid=np.ones(n,"float32"),side=np.ones(n,"float32")); return p
+    tcfg = dc.replace(base.train_cfg, base_epochs=1, lr=2e-4)
+    e0 = C9H.train_scalar_lora(base.backbone_cfg, tiny(0), tmp_path/"e0.pt", base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=True)
+    e1 = C9H.train_scalar_lora(base.backbone_cfg, tiny(5), tmp_path/"e1.pt", base.feature_cfg, tcfg, dev, seed=0, init_ckpt=base.ckpt_path, rank=8, alpha=1.0, bounded=True)
+    # uniform merge (BOTH experts nonzero) on cuda — this is what crashed the local run
+    merged = C10.bake_weight_merge(base.ckpt_path, [e0, e1], np.array([0.5, 0.5]), tmp_path/"m.pt", dev)
+    pm = C9H.load_scalar_provider_c9h(merged, dev)
+    xb = torch.randn(4, base.feature_cfg.seq_len, base.feature_cfg.token_dim, device=dev)
+    with torch.no_grad():
+        out = pm.model(xb)
+    assert torch.isfinite(out).all()
+
+
 import continuous_prm_c7_hard_maps as H7
 
 

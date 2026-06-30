@@ -242,10 +242,10 @@ def bake_weight_merge(base_ckpt, expert_ckpts, weights, out_ckpt, device) -> Pat
         for k, st in enumerate(states):
             if abs(float(w[k])) < 1e-12:
                 continue
-            A = st[f"{sd_prefix}.parametrizations.{attr}.0.A"]
-            B = st[f"{sd_prefix}.parametrizations.{attr}.0.B"]
+            A = st[f"{sd_prefix}.parametrizations.{attr}.0.A"].to(W.device, W.dtype)
+            B = st[f"{sd_prefix}.parametrizations.{attr}.0.B"].to(W.device, W.dtype)
             scale = float(st[f"{sd_prefix}.parametrizations.{attr}.0.adapter_scale"])
-            delta = delta + float(w[k]) * scale * (B.to(W.dtype) @ A.to(W.dtype)).reshape(W.shape)
+            delta = delta + float(w[k]) * scale * (B @ A).reshape(W.shape)
 
         with torch.no_grad():
             getattr(sub, attr).add_(delta.to(W.device, W.dtype))
