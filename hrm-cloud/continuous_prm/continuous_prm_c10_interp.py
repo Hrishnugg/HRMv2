@@ -70,9 +70,26 @@ def family_descriptor_centroid(spec, n: int, seed: int) -> np.ndarray:
     return np.mean(np.stack(descs, 0), axis=0)
 
 
-def bracketing_ok(z_t, source_centroids) -> Tuple[bool, List[int]]:
+def bracketing_ok(z_t, source_centroids, rel_tol: float = 0.05) -> Tuple[bool, List[int]]:
+    """Check whether target centroid ``z_t`` is bracketed by the source hull.
+
+    Degenerate (inactive) dims -- where the sources barely vary
+    (``spread <= 1e-6``) -- are SKIPPED: a near-constant dim cannot bracket and
+    sampling noise there would otherwise produce spurious violations. On active
+    dims a small tolerance proportional to the per-dim spread is allowed, so a
+    violation is flagged only if ``z_t[d] < lo[d] - rel_tol*spread[d]`` or
+    ``z_t[d] > hi[d] + rel_tol*spread[d]``. ``viol`` lists only active-dim
+    violations.
+    """
     Z = np.stack([np.asarray(c, dtype=np.float64) for c in source_centroids], 0)
     lo, hi = Z.min(0), Z.max(0)
+    spread = hi - lo
     z = np.asarray(z_t, dtype=np.float64)
-    viol = [int(d) for d in range(z.shape[0]) if not (lo[d] - 1e-9 <= z[d] <= hi[d] + 1e-9)]
+    viol = []
+    for d in range(z.shape[0]):
+        if spread[d] <= 1e-6:
+            continue  # inactive dim: sources don't vary, cannot bracket
+        tol = rel_tol * spread[d]
+        if z[d] < lo[d] - tol or z[d] > hi[d] + tol:
+            viol.append(int(d))
     return (len(viol) == 0, viol)
