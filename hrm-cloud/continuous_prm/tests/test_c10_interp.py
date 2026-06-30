@@ -171,3 +171,14 @@ def test_analyze_c10(tmp_path):
     by = {(r["arm"]): float(r["exp_ratio_median"]) for r in crows if r["backbone"]=="hrm"}
     assert by["rbf_wmerge"] < by["zero_shot"]      # rbf_wmerge is better here
     assert Path(out["comparisons"]).exists() and Path(out["significance"]).exists() and Path(out["bracketing"]).exists()
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_full_smoke(tmp_path):
+    import torch
+    cfg = C10.C10Config(source_dir=str(HERE/"runs/c7_local"), out_dir=str(tmp_path/"c10"),
+                        mode="full", scale="smoke", cpu=True, seed=7)
+    cfg = C10.apply_scale(cfg)
+    res = C10.run_full(cfg, torch.device("cpu"))
+    for key in ("curves", "comparisons", "significance", "bracketing"):
+        assert Path(res[key]).exists()

@@ -116,6 +116,8 @@ class C10Config:
     scale: str = "local"
     mode: str = "full"
     cpu: bool = False
+    source_families: str = ""   # CSV; empty => SOURCE_FAMILIES
+    target_families: str = ""   # CSV; empty => TARGET_FAMILIES
 
 
 def now_str() -> str:
@@ -595,3 +597,88 @@ def run_analyze(cfg: C10Config) -> dict:
     return analyze_from_raw_c10(raw, res, seed=int(cfg.seed),
                                 targets=list(TARGET_FAMILIES), backbones=C9._parse_csv(cfg.backbones),
                                 weights_manifest=(wman if wman.exists() else None))
+
+
+# ---------------------------------------------------------------------------
+# Task 8 — Full mode + CLI + scale presets
+# ---------------------------------------------------------------------------
+
+def apply_scale(cfg: C10Config) -> C10Config:
+    """Scale presets. 'local' = the full RTX-5090 grid (defaults already local-scale).
+    'smoke' = tiny CPU end-to-end (1 target, 2 source families, 1 epoch)."""
+    if cfg.scale == "smoke":
+        return dataclasses.replace(
+            cfg, backbones="hrm", n_src_worlds=2, n_centroid_worlds=4, n_test=4, epochs=1,
+            budgets="200,400", source_families="C10_maze_d1,C10_rooms_s20",
+            target_families="C10_maze_tgt", cpu=True)
+    return cfg  # 'local' uses the dataclass defaults (the full grid)
+
+
+def run_full(cfg: C10Config, device) -> dict:
+    fams = C9._parse_csv(cfg.source_families) or list(SOURCE_FAMILIES)
+    tgts = C9._parse_csv(cfg.target_families) or list(TARGET_FAMILIES)
+    print(f"[{now_str()}] c10 full: sources={fams} targets={tgts} backbones={cfg.backbones}", flush=True)
+    train_source_experts(cfg, device, only_families=fams)
+    run_eval(cfg, device, only_targets=tgts)
+    res = analyze_from_raw_c10(
+        Path(cfg.out_dir) / "results" / "continuous_prm_c10_eval_raw.csv",
+        Path(cfg.out_dir) / "results", seed=int(cfg.seed), targets=tgts,
+        backbones=C9._parse_csv(cfg.backbones),
+        weights_manifest=(Path(cfg.out_dir) / "results" / "c10_weights_manifest.json"))
+    return res
+
+
+def build_argparser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="C10 parameter-space LoRA interpolation")
+    d = C10Config()
+    ap.add_argument("--mode", choices=["train", "eval", "analyze", "full"], default=d.mode)
+    ap.add_argument("--scale", choices=["local", "smoke"], default=d.scale)
+    ap.add_argument("--source-dir", default=d.source_dir)
+    ap.add_argument("--out-dir", default=d.out_dir)
+    ap.add_argument("--backbones", default=d.backbones)
+    ap.add_argument("--source-families", default=d.source_families)
+    ap.add_argument("--target-families", default=d.target_families)
+    ap.add_argument("--n-src-worlds", type=int, default=d.n_src_worlds)
+    ap.add_argument("--n-centroid-worlds", type=int, default=d.n_centroid_worlds)
+    ap.add_argument("--n-test", type=int, default=d.n_test)
+    ap.add_argument("--rank", type=int, default=d.rank)
+    ap.add_argument("--alpha", type=float, default=d.alpha)
+    ap.add_argument("--rbf-sigma", type=float, default=d.rbf_sigma)
+    ap.add_argument("--epochs", type=int, default=d.epochs)
+    ap.add_argument("--lr", type=float, default=d.lr)
+    ap.add_argument("--roadmap-nodes", type=int, default=d.roadmap_nodes)
+    ap.add_argument("--roadmap-k", type=int, default=d.roadmap_k)
+    ap.add_argument("--budgets", default=d.budgets)
+    ap.add_argument("--w-values", default=d.w_values)
+    ap.add_argument("--seed", type=int, default=d.seed)
+    ap.add_argument("--cpu", action="store_true", default=d.cpu)
+    return ap
+
+
+def config_from_args(args) -> C10Config:
+    return C10Config(
+        mode=args.mode, scale=args.scale, source_dir=args.source_dir, out_dir=args.out_dir,
+        backbones=args.backbones, source_families=args.source_families, target_families=args.target_families,
+        n_src_worlds=args.n_src_worlds, n_centroid_worlds=args.n_centroid_worlds, n_test=args.n_test,
+        rank=args.rank, alpha=args.alpha, rbf_sigma=args.rbf_sigma, epochs=args.epochs, lr=args.lr,
+        roadmap_nodes=args.roadmap_nodes, roadmap_k=args.roadmap_k, budgets=args.budgets,
+        w_values=args.w_values, seed=args.seed, cpu=args.cpu)
+
+
+def main(argv=None):
+    args = build_argparser().parse_args(argv)
+    cfg = apply_scale(config_from_args(args))
+    device = torch.device("cpu") if cfg.cpu or not torch.cuda.is_available() else torch.device("cuda")
+    print(f"[{now_str()}] c10 mode={cfg.mode} scale={cfg.scale} device={device}", flush=True)
+    if cfg.mode == "train":
+        train_source_experts(cfg, device, only_families=(C9._parse_csv(cfg.source_families) or None))
+    elif cfg.mode == "eval":
+        run_eval(cfg, device, only_targets=(C9._parse_csv(cfg.target_families) or None))
+    elif cfg.mode == "analyze":
+        run_analyze(cfg)
+    else:
+        run_full(cfg, device)
+
+
+if __name__ == "__main__":
+    main()
