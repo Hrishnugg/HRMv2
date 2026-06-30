@@ -595,7 +595,8 @@ def run_analyze(cfg: C10Config) -> dict:
     raw = res / "continuous_prm_c10_eval_raw.csv"
     wman = res / "c10_weights_manifest.json"
     return analyze_from_raw_c10(raw, res, seed=int(cfg.seed),
-                                targets=list(TARGET_FAMILIES), backbones=C9._parse_csv(cfg.backbones),
+                                targets=(C9._parse_csv(cfg.target_families) or list(TARGET_FAMILIES)),
+                                backbones=C9._parse_csv(cfg.backbones),
                                 weights_manifest=(wman if wman.exists() else None))
 
 
