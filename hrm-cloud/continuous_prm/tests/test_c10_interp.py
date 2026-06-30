@@ -135,3 +135,39 @@ def test_run_eval_smoke(tmp_path):
     for r in rows:
         assert r["target"] == "C10_maze_tgt" and r["method"]  # every row carries target + method
     assert (Path(cfg.out_dir)/"results"/"c10_weights_manifest.json").exists()
+
+
+def test_analyze_c10(tmp_path):
+    import csv, json
+    res = tmp_path/"results"; res.mkdir(parents=True)
+    cols = C10.C10_RAW_COLS
+    rows = []
+    def mk(method, backbone, wi, exp, found, budget=200, prov=None):
+        r = {k: "" for k in cols}
+        r.update(target="C10_maze_tgt", method=method, backbone=backbone, suite="C10_maze_tgt",
+                 world_index=wi, provider=(prov or f"{method}_{backbone}"), mode="astar", w="1.0",
+                 budget=budget, found=found, expansions=exp, closed=exp, cost="1.0",
+                 optimal="", suboptimality="", nonfinite="False")
+        return r
+    for wi in (0, 1):
+        rows.append(mk("euclid", "", wi, 100, "True", prov="euclid"))
+        rows.append(mk("zero_shot", "hrm", wi, 80, "True"))
+        rows.append(mk("nearest", "hrm", wi, 85, "True"))
+        rows.append(mk("uniform_wmerge", "hrm", wi, 90, "True"))
+        rows.append(mk("rbf_wmerge", "hrm", wi, 60, "True"))   # best (lowest expansions)
+        rows.append(mk("rbf_pmix", "hrm", wi, 70, "True"))
+    raw = res/"continuous_prm_c10_eval_raw.csv"
+    with open(raw, "w", newline="") as f:
+        wri = csv.DictWriter(f, fieldnames=cols); wri.writeheader()
+        for r in rows: wri.writerow(r)
+    wman = {"entries": [dict(target="C10_maze_tgt", backbone="hrm",
+                            z_T=[0.0]*8, source_families=["C10_maze_d1","C10_rooms_s20"],
+                            centroids=[[0.0]*8, [1.0]*8], rbf=[0.9,0.1], nearest=[1.0,0.0], uniform=[0.5,0.5])]}
+    (res/"c10_weights_manifest.json").write_text(json.dumps(wman))
+    out = C10.analyze_from_raw_c10(raw, res, seed=1, targets=["C10_maze_tgt"], backbones=["hrm"],
+                                   weights_manifest=res/"c10_weights_manifest.json")
+    import csv as _csv
+    crows = list(_csv.DictReader(open(out["curves"], newline="")))
+    by = {(r["arm"]): float(r["exp_ratio_median"]) for r in crows if r["backbone"]=="hrm"}
+    assert by["rbf_wmerge"] < by["zero_shot"]      # rbf_wmerge is better here
+    assert Path(out["comparisons"]).exists() and Path(out["significance"]).exists() and Path(out["bracketing"]).exists()

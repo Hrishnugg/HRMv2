@@ -421,3 +421,177 @@ def run_eval(cfg: C10Config, device, only_targets=None) -> Path:
     C.write_json(res_dir / "c10_weights_manifest.json", {"entries": wman})
     print(f"[{now_str()}] c10 eval: merged {len(all_rows)} rows -> {raw}", flush=True)
     return raw
+
+
+# ---------------------------------------------------------------------------
+# Task 7 — Analyze mode (curves CSV + comparisons + significance + bracketing)
+# ---------------------------------------------------------------------------
+
+from continuous_prm_c6_heatmap_value_field import mcnemar_exact_p, bh_q_values
+from continuous_prm_c7_integration_compare import bootstrap_median_ci
+
+C10_ARMS = ["zero_shot", "nearest", "uniform_wmerge", "rbf_wmerge", "rbf_pmix"]
+
+
+def _axis_of(name: str) -> str:
+    return "maze" if "maze" in name else "rooms"
+
+
+def analyze_from_raw_c10(raw_csv, out_dir, seed, targets, backbones, weights_manifest=None) -> dict:
+    rows = C9._load_rows(raw_csv)
+    res_dir = Path(out_dir); C.ensure_dir(res_dir)
+    binding = {t: C9._binding_budget_for(rows, t) for t in targets}
+    curves = []
+    for target in targets:
+        bb_budget = binding[target]
+        eu = C9._euclid_exp_by_world(rows, target, bb_budget) if bb_budget is not None else {}
+        for backbone in backbones:
+            for arm in C10_ARMS:
+                ratios, succ = [], []
+                for r in C9._astar(rows):
+                    if r["target"] != target or r["method"] != arm or r.get("backbone") != backbone:
+                        continue
+                    if bb_budget is None or int(r["budget"]) != bb_budget:
+                        continue
+                    wi = int(r["world_index"]); found = C9._is_found(r)
+                    succ.append(1 if found else 0)
+                    if found and wi in eu and eu[wi] > 0:
+                        ratios.append(float(r["expansions"]) / eu[wi])
+                med, lo, hi = bootstrap_median_ci(ratios, seed=seed)
+                curves.append(dict(target=target, backbone=backbone, arm=arm, binding_budget=bb_budget,
+                                   n_matched=len(ratios), exp_ratio_median=med, ci_lo=lo, ci_hi=hi,
+                                   success=(float(np.mean(succ)) if succ else float("nan"))))
+    curves_csv = res_dir / "continuous_prm_c10_curves.csv"
+    cols = ["target", "backbone", "arm", "binding_budget", "n_matched", "exp_ratio_median", "ci_lo", "ci_hi", "success"]
+    with open(curves_csv, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=cols); wri.writeheader()
+        for c in curves:
+            wri.writerow({k: ("" if c[k] is None or (isinstance(c[k], float) and not np.isfinite(c[k])) else c[k]) for k in cols})
+    comp_md = res_dir / "continuous_prm_c10_comparisons.md"
+    _write_comparisons_md_c10(comp_md, curves, binding)
+    sig_md = res_dir / "continuous_prm_c10_significance.md"
+    _write_significance_md_c10(sig_md, rows, targets, backbones, binding)
+    brk_md = res_dir / "continuous_prm_c10_bracketing.md"
+    _write_bracketing_md_c10(brk_md, weights_manifest)
+    print(f"[{now_str()}] c10 analyze: wrote {curves_csv}, {comp_md}, {sig_md}, {brk_md}", flush=True)
+    return {"curves": curves_csv, "comparisons": comp_md, "significance": sig_md, "bracketing": brk_md}
+
+
+def _write_comparisons_md_c10(path, curves, binding):
+    by = {(c["target"], c["backbone"], c["arm"]): c for c in curves}
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
+    lines = ["# C10 Interpolation — Pre-registered Comparisons", "",
+             "Matched A* expansion-ratio vs euclid (median, 95% CI) at the per-target binding budget. Lower = fewer expansions.",
+             "Key contrasts: rbf_wmerge vs zero_shot (interpolation helps?), vs nearest/uniform (descriptor-weighting value), vs rbf_pmix (weight-space vs prediction-space).",
+             f"Binding budgets: {binding_str}.", ""]
+    targets = sorted({c["target"] for c in curves}); backbones = sorted({c["backbone"] for c in curves})
+    def cell(c):
+        return "n/a" if not c or not np.isfinite(c["exp_ratio_median"]) else \
+            f'{c["exp_ratio_median"]:.3f} [{c["ci_lo"]:.3f},{c["ci_hi"]:.3f}] (succ {c["success"]:.2f}, n{c["n_matched"]})'
+    for target in targets:
+        for backbone in backbones:
+            lines += [f"## {target} / {backbone}", "|arm|exp-ratio (median [CI]) |", "|---|---|"]
+            for arm in C10_ARMS:
+                lines.append(f"|{arm}|{cell(by.get((target, backbone, arm)))}|")
+            # explicit rbf_wmerge deltas
+            rw = by.get((target, backbone, "rbf_wmerge"))
+            if rw and np.isfinite(rw["exp_ratio_median"]):
+                for other in ("zero_shot", "nearest", "uniform_wmerge", "rbf_pmix"):
+                    o = by.get((target, backbone, other))
+                    if o and np.isfinite(o["exp_ratio_median"]):
+                        d = rw["exp_ratio_median"] - o["exp_ratio_median"]
+                        verdict = "rbf_wmerge better" if d < 0 else ("tie" if abs(d) < 1e-9 else f"{other} better")
+                        lines.append(f"- rbf_wmerge vs {other}: Δ={d:+.3f} ({verdict})")
+            lines.append("")
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_significance_md_c10(path, rows, targets, backbones, binding):
+    """McNemar + BH success grid: each arm vs euclid at the binding budget (paired over worlds)."""
+    astar_rows = C9._astar(rows)
+    eu_found = {}
+    for r in astar_rows:
+        if r["provider"] != "euclid":
+            continue
+        bbd = binding.get(r["target"])
+        if bbd is None or int(r["budget"]) != bbd:
+            continue
+        eu_found.setdefault(r["target"], {})[int(r["world_index"])] = C9._is_found(r)
+    comparisons, pvals = [], []
+    for target in targets:
+        bbd = binding.get(target); eu_by_wi = eu_found.get(target, {})
+        for backbone in backbones:
+            for arm in C10_ARMS:
+                pairs = []
+                for r in astar_rows:
+                    if r["target"] != target or r["method"] != arm or r.get("backbone") != backbone:
+                        continue
+                    if bbd is None or int(r["budget"]) != bbd:
+                        continue
+                    wi = int(r["world_index"])
+                    if wi in eu_by_wi:
+                        pairs.append((wi, C9._is_found(r)))
+                n = len(pairs)
+                if n == 0:
+                    continue
+                gain = sum(1 for (wi, af) in pairs if af and not eu_by_wi[wi])
+                loss = sum(1 for (wi, af) in pairs if eu_by_wi[wi] and not af)
+                eu_succ = float(np.mean([1.0 if eu_by_wi[wi] else 0.0 for (wi, _) in pairs]))
+                arm_succ = float(np.mean([1.0 if af else 0.0 for (_, af) in pairs]))
+                p = mcnemar_exact_p(gain, loss); pvals.append(p)
+                comparisons.append(dict(target=target, backbone=backbone, arm=arm, n=n,
+                                        euclid_succ=eu_succ, arm_succ=arm_succ, gain=gain, loss=loss, mcnemar_p=p))
+    qvals = bh_q_values(pvals)
+    for row, q in zip(comparisons, qvals):
+        row["bh_q"] = q
+    def _fp(p, disc): return "n/a" if disc < 2 else (f"{p:.4f}" if p is not None and np.isfinite(p) else "n/a")
+    def _fn(v): return "n/a" if v is None or (isinstance(v, float) and not np.isfinite(v)) else f"{v:.3f}"
+    binding_str = ", ".join(f"{t}={b}" for t, b in sorted(binding.items()))
+    lines = ["# C10 Interpolation — Significance", "",
+             "McNemar exact (arm found & euclid not = gain; euclid found & arm not = loss). BH across the table. n/a if <2 discordant.",
+             f"At the per-target binding budget ({binding_str}); pairs over worlds.", "",
+             "|target|backbone|arm|n|euclid_succ|arm_succ|gain|loss|McNemar p|BH q|",
+             "|---|---|---|---:|---:|---:|---:|---:|---:|---:|"]
+    if not comparisons:
+        lines.append("|<none>|-|-|-|-|-|-|-|-|-|")
+    for r in comparisons:
+        disc = r["gain"] + r["loss"]
+        lines.append(f"|{r['target']}|{r['backbone']}|{r['arm']}|{r['n']}|{_fn(r['euclid_succ'])}|{_fn(r['arm_succ'])}|{r['gain']}|{r['loss']}|{_fp(r['mcnemar_p'], disc)}|{_fn(r.get('bh_q'))}|")
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_bracketing_md_c10(path, weights_manifest):
+    lines = ["# C10 — Bracketing (G0b) + RBF descriptor selectivity", "",
+             "Per target: per-AXIS bracketing (target descriptor interior to its OWN axis's source centroids) and the RBF weight mass landing on the target's own axis (descriptor selectivity).", ""]
+    if weights_manifest is None or not Path(weights_manifest).exists():
+        lines.append("_No weights manifest available._")
+        Path(path).write_text("\n".join(lines), encoding="utf-8")
+        return
+    man = json.loads(Path(weights_manifest).read_text())
+    for e in man.get("entries", []):
+        target, backbone = e["target"], e["backbone"]
+        z_T = np.asarray(e["z_T"], dtype=np.float64)
+        fams = e["source_families"]; cents = [np.asarray(c, dtype=np.float64) for c in e["centroids"]]
+        rbf = np.asarray(e["rbf"], dtype=np.float64)
+        tgt_axis = _axis_of(target)
+        same_idx = [i for i, f in enumerate(fams) if _axis_of(f) == tgt_axis]
+        if same_idx:
+            ok, viol = bracketing_ok(z_T, [cents[i] for i in same_idx])
+        else:
+            ok, viol = (False, [])
+        same_mass = float(rbf[same_idx].sum()) if same_idx else 0.0
+        lines += [f"## {target} / {backbone}",
+                  f"- axis: **{tgt_axis}**; same-axis sources: {[fams[i] for i in same_idx]}",
+                  f"- per-axis bracketing_ok: **{ok}** (active-dim violations: {viol})",
+                  f"- RBF mass on own axis: **{same_mass:.3f}** (selectivity: {'good' if same_mass >= 0.5 else 'weak'})",
+                  f"- RBF weights: " + ", ".join(f"{f}={w:.3f}" for f, w in zip(fams, rbf)), ""]
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+def run_analyze(cfg: C10Config) -> dict:
+    res = Path(cfg.out_dir) / "results"
+    raw = res / "continuous_prm_c10_eval_raw.csv"
+    wman = res / "c10_weights_manifest.json"
+    return analyze_from_raw_c10(raw, res, seed=int(cfg.seed),
+                                targets=list(TARGET_FAMILIES), backbones=C9._parse_csv(cfg.backbones),
+                                weights_manifest=(wman if wman.exists() else None))
