@@ -302,3 +302,122 @@ def make_pred_mix_provider(expert_ckpts, weights, device, name) -> "_PredMixProv
         prov = C9H.load_scalar_provider_c9h(Path(p), device)   # builds + loads expert model (LoRA applied)
         models.append(prov.model); fc = prov.feature_cfg; mnr = prov.max_norm_residual
     return _PredMixProvider(models, weights, fc, device, mnr, name)
+
+
+# ---------------------------------------------------------------------------
+# Task 6 — Eval mode (interpolation arms on TEST worlds over budget grid)
+# ---------------------------------------------------------------------------
+
+C10_RAW_COLS = ["target", "method", "backbone", "suite", "world_index", "provider",
+                "mode", "w", "budget", "found", "expansions", "closed", "cost",
+                "optimal", "suboptimality", "nonfinite"]
+
+
+def run_eval(cfg: C10Config, device, only_targets=None) -> Path:
+    """For each TARGET family × backbone build the 7 arms, eval on TEST worlds
+    over the budget grid, and write a raw CSV + a weights manifest.
+
+    Arms per (target × backbone):
+      euclid, oracle (shared, no backbone)
+      zeroshot_{bb}, nearest_{bb}, uniform_wmerge_{bb}, rbf_wmerge_{bb}, rbf_pmix_{bb}
+    """
+    H7.install_c7_hard_maps()
+    specs = c10_family_specs()
+    out_dir = Path(cfg.out_dir)
+    res_dir = out_dir / "results"
+    shard_dir = res_dir / "_shards"
+    C.ensure_dir(shard_dir)
+    C.ensure_dir(out_dir / "checkpoints")
+    rmcfg = C.RoadmapConfig(n_nodes=cfg.roadmap_nodes, k_neighbors=cfg.roadmap_k)
+    budgets = C9._parse_ints(cfg.budgets)
+    w_values = [float(x) for x in C9._parse_csv(cfg.w_values)]
+    manifest = json.loads((out_dir / "source_manifest.json").read_text())
+    src_fams = manifest["source_families"]
+    targets = only_targets or TARGET_FAMILIES
+    all_rows: List[dict] = []
+    wman: List[dict] = []
+    for suite_idx, target in enumerate(targets):
+        spec = specs[target]
+        # Materialise test worlds ONCE for determinism + speed (z_T and eval reuse same list)
+        test_worlds = list(C9.iter_test_worlds(spec, suite_idx, cfg, rmcfg, cfg.n_test))
+        z_T = np.mean(
+            np.stack([np.asarray(w.descriptor, dtype=np.float64) for (_, w, _) in test_worlds], 0),
+            axis=0,
+        )
+        # Shared providers (no backbone dependency)
+        providers: Dict[str, object] = {
+            "euclid": P.EuclidProvider(),
+            "oracle": P.OracleProvider(),
+        }
+        meta: Dict[str, dict] = {
+            "euclid": dict(method="euclid", backbone=""),
+            "oracle": dict(method="oracle", backbone=""),
+        }
+        for backbone in C9._parse_csv(cfg.backbones):
+            base = C9.load_source_base(Path(cfg.source_dir), backbone, device)
+            # Build parallel (expert_ckpts, centroids) lists ordered by src_fams from manifest
+            byfam = {e["family"]: e for e in manifest["experts"] if e["backbone"] == backbone}
+            expert_ckpts = [byfam[f]["ckpt"] for f in src_fams]
+            centroids = [np.asarray(byfam[f]["centroid"], dtype=np.float64) for f in src_fams]
+            # Compute interpolation weights from z_T and centroids
+            w_rbf = rbf_weights(z_T, centroids, cfg.rbf_sigma)
+            w_near = nearest_weights(z_T, centroids)
+            w_unif = uniform_weights(len(src_fams))
+            # Arm 1: zero-shot (plain base, no merging)
+            zp = P.ScalarResidualProvider(
+                base.model, base.feature_cfg, device, backbone, base.train_cfg.max_norm_residual
+            )
+            zp.name = f"zeroshot_{backbone}"
+            providers[zp.name] = zp
+            meta[zp.name] = dict(method="zero_shot", backbone=backbone)
+            # Arms 2-4: weight-merge (nearest / uniform / rbf)
+            for arm, wv in (
+                ("nearest", w_near),
+                ("uniform_wmerge", w_unif),
+                ("rbf_wmerge", w_rbf),
+            ):
+                mck = out_dir / "checkpoints" / f"c10_merge__{target}__{arm}__{backbone}.pt"
+                bake_weight_merge(base.ckpt_path, expert_ckpts, wv, mck, device)
+                prov = C9H.load_scalar_provider_c9h(mck, device)
+                prov.name = f"{arm}_{backbone}"
+                providers[prov.name] = prov
+                meta[prov.name] = dict(method=arm, backbone=backbone)
+            # Arm 5: prediction-mix (rbf)
+            pm = make_pred_mix_provider(expert_ckpts, w_rbf, device, name=f"rbf_pmix_{backbone}")
+            providers[pm.name] = pm
+            meta[pm.name] = dict(method="rbf_pmix", backbone=backbone)
+            # Record weights manifest entry for this (target, backbone)
+            wman.append(dict(
+                target=target,
+                backbone=backbone,
+                z_T=[float(v) for v in z_T],
+                source_families=list(src_fams),
+                centroids=[[float(v) for v in c] for c in centroids],
+                rbf=[float(v) for v in w_rbf],
+                nearest=[float(v) for v in w_near],
+                uniform=[float(v) for v in w_unif],
+            ))
+        rows: List[dict] = []
+        for world_index, world, rm in test_worlds:
+            recs = P.run_world_arms(world, rm, providers, budgets, w_values, goal_idx=1)
+            for r in recs:
+                m = meta.get(r["provider"], dict(method=r["provider"], backbone=""))
+                r.update(dict(target=target, suite=target, world_index=world_index, **m))
+                rows.append(r)
+        sp = shard_dir / f"{target}.csv"
+        with open(sp, "w", newline="") as f:
+            wri = _csv.DictWriter(f, fieldnames=C10_RAW_COLS)
+            wri.writeheader()
+            for r in rows:
+                wri.writerow({k: r.get(k, "") for k in C10_RAW_COLS})
+        all_rows.extend(rows)
+        print(f"[{now_str()}] c10 eval {target}: {len(rows)} rows", flush=True)
+    raw = res_dir / "continuous_prm_c10_eval_raw.csv"
+    with open(raw, "w", newline="") as f:
+        wri = _csv.DictWriter(f, fieldnames=C10_RAW_COLS)
+        wri.writeheader()
+        for r in all_rows:
+            wri.writerow({k: r.get(k, "") for k in C10_RAW_COLS})
+    C.write_json(res_dir / "c10_weights_manifest.json", {"entries": wman})
+    print(f"[{now_str()}] c10 eval: merged {len(all_rows)} rows -> {raw}", flush=True)
+    return raw

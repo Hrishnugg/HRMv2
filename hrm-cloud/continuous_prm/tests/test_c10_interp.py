@@ -116,3 +116,22 @@ def test_pred_mix_provider(tmp_path):
     prov1 = C10.make_pred_mix_provider([e0, e1], np.array([0.0, 1.0]), dev, name="pmix1")
     p1 = C9H.load_scalar_provider_c9h(e1, dev)
     assert np.allclose(prov1.node_h(w, rm), p1.node_h(w, rm), atol=1e-5)
+
+
+@pytest.mark.skipif(not (HERE/"runs/c7_local/checkpoints/avgbase__hrm.pt").exists(), reason="base missing")
+def test_run_eval_smoke(tmp_path):
+    import torch
+    cfg = C10.C10Config(source_dir=str(HERE/"runs/c7_local"), out_dir=str(tmp_path/"c10"),
+                        backbones="hrm", n_src_worlds=2, n_centroid_worlds=4, n_test=4, epochs=1,
+                        roadmap_nodes=192, roadmap_k=7, budgets="200,400", cpu=True, seed=7)
+    C10.train_source_experts(cfg, torch.device("cpu"), only_families=["C10_maze_d1", "C10_rooms_s20"])
+    raw = C10.run_eval(cfg, torch.device("cpu"), only_targets=["C10_maze_tgt"])
+    import csv
+    rows = list(csv.DictReader(open(raw, newline="")))
+    assert rows, "no rows"
+    provs = {r["provider"] for r in rows}
+    for need in ("zeroshot_hrm", "rbf_wmerge_hrm", "rbf_pmix_hrm", "nearest_hrm", "uniform_wmerge_hrm", "euclid", "oracle"):
+        assert need in provs, f"missing provider {need}"
+    for r in rows:
+        assert r["target"] == "C10_maze_tgt" and r["method"]  # every row carries target + method
+    assert (Path(cfg.out_dir)/"results"/"c10_weights_manifest.json").exists()
