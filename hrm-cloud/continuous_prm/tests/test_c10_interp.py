@@ -77,3 +77,16 @@ def test_weight_merge_baker(tmp_path):
         a = pm.model(xb).detach().numpy()
         b = pe.model(xb).detach().numpy()
     assert _np.allclose(a, b, atol=1e-4)
+    # k=1 branch: w=[0,1] reproduces expert-1's forward (exercises the accumulation path)
+    m1 = C10.bake_weight_merge(base.ckpt_path, [e0, e1], np.array([0.0, 1.0]), tmp_path/"m1.pt", dev)
+    p1 = C9H.load_scalar_provider_c9h(m1, dev); pe1 = C9H.load_scalar_provider_c9h(e1, dev)
+    with torch.no_grad():
+        assert _np.allclose(p1.model(xb).detach().numpy(), pe1.model(xb).detach().numpy(), atol=1e-4)
+    # uniform bake == base + 0.5·Δ0 + 0.5·Δ1 on a sample target (weight-space; forward is nonlinear in weights)
+    mh = C10.bake_weight_merge(base.ckpt_path, [e0, e1], np.array([0.5, 0.5]), tmp_path/"mh.pt", dev)
+    def _delta(sd, key):
+        A = sd[f"{key}.parametrizations.weight.0.A"]; B = sd[f"{key}.parametrizations.weight.0.B"]
+        return float(sd[f"{key}.parametrizations.weight.0.adapter_scale"]) * (B @ A)
+    ms = torch.load(mh, map_location="cpu")["model"]; s0 = torch.load(e0, map_location="cpu")["model"]; s1 = torch.load(e1, map_location="cpu")["model"]; bs = torch.load(base.ckpt_path, map_location="cpu")["model"]
+    k = "backbone.L_blocks.0.ffn.w1"
+    assert torch.allclose(ms[k + ".weight"], bs[k + ".weight"] + 0.5 * _delta(s0, k) + 0.5 * _delta(s1, k), atol=1e-5)
