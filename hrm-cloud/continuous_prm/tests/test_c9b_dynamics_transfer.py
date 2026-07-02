@@ -269,3 +269,17 @@ def test_analyze_c9b(tmp_path):
     # the headline full_ft K=16 aware-vs-blind cell must be named explicitly.
     assert "full_ft" in probe_text and "16" in probe_text
     assert "C_dyn_crossing" in probe_text
+
+
+# -----------------------------------------------------------------------------
+# Task 10 — full mode + CLI + scale presets (CPU smoke, end-to-end)
+# -----------------------------------------------------------------------------
+
+@pytest.mark.skipif(not (HERE/"runs/c8_local_heavy/checkpoints/c8_scalar__hrm.pt").exists(), reason="c8 sources missing")
+def test_run_full_smoke(tmp_path):
+    import torch
+    cfg = C9B.C9bConfig(out_dir=str(tmp_path/"c9b"), mode="full", scale="smoke", cpu=True, seed=7)
+    cfg = C9B.apply_scale(cfg)
+    res = C9B.run_full(cfg, torch.device("cpu"))
+    for key in ("curves", "comparisons", "significance", "probe"):
+        assert Path(res[key]).exists()

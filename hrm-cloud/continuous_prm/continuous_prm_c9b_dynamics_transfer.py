@@ -1310,3 +1310,109 @@ def _write_probe_md_c9b(path, rows, targets, backbones, binding, seed):
             lines.append("No cells where the success composite and matched-ratio disagree on direction.")
 
     Path(path).write_text("\n".join(lines), encoding="utf-8")
+
+
+# -----------------------------------------------------------------------------
+# Task 10 — full mode + CLI + scale presets + run_analyze
+# -----------------------------------------------------------------------------
+#
+# Orchestration glue tying adapt -> eval -> analyze together (run_full), a
+# thin re-entry point for analyze-only re-runs against an already-written raw
+# CSV (run_analyze), scale presets (apply_scale: 'local' = the full grid
+# already encoded in C9bConfig's defaults, 'smoke' = a tiny CPU end-to-end
+# config), and the CLI (build_argparser/config_from_args/main). Mirrors C10's
+# Task 8 pattern (continuous_prm_c10_interp.py:593-686) verbatim, adapted for
+# C9b's adapt/eval/analyze modes (vs C10's train/eval/analyze) and its frozen
+# C8 source checkpoints (vs C10's own trained source experts) — run_full
+# checks the 6 frozen sources exist up front and fails fast (with a pointer
+# to the C8 heavy run) rather than silently producing an empty/partial grid.
+
+
+def run_analyze(cfg: C9bConfig) -> dict:
+    res = Path(cfg.out_dir) / "results"
+    raw = res / "continuous_prm_c9b_eval_raw.csv"
+    return analyze_from_raw_c9b(raw, res, seed=int(cfg.seed),
+                                targets=_parse_csv(cfg.targets), backbones=_parse_csv(cfg.backbones),
+                                awareness=cfg.awareness_list())
+
+
+def run_full(cfg: C9bConfig, device, only_targets=None) -> dict:
+    tgts = only_targets or _parse_csv(cfg.targets)
+    # source existence check (sources are the frozen C8 heavy checkpoints; reused, not retrained)
+    missing = [str(p) for p in resolve_sources(cfg).values() if not Path(p).exists()]
+    if missing:
+        if cfg.retrain_sources:
+            raise NotImplementedError(
+                "retrain_sources: regenerate the 6 C8 pooled sources via the C8 heavy run "
+                "(continuous_prm_c8_dynamics_compare.py --mode train ...); C9b reuses them, it does not retrain.")
+        raise RuntimeError(f"missing C8 source checkpoints: {missing}. Run the C8 heavy training or pass --source-dir.")
+    print(f"[{now_str()}] c9b full: targets={tgts} backbones={cfg.backbones} awareness={cfg.awareness} methods={cfg.methods}", flush=True)
+    run_adapt(cfg, device, only_targets=tgts)
+    run_eval(cfg, device, only_targets=tgts)
+    return analyze_from_raw_c9b(Path(cfg.out_dir)/"results"/"continuous_prm_c9b_eval_raw.csv",
+                                Path(cfg.out_dir)/"results", seed=int(cfg.seed),
+                                targets=tgts, backbones=_parse_csv(cfg.backbones), awareness=cfg.awareness_list())
+
+
+def apply_scale(cfg: C9bConfig) -> C9bConfig:
+    if cfg.scale == "smoke":
+        return dataclasses.replace(cfg, backbones="scalar_hrm", awareness="aware,blind", methods="lora,scratch",
+                                   k_grid="1", n_adapt_seeds=1, n_test=3, epochs=1, budgets="150,250",
+                                   targets="C_dyn_crossing", cpu=True)
+    return cfg  # local = defaults (full grid)
+
+
+def build_argparser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description="C9b few-shot transfer under dynamics")
+    d = C9bConfig()
+    ap.add_argument("--mode", choices=["adapt","eval","analyze","full"], default=d.mode)
+    ap.add_argument("--scale", choices=["local","smoke"], default=d.scale)
+    ap.add_argument("--source-dir", default=d.source_dir)
+    ap.add_argument("--out-dir", default=d.out_dir)
+    ap.add_argument("--targets", default=d.targets)
+    ap.add_argument("--backbones", default=d.backbones)
+    ap.add_argument("--awareness", default=d.awareness)
+    ap.add_argument("--methods", default=d.methods)
+    ap.add_argument("--k-grid", default=d.k_grid)
+    ap.add_argument("--n-adapt-seeds", type=int, default=d.n_adapt_seeds)
+    ap.add_argument("--n-test", type=int, default=d.n_test)
+    ap.add_argument("--rank", type=int, default=d.rank)
+    ap.add_argument("--alpha", type=float, default=d.alpha)
+    ap.add_argument("--epochs", type=int, default=d.epochs)
+    ap.add_argument("--lr", type=float, default=d.lr)
+    ap.add_argument("--weight-decay", type=float, default=d.weight_decay)
+    ap.add_argument("--grid-size", type=int, default=d.grid_size)
+    ap.add_argument("--budgets", default=d.budgets)
+    ap.add_argument("--w-values", default=d.w_values)
+    ap.add_argument("--seed", type=int, default=d.seed)
+    ap.add_argument("--cpu", action="store_true", default=d.cpu)
+    ap.add_argument("--retrain-sources", action="store_true", default=d.retrain_sources)
+    return ap
+
+
+def config_from_args(args) -> C9bConfig:
+    return C9bConfig(mode=args.mode, scale=args.scale, source_dir=args.source_dir, out_dir=args.out_dir,
+                     targets=args.targets, backbones=args.backbones, awareness=args.awareness, methods=args.methods,
+                     k_grid=args.k_grid, n_adapt_seeds=args.n_adapt_seeds, n_test=args.n_test, rank=args.rank,
+                     alpha=args.alpha, epochs=args.epochs, lr=args.lr, weight_decay=args.weight_decay,
+                     grid_size=args.grid_size, budgets=args.budgets, w_values=args.w_values, seed=args.seed,
+                     cpu=args.cpu, retrain_sources=args.retrain_sources)
+
+
+def main(argv=None):
+    args = build_argparser().parse_args(argv)
+    cfg = apply_scale(config_from_args(args))
+    device = torch.device("cpu") if cfg.cpu or not torch.cuda.is_available() else torch.device("cuda")
+    print(f"[{now_str()}] c9b mode={cfg.mode} scale={cfg.scale} device={device}", flush=True)
+    if cfg.mode == "adapt":
+        run_adapt(cfg, device)
+    elif cfg.mode == "eval":
+        run_eval(cfg, device)
+    elif cfg.mode == "analyze":
+        run_analyze(cfg)
+    else:
+        run_full(cfg, device)
+
+
+if __name__ == "__main__":
+    main()
