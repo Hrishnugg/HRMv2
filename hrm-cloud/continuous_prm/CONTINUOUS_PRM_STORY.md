@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-30 (local validation throughout, single RTX 5090)
 **Scope:** the continuous-space probabilistic-roadmap (PRM) line of the project, phases C6–C10.
-**Per-phase detail:** [`C6_RESULTS.md`](C6_RESULTS.md) · [`C7_RESULTS.md`](C7_RESULTS.md) · [`C8_RESULTS.md`](C8_RESULTS.md) · [`C9_RESULTS.md`](C9_RESULTS.md) · [`C9H_RESULTS.md`](C9H_RESULTS.md) · [`C10_RESULTS.md`](C10_RESULTS.md)
+**Per-phase detail:** [`C6_RESULTS.md`](C6_RESULTS.md) · [`C7_RESULTS.md`](C7_RESULTS.md) · [`C8_RESULTS.md`](C8_RESULTS.md) · [`C9_RESULTS.md`](C9_RESULTS.md) · [`C9H_RESULTS.md`](C9H_RESULTS.md) · [`C10_RESULTS.md`](C10_RESULTS.md) · [`C9B_RESULTS.md`](C9B_RESULTS.md) (transfer under dynamics — follow-up to C8+C9)
 **Program history:** [`../EXPERIMENT_RESULTS_COMPENDIUM.md`](../EXPERIMENT_RESULTS_COMPENDIUM.md)
 
 ---
@@ -157,6 +157,12 @@ The two halves of the north-star that *landed* are "learned heuristic ≫ algori
 
 ---
 
+## Follow-up: C9b — transfer under dynamics ([`C9B_RESULTS.md`](C9B_RESULTS.md))
+
+Ran the C9/C9h transfer protocol on the C8 space-time substrate (486 adapters; aware + blind sources). Two results, both reinforcing the through-lines:
+- **C8's time-aware-vs-blind negative is robust to few-shot adaptation** — even full fine-tune at K=16 target worlds never makes the aware heuristic beat the blind one (0/9 headline cells). You can't adapt your way into the future window mattering for the heuristic. (Theme 1, along a new axis.)
+- **The C9/C9h few-shot crossover is out-of-regime under dynamics** — one dynamic world = K × N × (t_max+1) ≈ 25k+ supervised (node,t) targets, so "K=1" is already data-rich: full-FT isn't catastrophic and LoRA doesn't plateau. The crossover is a *data-scarcity* effect, not a universal law. Transfer ≫ from-scratch at K=1 still holds; learned ≫ euclid-time still holds; no hierarchical edge (U-Net best), again.
+
 ## Status
 
-All of C6–C10 is validated locally and committed to `main`. The learned-heuristic and transfer halves of the north-star are established; the *hierarchical-model* half is a consistent negative; and the open frontier is whether descriptor-weighted interpolation can ever beat uniform given a base with real headroom.
+All of C6–C10 (plus the C9b dynamics-transfer follow-up) is validated locally. The learned-heuristic and transfer halves of the north-star are established; the *hierarchical-model* half is a consistent negative across all six phases; the time-aware spotlight is a robust negative even under adaptation; and the open frontier is whether descriptor-weighted interpolation can ever beat uniform given a base with real headroom.

@@ -1,0 +1,4898 @@
+{
+  "arms": [
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_hrm__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__scalar_onlstm__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_maze_dense__field_unet__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_maze_dense",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_hrm__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__scalar_onlstm__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_crossing__field_unet__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_crossing",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_hrm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_hrm__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "scalar_onlstm",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__scalar_onlstm__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 4,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 16,
+      "awareness": "aware",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__aware__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 8
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K1__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K1__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K1__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K1__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K1__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K1__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K1__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K1__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 1,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K1__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K4__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K4__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K4__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K4__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K4__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K4__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K4__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K4__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 4,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K4__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K16__s0.pt",
+      "method": "lora",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K16__s0.pt",
+      "method": "full_ft",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K16__s0.pt",
+      "method": "scratch",
+      "seed": 0,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K16__s1.pt",
+      "method": "lora",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K16__s1.pt",
+      "method": "full_ft",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K16__s1.pt",
+      "method": "scratch",
+      "seed": 1,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__lora__K16__s2.pt",
+      "method": "lora",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__full_ft__K16__s2.pt",
+      "method": "full_ft",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    },
+    {
+      "K": 16,
+      "awareness": "blind",
+      "backbone": "field_unet",
+      "ckpt": "hrm-cloud\\continuous_prm\\runs\\c9b_local\\checkpoints\\c9b__C_dyn_rooms_large__field_unet__blind__scratch__K16__s2.pt",
+      "method": "scratch",
+      "seed": 2,
+      "target": "C_dyn_rooms_large",
+      "window_w": 0
+    }
+  ],
+  "awareness": [
+    "aware",
+    "blind"
+  ],
+  "backbones": [
+    "scalar_hrm",
+    "scalar_onlstm",
+    "field_unet"
+  ],
+  "k_grid": [
+    1,
+    4,
+    16
+  ],
+  "methods": [
+    "lora",
+    "full_ft",
+    "scratch"
+  ],
+  "n_adapt_seeds": 3,
+  "seed": 1234,
+  "sources": {
+    "field_unet__aware": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_field__unet.pt",
+    "field_unet__blind": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_field__unet_blind.pt",
+    "scalar_hrm__aware": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__hrm.pt",
+    "scalar_hrm__blind": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__hrm_blind.pt",
+    "scalar_onlstm__aware": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__onlstm.pt",
+    "scalar_onlstm__blind": "hrm-cloud\\continuous_prm\\runs\\c8_local_heavy\\checkpoints\\c8_scalar__onlstm_blind.pt"
+  },
+  "targets": [
+    "C_dyn_maze_dense",
+    "C_dyn_crossing",
+    "C_dyn_rooms_large"
+  ]
+}

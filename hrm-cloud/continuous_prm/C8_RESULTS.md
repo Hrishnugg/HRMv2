@@ -4,7 +4,7 @@
 **Experiment:** `continuous_prm_c8_dynamics_compare.py` (spec: `../../docs/superpowers/specs/2026-06-27-c8-dynamics-design.md`, plan: `../../docs/superpowers/plans/2026-06-27-c8-dynamics.md`)
 **Scope:** Phase 2 — learned heuristics for **space-time** planning on a static PRM with deterministically moving circular obstacles. Extends the C7 integration comparison into the time dimension and adds the **time-aware vs time-blind spotlight**.
 
-Related: [`C7_RESULTS.md`](C7_RESULTS.md) (static integration comparison this builds on), [`C9_RESULTS.md`](C9_RESULTS.md) (few-shot transfer learning), [`C6_RESULTS.md`](C6_RESULTS.md) (value-field stage), [`../EXPERIMENT_RESULTS_COMPENDIUM.md`](../EXPERIMENT_RESULTS_COMPENDIUM.md) (program history).
+Related: [`C7_RESULTS.md`](C7_RESULTS.md) (static integration comparison this builds on), [`C9_RESULTS.md`](C9_RESULTS.md) (few-shot transfer learning), [`C9B_RESULTS.md`](C9B_RESULTS.md) (transfer under dynamics — confirms this spotlight negative is robust even to few-shot adaptation: aware never overtakes blind through full-FT@K16), [`C6_RESULTS.md`](C6_RESULTS.md) (value-field stage), [`../EXPERIMENT_RESULTS_COMPENDIUM.md`](../EXPERIMENT_RESULTS_COMPENDIUM.md) (program history).
 
 ---
 
