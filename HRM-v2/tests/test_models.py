@@ -11,7 +11,7 @@ class TestMultiHeadAttention:
     @pytest.fixture
     def device(self):
         """Get test device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.fixture
     def dtype(self, device):
@@ -51,7 +51,7 @@ class TestFeedForward:
     @pytest.fixture
     def device(self):
         """Get test device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.fixture
     def dtype(self, device):
@@ -90,7 +90,7 @@ class TestTransformerBlock:
     @pytest.fixture
     def device(self):
         """Get test device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.fixture
     def dtype(self, device):
@@ -130,7 +130,7 @@ class TestMinimalTransformer:
     @pytest.fixture
     def device(self):
         """Get test device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.fixture
     def dtype(self, device):

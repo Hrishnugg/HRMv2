@@ -15,7 +15,7 @@ class TestCastedSparseEmbedding:
     @pytest.fixture
     def device(self):
         """Get test device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.fixture
     def dtype(self, device):
@@ -105,7 +105,7 @@ class TestHRMACTv1Model:
     @pytest.fixture
     def device(self):
         """Get test device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.fixture
     def dtype(self, device):
@@ -279,7 +279,7 @@ class TestHRMACTv1Integration:
     @pytest.fixture
     def device(self):
         """Get test device."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
     def test_gradient_flow(self, device):

@@ -30,7 +30,7 @@ class TestSDPA:
     @pytest.fixture
     def device(self):
         """Get test device (CUDA if available, else CPU)."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     @pytest.fixture
     def dtype(self, device):
@@ -94,7 +94,7 @@ class TestFlashAttention:
         """Get test device (CUDA required for FlashAttention)."""
         if not torch.cuda.is_available():
             pytest.skip("CUDA not available")
-        return torch.device("cuda")
+        return torch.device("cuda:0")
     
     @pytest.fixture
     def dtype(self):
@@ -170,7 +170,7 @@ class TestUnifiedAttention:
     @pytest.fixture
     def device(self):
         """Get test device (CUDA if available, else CPU)."""
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     @pytest.fixture
     def dtype(self, device):
