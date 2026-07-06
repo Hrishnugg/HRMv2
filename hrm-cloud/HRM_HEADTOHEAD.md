@@ -64,3 +64,60 @@ This result is a **second independent confirmation of the audit's formulation th
 ## GPU time
 
 Part A: ~13 min. Part B arm-a eval: ~4 min. Part B arm-b train: ~1 min. Part B arm-b eval: ~3 min. **Total: ~21 min of the ~60 min budget.**
+
+---
+
+## Remediation sweep (v2)
+
+**Date:** 2026-07-06. **Scope:** a follow-up audit of arm (b)'s loss (above) found four plausible integration defects independent of "does real cross-token attention help." This section builds a remediated backbone (`RepairedHRMBackboneV2`, `hrm-cloud/continuous_prm/hrm_headtohead_v2.py`), sweeps four training recipes against it plus an epochs-matched control, and asks: was arm (b)'s loss an **integration artifact** (fixable) or **architectural** (the audit's formulation thesis, restated above)? New-file-only, imports `hrm_headtohead.py`'s arm-a incumbent loader, eval harness (`eval_provider_on_target`/`eval_arm`, unmodified), `TARGETS`/`BINDING_BUDGET`/`SOURCE_DIR`, and `pooled_scalar_arrays`. `continuous_prm_common.py`, `transfer_astar_*`, and `hrm_headtohead.py` were not touched.
+
+### The four defects
+
+- **I1 (init):** the original `RepairedHRMBackbone._init_weights` applied a blanket `std=0.01` normal-init to every `nn.Linear`, copied verbatim from the incumbent's `DeepSapientHRMBackbone._init_weights`. That init suits the incumbent's small-signal gated-recurrent design (its residual gate blends a tiny perturbation into a persistent state); on a fresh transformer stack it silences attention and FFN outputs near-completely at init, well below the signal a `smooth_l1_loss` gradient can efficiently climb out of in 16 epochs. **Fix:** `xavier_uniform_` on `embed`, SwiGLU's three `Linear`s, and MHA `out_proj` (PyTorch's own `nn.MultiheadAttention.__init__` already xavier-inits `in_proj_weight` by default — V2 leaves it alone rather than re-initializing it). The head's zero-init final layer + bias −2.0 is kept unchanged (verbatim from `ContinuousHeuristicModel`) — this was never part of the problem; I1 only targets the backbone.
+- **I2 (collapsed two-timescale):** the original ran `H_blocks` — a **second full token-level transformer stack**, attention over all 24 tokens again — every cycle as the "H update," then mean-pooled its output through a `Linear` (`H_pool`). That is not a slow/pooled timescale; it is a second L stack with an extra linear on top. The intended two-timescale separation (fast per-token L vs. slow pooled-summary H) never existed in the original arm (b). **Fix:** `H_blocks` is dropped entirely. Each cycle: `hs = h + zH.unsqueeze(1)` (inject pooled state into every token) → `L_blocks` over tokens (cross-token attention, unchanged mechanism) → `h = hs` → `zH = zH + H_mlp(rms_norm(concat[zH, pooled]))`, where `H_mlp` is a 2-layer MLP (`hidden_dim` wide, GELU) operating purely on the two pooled `(B, hidden_dim)` vectors — no token dimension anywhere in the H update. `H_blocks`' capacity is folded into `+1` `L_blocks` layer (`num_layers+1`) so cross-token compute isn't simply deleted, only the mislabeled "H" stack.
+- **I3 (mean-pool readout):** the original seeded `zH` via `h.mean(dim=1)` and re-derived the pooled signal for `H_pool` via `h.mean(dim=1)` again every cycle — treating the state/goal token (token 0, which alone encodes `dx, dy, euclidean-dist, position, clearance, line-of-sight, corridor-blockage` relative to the goal; see `make_feature_sequence`) as no more informative than any of the 23 obstacle/ray tokens, diluting the single most task-relevant signal 1-in-24. **Fix:** the per-cycle pooled readout is `rms_norm(h[:, 0])` (state-token readout, not mean-pool), and the backbone's final return is `rms_norm(zH)` before the head (previously the raw un-normalized `zH`).
+- **I5 (recipe assumed, not swept):** arm (b) reused the incumbent's recorded recipe (`lr=2e-4`, `base_epochs=16`) without questioning whether a from-scratch transformer needs a different one; final loss 0.060 vs. the incumbent's 0.0498 on identical data left underfitting on the table as an unexamined confound alongside I1–I3.
+
+### Variants
+
+All four variants train on the **identical pooled data** as the incumbent and the original arm (b) — `hrm_headtohead.pooled_scalar_arrays()` (`BalancedTaskDataset` over the same three C7 `datasets_scalar/*.npz` files), seed 1234 — via `hrm_headtohead_v2.train_variant`, a generalization of `hrm_headtohead.train_repaired_model`'s loop (`AdamW`, `smooth_l1_loss`, grad-clip 1.0) with a per-variant epoch count, learning rate, and optional linear warmup.
+
+| Variant | Backbone | Epochs | LR | Warmup | Final train loss | Params (ratio to incumbent) | Train wall |
+|---|---|---|---|---|---|---|---|
+| — incumbent (`avgbase__hrm`) | `DeepSapientHRMBackbone` | 16 | 2e-4 | — | 0.0498 | 2,158,529 (1.00x) | — |
+| — original arm-b (unfixed) | `RepairedHRMBackbone` | 16 | 2e-4 | — | 0.060 | 1,899,905 (0.88x) | ~1 min |
+| **V1** | `RepairedHRMBackboneV2` (I1+I2+I3) | 16 | 2e-4 | none | **0.04446** | 1,538,561 (0.71x) | 58.8s |
+| **V2** | `RepairedHRMBackboneV2` (I1+I2+I3) | 16 | 5e-4 | 100 steps | **0.03661** | 1,538,561 (0.71x) | 61.6s |
+| **V3** | `RepairedHRMBackboneV2` (I1+I2+I3) | 32 | 2e-4 | none | **0.03690** | 1,538,561 (0.71x) | 133.3s |
+| **V4** (control) | `RepairedHRMBackbone` (ORIGINAL, unfixed) | 32 | 2e-4 | none | 0.05171 | 1,899,905 (0.88x) | 142.0s |
+
+V2's params are 0.71x the incumbent's — H_blocks' removal (I2) more than offsets the +1 folded L layer, so V1–V3 land comfortably inside the ~25% capacity-matching tolerance (well under it, in fact — V4's 0.88x is the tighter match to the incumbent's 2.16M). All three fixed variants (V1–V3) beat both the incumbent's and the original arm-b's final train loss; V2 (higher LR + warmup) is the best of the sweep. GPU: all four variants trained back-to-back, ~6.6 min total.
+
+### Eval (all four variants evaluated — budget allowed it)
+
+Same protocol as Part B above: 30 deterministic TEST worlds/target, roadmap 192/k7, matched A\* expansion-ratio vs. Euclid at the calibrated binding budget (140 / 56), median over both-solved worlds.
+
+| Variant | `C_hard_maze_dense` ratio @ succ | `C_hard_rooms_large` ratio @ succ | Eval wall |
+|---|---|---|---|
+| **Incumbent** | 0.6501 @ 1.000 | 0.7714 @ 0.967 | — |
+| **Original arm-b** (unfixed, 16ep) | 0.7185 @ 0.933 | 0.8611 @ 0.867 | — |
+| **V1** (fixed, incumbent recipe) | 0.6311 @ 1.000 | **1.0417 @ 0.733** | 184.2s |
+| **V2** (fixed, lr5e-4+warmup) | 0.7253 @ 1.000 | **1.1277 @ 0.900** | 199.0s |
+| **V3** (fixed, 32 epochs) | 0.7478 @ 0.967 | **1.0573 @ 0.700** | 190.6s |
+| **V4** (control: unfixed, 32ep) | 0.6860 @ 1.000 | 0.8571 @ 0.867 | 186.6s |
+
+### Gate verdicts
+
+**R1 — does any remediated variant reach ≤ incumbent+0.01 exp-ratio at succ within 0.03 on BOTH targets? FAIL, all variants.** V1 is the closest on `maze_dense` alone (0.6311 ≤ 0.6601, succ exact match) but every fixed variant fails `rooms_large` by a wide margin (best case V1: ratio 1.0417 vs. the 0.7814 ceiling, succ off by 23pp). No variant clears both targets simultaneously.
+
+**R2 — does any variant BEAT the incumbent (strictly lower ratio, ≥ succ) on BOTH targets? FAIL, all variants.** V1 strictly beats the incumbent on `maze_dense` alone (ratio 0.6311 < 0.6501, succ 1.000 = 1.000) — the only single-target strict win anywhere in this sweep, remediated or not — but the same model is far worse than the incumbent on `rooms_large` (ratio 1.0417 vs. 0.7714, succ 0.733 vs. 0.967). No variant wins on both.
+
+**R3 — V4-vs-V3 (and vs. original arm-b): how much of the original gap was underfit vs. integration?** **Mixed, and the honest answer cuts against the loss numbers.** By train loss alone, the fixes (I1–I3) clearly help: V3 (fixed + 2x epochs, loss 0.0369) beats V4 (unfixed + 2x epochs, loss 0.0517), and both beat the original arm-b (unfixed, 16ep, loss 0.060) — so *more epochs alone* recovers part of the gap (0.060→0.0517), and *fixes+more epochs* recovers more (0.060→0.0369). If train loss were the only signal, the verdict would be "mostly integration, with a side of underfit." **But the held-out-generalization numbers say the opposite on `rooms_large`:** V4 (epochs-only, no architecture fix) closes most of the original gap there (ratio +0.090 → +0.086 vs. incumbent) while V3 (epochs + fixes) makes it dramatically *worse* (+0.286 vs. incumbent) — worse than the original 16-epoch unfixed arm-b itself (+0.090). Every I1–I3-fixed variant (V1, V2, V3) pushes `rooms_large`'s matched ratio **above 1.0** — meaning on the median both-solved world, these models are net-harmful as an additive heuristic, expanding *more* nodes than plain Euclidean distance would with zero learning. The unfixed control (V4) never crosses 1.0, matching the incumbent's and original arm-b's pattern. On `maze_dense`, by contrast, the fixes help succ (V1/V2 reach 1.000, matching incumbent) even though the best-loss variant (V2) still has a higher ratio than the incumbent.
+
+### Conclusion: not an integration artifact — the loss curve was misleading
+
+**The four integration defects are real bugs and V2's fixes make the model measurably easier to fit (lower train loss, better `maze_dense` success) — but fixing them does not close the head-to-head gap, and on `rooms_large` it makes generalization actively worse, not better.** This is not the outcome "just an integration bug" would predict (which is: fix it, the loss and the eval numbers move together in the same direction). Instead the fixes decouple loss from held-out generalization: better-fit models transfer worse to `rooms_large`'s obstacle geometry specifically, while the *original*, integration-buggy, worse-fitting arm (b) generalizes closer to (though still worse than) the incumbent on that same target. That asymmetry — real cross-token attention plus a properly-scaled init and a non-collapsed two-timescale structure making the model *fit the 24-token training bag better while generalizing worse to unseen rooms geometry* — is exactly the overfitting signature the original doc's Interpretation section predicted from the audit's "MLP-complete task" diagnosis: added capacity to model correlations in a small, pre-digested, non-sequential feature bag, with no guarantee those correlations are the ones that transfer. R2's one bright spot (V1 strictly beats the incumbent on `maze_dense` alone) is a genuine, reproducible result — but it is a single-target win with a same-model loss on the other target, not a general improvement, so it does not overturn Part B's original FAIL verdict. **Verdict: the loss was architectural (or more precisely, a training-formulation interaction — real attention overfits this particular feature-bag task on this particular held-out family), not primarily an integration artifact.** The four defects were worth fixing on their own engineering merits (I1–I3 are objectively better-designed than what they replaced) and the fixed model is a strictly better implementation of "give the backbone real cross-token attention" — but that better implementation still loses the head-to-head, for a different and more specific reason (rooms_large overfit) than originally suspected (undertrained/miscalibrated). This narrows, rather than resolves, the open question from the original doc's Interpretation section: it is not that real attention never helps here (`maze_dense` succ improved), it is that it helps unevenly across held-out families in a way an incumbent-recipe rerun could not have surfaced without this sweep.
+
+### GPU time (v2 sweep)
+
+Train: V1 58.8s + V2 61.6s + V3 133.3s + V4 142.0s ≈ 6.6 min. Eval (all four, 30 worlds × 2 targets each): V1 184.2s + V2 199.0s + V3 190.6s + V4 186.6s ≈ 12.7 min. **Total: ~19.3 min of the 30 min budget.**
