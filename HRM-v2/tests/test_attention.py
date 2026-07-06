@@ -1,64 +1,89 @@
-"""Tests for attention operations."""
+"""Tests for attention operations.
+
+Layout contract: q, k, v are ALWAYS (batch, seqlen, num_heads, head_dim) —
+matching flash-attn's layout, which is what the model passes. `sdpa()` no
+longer guesses the layout from tensor shapes (see PORT_FIDELITY_AUDIT.md B1);
+any test that exercised the old shape-guessing heuristic has been converted
+to this contract.
+"""
 
 import pytest
 import torch
 from hrm.ops.attention import attention, sdpa, flash_attention
 
 
+def _reference_attention(q, k, v):
+    """Plain softmax attention as an independent reference implementation.
+
+    Input/output layout: (batch, seqlen, num_heads, head_dim).
+    """
+    qh = q.permute(0, 2, 1, 3)
+    kh = k.permute(0, 2, 1, 3)
+    vh = v.permute(0, 2, 1, 3)
+    scores = (qh @ kh.transpose(-1, -2)) / (q.shape[-1] ** 0.5)
+    return (torch.softmax(scores, dim=-1) @ vh).permute(0, 2, 1, 3)
+
+
 class TestSDPA:
     """Test PyTorch Scaled Dot Product Attention."""
-    
+
     @pytest.fixture
     def device(self):
         """Get test device (CUDA if available, else CPU)."""
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
+
     @pytest.fixture
     def dtype(self, device):
         """Get test dtype (bfloat16 for CUDA, float32 for CPU)."""
         return torch.bfloat16 if device.type == "cuda" else torch.float32
-    
+
     def test_sdpa_basic(self, device, dtype):
-        """Test basic SDPA functionality."""
-        batch_size, num_heads, seqlen, head_dim = 2, 8, 64, 64
-        
-        q = torch.randn(batch_size, num_heads, seqlen, head_dim, dtype=dtype, device=device)
-        k = torch.randn(batch_size, num_heads, seqlen, head_dim, dtype=dtype, device=device)
-        v = torch.randn(batch_size, num_heads, seqlen, head_dim, dtype=dtype, device=device)
-        
-        out = sdpa(q, k, v)
-        
-        assert out.shape == q.shape
-        assert out.dtype == dtype
-        assert out.device == device
-    
-    def test_sdpa_causal(self, device, dtype):
-        """Test SDPA with causal masking."""
-        batch_size, num_heads, seqlen, head_dim = 2, 8, 64, 64
-        
-        q = torch.randn(batch_size, num_heads, seqlen, head_dim, dtype=dtype, device=device)
-        k = torch.randn(batch_size, num_heads, seqlen, head_dim, dtype=dtype, device=device)
-        v = torch.randn(batch_size, num_heads, seqlen, head_dim, dtype=dtype, device=device)
-        
-        out = sdpa(q, k, v, is_causal=True)
-        
-        assert out.shape == q.shape
-        assert out.dtype == dtype
-        assert out.device == device
-    
-    def test_sdpa_alternate_layout(self, device, dtype):
-        """Test SDPA with (batch, seqlen, num_heads, head_dim) layout."""
+        """Test basic SDPA functionality on the (B, S, H, D) contract layout."""
         batch_size, seqlen, num_heads, head_dim = 2, 64, 8, 64
-        
+
         q = torch.randn(batch_size, seqlen, num_heads, head_dim, dtype=dtype, device=device)
         k = torch.randn(batch_size, seqlen, num_heads, head_dim, dtype=dtype, device=device)
         v = torch.randn(batch_size, seqlen, num_heads, head_dim, dtype=dtype, device=device)
-        
+
         out = sdpa(q, k, v)
-        
+
         assert out.shape == q.shape
         assert out.dtype == dtype
         assert out.device == device
+
+    def test_sdpa_causal(self, device, dtype):
+        """Test SDPA with causal masking on the (B, S, H, D) contract layout."""
+        batch_size, seqlen, num_heads, head_dim = 2, 64, 8, 64
+
+        q = torch.randn(batch_size, seqlen, num_heads, head_dim, dtype=dtype, device=device)
+        k = torch.randn(batch_size, seqlen, num_heads, head_dim, dtype=dtype, device=device)
+        v = torch.randn(batch_size, seqlen, num_heads, head_dim, dtype=dtype, device=device)
+
+        out = sdpa(q, k, v, is_causal=True)
+
+        assert out.shape == q.shape
+        assert out.dtype == dtype
+        assert out.device == device
+
+    def test_sdpa_seq_shorter_than_heads(self):
+        """Audit B1 case: seq_len < num_heads must not attend over the wrong axis."""
+        torch.manual_seed(0)
+        q, k, v = (torch.randn(2, 4, 8, 16) for _ in range(3))  # S=4 < H=8
+        out = sdpa(q, k, v)
+        ref = _reference_attention(q, k, v)
+        assert out.shape == q.shape and torch.allclose(out, ref, atol=1e-5)
+
+    def test_sdpa_seq_longer_than_heads(self):
+        """seq_len > num_heads — the historically "safe" branch of the old heuristic."""
+        torch.manual_seed(0)
+        q, k, v = (torch.randn(2, 64, 8, 16) for _ in range(3))
+        assert torch.allclose(sdpa(q, k, v), _reference_attention(q, k, v), atol=1e-5)
+
+    def test_sdpa_seq_equal_heads(self):
+        """seq_len == num_heads — the ambiguous boundary case for the old heuristic."""
+        torch.manual_seed(0)
+        q, k, v = (torch.randn(2, 8, 8, 16) for _ in range(3))
+        assert torch.allclose(sdpa(q, k, v), _reference_attention(q, k, v), atol=1e-5)
 
 
 class TestFlashAttention:

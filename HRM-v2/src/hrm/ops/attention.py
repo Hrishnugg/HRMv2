@@ -3,6 +3,10 @@ Attention operations with SDPA default and optional FlashAttention 4 acceleratio
 
 This module provides a unified interface for attention computation that automatically
 falls back to PyTorch's SDPA when FlashAttention is not available or not suitable.
+
+Layout contract: q, k, v are ALWAYS (batch, seqlen, num_heads, head_dim) — matching
+flash-attn's layout, which is what the model passes. There is no layout
+auto-detection; callers must conform to this contract.
 """
 
 import torch
@@ -20,38 +24,32 @@ def sdpa(
 ) -> torch.Tensor:
     """
     Scaled Dot Product Attention using PyTorch's native implementation.
-    
+
     Args:
-        q: Query tensor of shape (batch, num_heads, seqlen, head_dim) or (batch, seqlen, num_heads, head_dim)
-        k: Key tensor of shape (batch, num_heads, seqlen, head_dim) or (batch, seqlen, num_heads, head_dim)
-        v: Value tensor of shape (batch, num_heads, seqlen, head_dim) or (batch, seqlen, num_heads, head_dim)
+        q: Query tensor of shape (batch, seqlen, num_heads, head_dim) — the HRM layout contract (matches flash-attn)
+        k: Key tensor of shape (batch, seqlen, num_heads, head_dim) — the HRM layout contract (matches flash-attn)
+        v: Value tensor of shape (batch, seqlen, num_heads, head_dim) — the HRM layout contract (matches flash-attn)
         attn_mask: Optional attention mask
         is_causal: Whether to apply causal masking
         dropout_p: Dropout probability
-        
+
     Returns:
         Attention output of same shape as q
     """
-    # PyTorch SDPA expects (batch, num_heads, seqlen, head_dim)
-    # If input is (batch, seqlen, num_heads, head_dim), transpose
-    needs_transpose = q.dim() == 4 and q.size(1) > q.size(2)
-    
-    if needs_transpose:
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-    
+    # PyTorch SDPA expects (batch, num_heads, seqlen, head_dim); the contract
+    # layout is (batch, seqlen, num_heads, head_dim), so always transpose.
+    q = q.transpose(1, 2)
+    k = k.transpose(1, 2)
+    v = v.transpose(1, 2)
+
     out = F.scaled_dot_product_attention(
         q, k, v,
         attn_mask=attn_mask,
         dropout_p=dropout_p,
         is_causal=is_causal
     )
-    
-    if needs_transpose:
-        out = out.transpose(1, 2)
-    
-    return out
+
+    return out.transpose(1, 2)
 
 
 def flash_attention(
@@ -118,8 +116,8 @@ def attention(
         
     Note:
         - FlashAttention requires float16 or bfloat16 dtypes
-        - FlashAttention expects (batch, seqlen, num_heads, head_dim) layout
-        - SDPA can handle (batch, num_heads, seqlen, head_dim) layout automatically
+        - Both FlashAttention and SDPA use the (batch, seqlen, num_heads, head_dim)
+          layout contract — there is no layout auto-detection
     """
     if use_flash:
         # Check if FlashAttention is suitable
@@ -129,8 +127,8 @@ def attention(
         if is_suitable_dtype and is_cuda:
             try:
                 return flash_attention(q, k, v, is_causal=is_causal, dropout_p=dropout_p)
-            except (ImportError, Exception):
-                # Fall through to SDPA
+            except ImportError:
+                # FlashAttention not installed — fall through to SDPA
                 pass
     
     # Fall back to SDPA
