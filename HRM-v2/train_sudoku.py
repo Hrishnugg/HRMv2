@@ -59,6 +59,50 @@ def pad_batch_to_full_size(
     }
 
 
+def save_full_checkpoint(path, model, optimizer, global_step, model_config):
+    """Save a full-state checkpoint: model + optimizer (AdamATan2 exp_avg/
+    exp_avg_sq/step per param) + RNG state + global_step.
+
+    The puzzle-embedding SignSGD optimizer is stateless (no momentum/variance
+    buffers - see CastedSparseEmbeddingSignSGD_Distributed), so there is
+    nothing to save for it beyond what's already in model_state_dict.
+
+    The streaming carry (persistent halted-slot state across batches) is
+    intentionally NOT part of this checkpoint: on resume it restarts fresh
+    (in-flight episodes are re-begun), which is acceptable per the original
+    streaming design - see the resume_from wiring in main() below.
+    """
+    torch.save({
+        "model_config": model_config,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "global_step": global_step,
+        "torch_rng_state": torch.get_rng_state(),
+        "cuda_rng_state": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        "format_version": 2,
+    }, path)
+
+
+def load_full_checkpoint(path, model, optimizer=None, device="cuda"):
+    """Load a checkpoint saved by save_full_checkpoint, restoring model
+    weights, optimizer state (if an optimizer is given and the checkpoint has
+    it), and RNG state. Returns the global_step to resume from.
+
+    Tolerates missing keys so pre-existing weights-only checkpoints (format_version
+    absent, only model_state_dict + step) remain loadable - only the pieces
+    present in the file are restored.
+    """
+    ckpt = torch.load(path, map_location=device, weights_only=False)
+    model.load_state_dict(ckpt["model_state_dict"])
+    if optimizer is not None and "optimizer_state_dict" in ckpt:
+        optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+    if ckpt.get("torch_rng_state") is not None:
+        torch.set_rng_state(ckpt["torch_rng_state"].cpu())
+    if torch.cuda.is_available() and ckpt.get("cuda_rng_state"):
+        torch.cuda.set_rng_state_all([s.cpu() for s in ckpt["cuda_rng_state"]])
+    return int(ckpt.get("global_step", ckpt.get("step", 0)))
+
+
 class SimplePuzzleDataset(IterableDataset):
     """Simplified puzzle dataset for single-GPU training."""
     
@@ -159,6 +203,7 @@ class TrainConfig:
     
     # Checkpoint
     checkpoint_dir: str = "checkpoints"
+    resume_from: str = ""  # Path to a full-state checkpoint to resume from (empty = start fresh)
 
 
 def evaluate(loss_head, dataset, device, max_steps: Optional[int] = None):
@@ -309,11 +354,21 @@ def main():
             weight_decay=config.puzzle_emb_weight_decay
         )
 
+    # Resume from a full-state checkpoint if requested (model + optimizer +
+    # RNG state). Note: the streaming carry below is NOT restored - it always
+    # starts fresh on resume, so any episodes that were in-flight in halted
+    # slots at the time of the last checkpoint are simply re-begun. This is
+    # acceptable per the original streaming design (see save_full_checkpoint).
+    if config.resume_from:
+        global_step = load_full_checkpoint(config.resume_from, model, optimizer, config.device)
+        print(f"Resumed from checkpoint: {config.resume_from} (global_step={global_step})")
+    else:
+        global_step = 0
+
     # Training loop
     print("Starting training...")
     print()
 
-    global_step = 0
     running_metrics = {k: 0.0 for k in ["lm_loss", "q_halt_loss", "accuracy", "exact_accuracy", "steps"]}
     running_count = 0
     carry = None
@@ -392,17 +447,13 @@ def main():
     except KeyboardInterrupt:
         print("\nTraining interrupted by user")
     
-    # Save final checkpoint
+    # Save final checkpoint (full-state: model + optimizer + RNG - enables resume_from)
     checkpoint_dir = Path(config.checkpoint_dir)
     checkpoint_dir.mkdir(exist_ok=True)
-    
+
     checkpoint_path = checkpoint_dir / "hrm_sudoku_final.pt"
-    torch.save({
-        "model_config": model_config,
-        "model_state_dict": model.state_dict(),
-        "step": global_step,
-    }, checkpoint_path)
-    
+    save_full_checkpoint(checkpoint_path, model, optimizer, global_step, model_config)
+
     print(f"\nCheckpoint saved to: {checkpoint_path}")
 
 
