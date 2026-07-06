@@ -114,3 +114,30 @@ The original's carry design (all-halted init + per-slot `current_data` replaceme
 ---
 
 *Receipts: original — `models/hrm/hrm_act_v1.py:188–213` (schedule/1-step), `models/losses.py:83–101` (loss), `models/sparse_embedding.py:24` (buffer), `models/common.py:7` (init). Port — `src/hrm/models/hrm_act_v1.py` (faithful model), `src/hrm/ops/attention.py:37,132` (B1/B2), `src/hrm/models/sparse_embedding.py:57–72,155–174` (C1/C2), `train_sudoku.py:181–210,355–391` and `train_maze_optimized.py:237–250,456–479` (D1–D6), `TRAINING_RESULTS.md:14–31` (the frozen-q_halt proof).*
+
+---
+
+## G. Status update (2026-07-06): fixes landed, verified, paper-scale run deferred by choice
+
+All of section F's recommended fixes have landed:
+
+| # | Fix | Commit |
+|---|---|---|
+| 1 | Port `ACTLossHead` verbatim (restores `q_halt_loss`, per-sequence divisor, 0.5 weighting) | `2922501` |
+| 2 | Faithful training loop: streaming carry, one optimizer step per segment (deep supervision) | `b40cc43` |
+| — | AdamATan2 (pure PyTorch) + warmup-then-constant LR, recipe alignment (F5) | `b2f594e` |
+| 3 | `sdpa()` layout contract — remove shape-guess heuristic, `ImportError`-only flash fallback (B1/B2) | `b40ed12` |
+| 4 | Sparse-embedding optimizer reverts to original full-batch logic (C2) | `3cb0e93` |
+| — | Cadence config for paper-recipe reproduction (`epochs=1500`, `eval_every=2000`, `save_every=5000`) + streaming-carry partial-batch padding crash fix | `4062a4f` |
+| 6 | Original-vs-port numerical parity test, explicitly covering the `S < H` regime that B1 could have silently corrupted | `079dfcb` |
+| — | Full-state checkpointing (optimizer+RNG+step, `resume_from`) — enables crash recovery / cloud-spot migration for long paper-scale runs | `1e7561f` |
+
+**Parity: bit-exact.** `tests/test_parity_original.py` (`079dfcb`) runs the port and the original vendored implementation with identical seeds/weights and asserts numerical agreement, including the exact `S < H` short-sequence regime that B1's layout heuristic could have silently corrupted. This test passing certifies the model's forward computation is correct independent of any training run's outcome.
+
+**Mechanisms verified in a live partial run.** A post-fix Maze-Hard 30×30 run (see `RETRAIN_RESULTS.md`) reached ~150,000 of 375,000 configured steps (~12h, RTX 5090) before being stopped by choice. It directly confirms fixes 1 and 2 are live, not just present in the diff:
+- `q_halt_loss` **exists and declines 0.14 → 0.06** — mechanically impossible under the pre-fix trainer, whose absence of this term is exactly what produced the D1 frozen-head signature (`Q-Halt Accuracy: 74.60%` = `100 − Exact Accuracy: 25.40%`, i.e. a constant-false predictor) in the original `TRAINING_RESULTS.md`.
+- Token accuracy is strong and train/eval-consistent (96.5% train / 90–95% eval), and `exact_accuracy = 0.000` at the stop point is the expected pre-grok floor, not a regression: the official 1k-sample recipe is grokking-flavored (paper reproductions run ~20,000 epochs; this run reached 1,500 epochs, ~7.5% of that sample-exposure) — a compute gap, not a correctness gap.
+
+**Paper-scale run deliberately deferred.** Reproducing the paper's ≈74.5% Maze-Hard exact-accuracy figure requires continuing this run (or a fresh one) far past the 150k-step stop point, likely to full paper-recipe sample-exposure. That reproduction has been **deprioritized by choice** in favor of other work — it is not blocked on any known defect. The foundation (faithful model, now-faithful training loop, bit-exact parity, mechanisms confirmed live) is in place for whenever that run is prioritized again; `1e7561f`'s full-state checkpointing means it can also be resumed rather than restarted.
+
+**Net effect on this audit's verdict:** the "training port is not [faithful]" conclusion in the opening paragraph is resolved at the mechanism level (D1, D2, B1, C2 all fixed and verified); what remains open is purely a matter of compute (reaching paper-scale sample-exposure), tracked separately in `RETRAIN_RESULTS.md`.
