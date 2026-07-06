@@ -2,7 +2,14 @@
 
 import pytest
 import torch
-from hrm.models import MultiHeadAttention, FeedForward, TransformerBlock, MinimalTransformer
+from hrm.models import (
+    MultiHeadAttention,
+    FeedForward,
+    TransformerBlock,
+    MinimalTransformer,
+    CastedSparseEmbedding,
+    CastedSparseEmbeddingSignSGD_Distributed,
+)
 
 
 class TestMultiHeadAttention:
@@ -200,6 +207,34 @@ class TestMinimalTransformer:
         with torch.no_grad():
             input_ids = torch.randint(0, vocab_size, (batch_size, seqlen), device=device)
             logits = model(input_ids)
-            
+
             assert logits.shape == (batch_size, seqlen, vocab_size)
+
+
+def test_sparse_emb_midbatch_zero_grad_row_not_dropped():
+    torch.manual_seed(0)
+    emb = CastedSparseEmbedding(10, 4, batch_size=3, init_std=0.5, cast_to=torch.float32); emb.train()
+    ids = torch.tensor([1, 2, 3], dtype=torch.int32)
+    out = emb(ids)
+    loss = out[0].sum() + out[2].sum()          # row 1 (id=2) gets EXACTLY zero grad
+    loss.backward()
+    w_before = emb.weights.clone()
+    opt = CastedSparseEmbeddingSignSGD_Distributed([emb.weights, emb.local_weights, emb.local_ids], world_size=1, lr=0.1, weight_decay=0.0)
+    opt.step()
+    assert not torch.allclose(emb.weights[1], w_before[1])      # id 1 updated
+    assert not torch.allclose(emb.weights[3], w_before[3])      # id 3 (tail after zero-grad row) NOT dropped — the C2 bug
+    assert torch.allclose(emb.weights[2], w_before[2])          # zero-grad id: sign(0)=0, wd=0 -> unchanged
+
+def test_sparse_emb_short_batch_no_stale_id_updates():
+    torch.manual_seed(0)
+    emb = CastedSparseEmbedding(10, 4, batch_size=4, init_std=0.5, cast_to=torch.float32); emb.train()
+    emb(torch.tensor([7, 8, 9, 6], dtype=torch.int32))          # populate all 4 rows
+    out = emb(torch.tensor([1, 2], dtype=torch.int32))          # short batch: rows 2,3 are stale
+    out.sum().backward()
+    w_before = emb.weights.clone()
+    opt = CastedSparseEmbeddingSignSGD_Distributed([emb.weights, emb.local_weights, emb.local_ids], world_size=1, lr=0.1, weight_decay=0.5)
+    opt.step()
+    assert not torch.allclose(emb.weights[1], w_before[1]) and not torch.allclose(emb.weights[2], w_before[2])
+    for stale in (7, 8, 9, 6):                                   # stale ids must receive NO update, NO weight decay
+        assert torch.allclose(emb.weights[stale], w_before[stale])
 

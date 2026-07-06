@@ -90,6 +90,15 @@ class CastedSparseEmbedding(nn.Module):
             self.local_weights[:actual_batch_size].copy_(self.weights[inputs])
             self.local_ids[:actual_batch_size].copy_(inputs)
 
+            # Fill stale tail rows (left over from a previous, larger batch) with
+            # a real in-batch id. Their local_weights rows keep whatever grad they
+            # get after backward() on a batch that doesn't touch them — exactly
+            # zero — so sign(0)=0 and they never resurrect a stale embedding, and
+            # since the id is real, it never falls out of the optimizer's
+            # full-tensor unique-id set either.
+            if actual_batch_size < self.local_ids.shape[0]:
+                self.local_ids[actual_batch_size:].fill_(int(inputs[0].item()))
+
         return self.local_weights[:actual_batch_size].to(self.cast_to)
 
 
@@ -151,22 +160,13 @@ class CastedSparseEmbeddingSignSGD_Distributed(Optimizer):
             assert local_weights_grad is not None, "No gradient found"
             assert local_ids is not None, "No local_ids found"
             assert weights is not None, "No weights found"
-        
-            # Find actual batch size (handle variable batch sizes)
-            # Only process non-zero IDs (actual used embeddings)
-            actual_batch_size = (local_ids != 0).sum().item() if (local_ids != 0).any() else local_ids.shape[0]
-            # Better: find first occurrence where gradient is non-zero
-            if local_weights_grad is not None:
-                # Use gradient sparsity to determine actual batch size
-                has_grad = (local_weights_grad.abs().sum(dim=1) > 0)
-                actual_batch_size = has_grad.sum().item()
-                if actual_batch_size == 0:
-                    actual_batch_size = local_ids.shape[0]
-            
-            # Apply SignSGD with distributed all-gather (only on actual batch)
+
+            # Apply SignSGD with distributed all-gather (full tensors — forward()
+            # is responsible for making stale tail rows harmless: it points them
+            # at a real in-batch id, whose zero grad contributes sign(0)=0).
             _sparse_emb_signsgd_dist(
-                local_weights_grad[:actual_batch_size],
-                local_ids[:actual_batch_size],
+                local_weights_grad,
+                local_ids,
                 weights,
                 lr=group["lr"],
                 weight_decay=group["weight_decay"],
