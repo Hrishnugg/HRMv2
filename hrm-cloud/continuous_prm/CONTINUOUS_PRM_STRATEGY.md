@@ -2,6 +2,7 @@
 
 **Date:** 2026-07-05
 **Companion to:** [`CONTINUOUS_PRM_STORY.md`](CONTINUOUS_PRM_STORY.md) (what happened). This doc is *what it means and where the leverage is now.*
+> **Refined by the full-program audit (2026-07-05):** [`../PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md`](../PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md) — a cross-space (discrete + continuous) pattern analysis and an architecture-level second look at HRM/ON-LSTM. It sharpens this memo's #1 thrust: the substrate should not just be "harder" but *hierarchical by construction* (compositional missions on the existing maps, C11), with a measured-headroom gate, an explicit MLP control, and an iterative-refinement arm — because the six-phase architecture tie traces to a formulation an MLP can saturate, not to hierarchy being useless.
 **Evidence base:** C6 (value field) → C7 (integration) → C8 (dynamics) → C9 (transfer) → C9h (hardening) → C10 (interpolation) → C9b (transfer under dynamics). All locally validated on one RTX 5090.
 
 ---
