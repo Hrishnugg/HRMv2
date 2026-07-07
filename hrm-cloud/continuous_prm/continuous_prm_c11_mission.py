@@ -1913,12 +1913,36 @@ def analyze(records: Sequence[dict], binding: Dict[Tuple[str, int], int],
         # -- pairing indices. Learned-arm rows keyed by (world_idx,
         # train_seed) since that IS the pre-registered pairing unit.
         # Reference-arm rows (h_legsum, h_oracle) keyed by world_idx alone
-        # (train_seed == "" for all of them; one row per world).
+        # (train_seed == "" for all of them; one row per world). Both
+        # builders raise on a duplicate key: a dict comprehension would
+        # silently last-win, and a duplicated (world, seed) record in the
+        # CSV is data corruption that must be loud in the gate-rendering
+        # layer, not absorbed.
         def _by_world_seed(arm_name: str) -> Dict[Tuple[int, str], dict]:
-            return {(r["world_idx"], r["train_seed"]): r for r in by_arm.get(arm_name, [])}
+            out: Dict[Tuple[int, str], dict] = {}
+            for r in by_arm.get(arm_name, []):
+                key = (r["world_idx"], r["train_seed"])
+                if key in out:
+                    raise AssertionError(
+                        f"duplicate record for arm {arm_name!r} at (world_idx, train_seed)="
+                        f"{key} in cell {cell_key} at binding budget {int(cell_binding)} "
+                        f"(a dict build would silently keep only the last one)"
+                    )
+                out[key] = r
+            return out
 
         def _by_world(arm_name: str) -> Dict[int, dict]:
-            return {r["world_idx"]: r for r in by_arm.get(arm_name, [])}
+            out: Dict[int, dict] = {}
+            for r in by_arm.get(arm_name, []):
+                wi = r["world_idx"]
+                if wi in out:
+                    raise AssertionError(
+                        f"duplicate record for reference arm {arm_name!r} at world_idx={wi} "
+                        f"in cell {cell_key} at binding budget {int(cell_binding)} "
+                        f"(a dict build would silently keep only the last one)"
+                    )
+                out[wi] = r
+            return out
 
         mlp_by_ws = _by_world_seed("mlp")
         legsum_by_world = _by_world("h_legsum")
@@ -1931,16 +1955,35 @@ def analyze(records: Sequence[dict], binding: Dict[Tuple[str, int], int],
         vs_mlp_stats: Dict[str, dict] = {}
         for arm_name in learned_arms:
             arm_by_ws = _by_world_seed(arm_name)
-            keys = sorted(set(arm_by_ws) | set(mlp_by_ws))
+
+            # Key-set-parity guard: a complete `run_eval` CSV carries EXACTLY
+            # one arm record AND one mlp record per (world_idx, train_seed)
+            # at the binding budget (every provider runs on every bundle x
+            # budget). A key present on one side but missing on the other is
+            # a malformed/partial CSV (crashed run, truncated file, mixed
+            # manifests) -- silently counting the missing side as "not
+            # found" would corrupt b/c and the pair set, so it is a loud
+            # error in this gate-rendering layer instead. (A record whose
+            # `found` is False is NOT a parity violation -- the record
+            # exists; only a MISSING record is.)
+            missing_mlp = sorted(set(arm_by_ws) - set(mlp_by_ws))
+            missing_arm = sorted(set(mlp_by_ws) - set(arm_by_ws))
+            if missing_mlp or missing_arm:
+                raise AssertionError(
+                    f"arm-vs-mlp key-set parity violation in cell {cell_key} at binding "
+                    f"budget {int(cell_binding)} for arm {arm_name!r}: (world_idx, "
+                    f"train_seed) keys with no mlp record: {missing_mlp}; keys with no "
+                    f"{arm_name!r} record: {missing_arm}"
+                )
 
             ratios: List[float] = []
-            b_count = 0  # arm found, mlp not.
-            c_count = 0  # mlp found, arm not.
-            for key in keys:
-                arm_row = arm_by_ws.get(key)
-                mlp_row = mlp_by_ws.get(key)
-                arm_found = bool(arm_row["found"]) if arm_row is not None else False
-                mlp_found = bool(mlp_row["found"]) if mlp_row is not None else False
+            b_count = 0  # arm found, mlp not (discordant).
+            c_count = 0  # mlp found, arm not (discordant).
+            for key in sorted(arm_by_ws):
+                arm_row = arm_by_ws[key]
+                mlp_row = mlp_by_ws[key]
+                arm_found = bool(arm_row["found"])
+                mlp_found = bool(mlp_row["found"])
                 if arm_found and mlp_found:
                     ratios.append(float(arm_row["expansions"]) / float(mlp_row["expansions"]))
                 elif arm_found and not mlp_found:
@@ -2026,6 +2069,9 @@ def k0_continuity(analysis: dict) -> dict:
             reasons = []
             if stats["mcnemar_q"] < 0.05:
                 reasons.append(f"mcnemar_q={stats['mcnemar_q']:.4g} < 0.05")
+            # (n_pairs == 1 collapses the bootstrap CI to (med, med, med), so
+            # a single separated pair CAN flag a violation -- deliberate; see
+            # the matching degenerate-CI note in `g1_verdict`.)
             if stats["ci_hi"] < 1.0:
                 reasons.append(f"ci_hi={stats['ci_hi']:.4g} < 1.0")
             elif stats["ci_lo"] > 1.0:
@@ -2035,12 +2081,14 @@ def k0_continuity(analysis: dict) -> dict:
     return {"pass": len(violations) == 0, "violations": violations}
 
 
-# Structured arms evaluated for the G1 dose-response verdict -- every
-# learned arm EXCEPT the MLP control itself (spec section 1: "each
-# structured arm vs the MLP control"). `hrmv2_act` (Task 7) participates
-# automatically once records for it exist, since this list is enumerated
-# from the analysis dict's own learned-arm keys, not hardcoded per-arm --
-# see `g1_verdict`'s docstring.
+# The pre-registered G1 arm family: the structured arms compared against
+# the MLP control for the dose-response verdict (spec section 1). NOTE:
+# `g1_verdict` intersects THIS hardcoded tuple with the arms actually
+# present in the analysis dict -- an arm absent from this tuple is
+# invisible to G1 no matter what records exist for it. Task 7 MUST append
+# "hrmv2_act" here when that arm lands (the ACT-live provider is a G1
+# participant); the forced-k variants ("hrmv2_act_k1"/"_k2"/"_k4"/"_k8")
+# are G2-only diagnostics and must NEVER enter this tuple.
 G1_STRUCTURED_ARM_NAMES: Tuple[str, ...] = ("unet_film", "gnn", "hrm_trace", "onlstm_trace")
 
 G1_K_VALUES: Tuple[int, ...] = (2, 4, 8)
@@ -2108,6 +2156,12 @@ def g1_verdict(analysis: dict) -> dict:
                     continue
                 ratio_by_k[K] = stats["ratio_median"]
                 success = cell.get("success", {})
+                # n_pairs == 1 degenerate-CI caveat: `bootstrap_median_ci`
+                # collapses to (med, med, med) for a single value, so ONE
+                # both-found pair with ratio < 1.0 constitutes a "beat" here
+                # (and, symmetrically, a violation in `k0_continuity`) --
+                # inherited from the C7 bootstrap convention, kept
+                # deliberately rather than special-cased.
                 beat = (
                     (stats["mcnemar_q"] < 0.05 and success.get(arm_name, 0.0) > success.get("mlp", 0.0))
                     or (stats["ci_hi"] < 1.0)
@@ -2119,6 +2173,10 @@ def g1_verdict(analysis: dict) -> dict:
             usable_ratios = [ratio_by_k[K] for K in usable_ks]
             monotone = None
             if len(usable_ks) >= 2:
+                # 1e-12 is float-hygiene tolerance ONLY: "monotone
+                # non-increasing" must not flip on ulp-level noise between
+                # medians that are equal in exact arithmetic; it is far too
+                # small to mask any real (statistically meaningful) increase.
                 monotone = all(
                     usable_ratios[i] >= usable_ratios[i + 1] - 1e-12
                     for i in range(len(usable_ratios) - 1)

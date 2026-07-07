@@ -1399,18 +1399,25 @@ def test_coerce_and_binding_selection():
 def test_paired_arm_vs_mlp_ratio():
     binding = {("A", 2): 400}
     B = 400
+    # The three matched (both-found) ratios are DISTINCT -- 0.5, 0.6, 0.7 --
+    # so ANY mispairing moves the median or n_pairs (mutation-hardening,
+    # T5 review fix 2): with two of three ratios equal, a "pair with the
+    # FIRST mlp row of the world" mutation left the median unmoved.
+    #   - first-of-world mispairing -> ratios [25/50, 42/50, 63/90] =
+    #     [0.5, 0.84, 0.7] -> median 0.7 != 0.6 (dies on the median assert);
+    #   - world-keyed last-win dict-grab -> only 1 both-found pair
+    #     (w1's last gnn row is the not-found one) -> dies on n_pairs == 3.
     records = [
-        # World 0, seed 0: gnn=25 vs mlp=50 -> matched ratio 0.5. MLP ALSO has
-        # a seed-1 record (exp=100) at world 0 -- if pairing wrongly ignored
-        # seed and grabbed "any mlp row for this world", 25/100 = 0.25 would
-        # leak in; matched-seed pairing must use 25/50 = 0.5 only.
+        # World 0, seed 0: gnn=25 vs mlp=50 -> matched ratio 0.5. MLP ALSO
+        # has a seed-1 record (exp=70) at world 0 -- matched-seed pairing
+        # must use 25/50, never the cross-seed 25/70.
         _rec("A", 2, 0, "0", "gnn", "0", B, True, 12.0, 25, 30, 10.0),
         _rec("A", 2, 0, "0", "mlp", "0", B, True, 12.0, 50, 55, 10.0),
-        _rec("A", 2, 0, "1", "mlp", "1", B, True, 12.0, 100, 110, 10.0),
-        # World 0, seed 1: gnn=35 vs mlp=70 -> matched ratio 0.5.
-        _rec("A", 2, 0, "1", "gnn", "1", B, True, 12.0, 35, 40, 10.0),
-        # World 1, seed 0: gnn=45 vs mlp=90 -> matched ratio 0.5.
-        _rec("A", 2, 1, "0", "gnn", "0", B, True, 12.0, 45, 50, 10.0),
+        _rec("A", 2, 0, "1", "mlp", "1", B, True, 12.0, 70, 75, 10.0),
+        # World 0, seed 1: gnn=42 vs mlp=70 -> matched ratio 0.6.
+        _rec("A", 2, 0, "1", "gnn", "1", B, True, 12.0, 42, 47, 10.0),
+        # World 1, seed 0: gnn=63 vs mlp=90 -> matched ratio 0.7.
+        _rec("A", 2, 1, "0", "gnn", "0", B, True, 12.0, 63, 68, 10.0),
         _rec("A", 2, 1, "0", "mlp", "0", B, True, 12.0, 90, 95, 10.0),
         # World 1, seed 1: gnn NOT found; mlp found (MLP-only discordant pair
         # -> McNemar c=1, b=0). Excluded from the both-found ratio set.
@@ -1421,7 +1428,7 @@ def test_paired_arm_vs_mlp_ratio():
     stats = analysis[("A", 2)]["vs_mlp"]["gnn"]
 
     assert stats["n_pairs"] == 3
-    assert stats["ratio_median"] == pytest.approx(0.5)
+    assert stats["ratio_median"] == pytest.approx(0.6)
     # McNemar over ALL pairs (not just both-found): b = arm-found-mlp-not = 0,
     # c = mlp-found-arm-not = 1 -> p = 2*C(1,0)*0.5^1 = 1.0.
     assert stats["b"] == 0
@@ -1588,6 +1595,16 @@ def test_vs_legsum_and_oracle_rows():
         _rec("A", 2, 0, "1", "gnn", "1", B, True, 12.0, 60, 70, 10.0),
         _rec("A", 2, 1, "0", "gnn", "0", B, True, 12.0, 100, 110, 20.0),
         _rec("A", 2, 1, "1", "gnn", "1", B, True, 12.0, 120, 130, 20.0),
+        # mlp parity partners for every gnn (world, train_seed) key: the
+        # vs_mlp pairing now ASSERTS key-set parity between each learned arm
+        # and the MLP control at the binding budget (T5 review fix 3), so a
+        # fixture exercising the SECONDARY vs-legsum path must still carry
+        # them -- exactly as any complete `run_eval` CSV would. Their values
+        # are irrelevant to this test's assertions.
+        _rec("A", 2, 0, "0", "mlp", "0", B, True, 12.0, 80, 90, 10.0),
+        _rec("A", 2, 0, "1", "mlp", "1", B, True, 12.0, 90, 100, 10.0),
+        _rec("A", 2, 1, "0", "mlp", "0", B, True, 12.0, 150, 160, 20.0),
+        _rec("A", 2, 1, "1", "mlp", "1", B, True, 12.0, 160, 170, 20.0),
     ]
     analysis = M.analyze(records, binding)
     cell = analysis[("A", 2)]
