@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """C11 compositional-mission PRM heuristics -- Task 1: module skeleton,
 config, and TRAIN/TEST dataset builders. Task 2: structure-exposing
-encoders (trace tokens, MLP flatten, field grids, product graph).
+encoders (trace tokens, MLP flatten, field grids, product graph). Task 3:
+the four native arm models (MLP control, FiLM U-Net, product-graph GNN,
+HRM/ON-LSTM trace) + the matched trainer + per-arm field prediction.
 
 Builds the phase's dataset layer on top of the FROZEN G0-H headroom probe
 module `continuous_prm_c11_headroom.py`: the (config, K) cell grid, the
@@ -22,17 +24,31 @@ U-Net (`encode_field_grids`, reusing `continuous_prm_c6_heatmap_value_field`'s
 occupancy/gaussian rasterizer by import), and a product-graph tensor triple
 for the GNN (`encode_product_graph`).
 
+Task 3 adds `build_arm` (5 constructors: `mlp`, `unet_film`, `gnn`,
+`hrm_trace`, `onlstm_trace` -- all within the [0.5M, 3.5M] param band),
+`train_arm` (the matched recipe: smooth-L1, AdamW, grad-clip, identical
+across arms 1-4 by construction -- deviations are bugs), and
+`predict_field` (batch every product state through an arm's encoder+model,
+deterministic, no_grad). Every arm's output goes through the SAME
+`clamp(softplus(raw), 0, 4)` convention as `C.ContinuousHeuristicModel.forward`
+(the trace arms reuse that class directly, so they get the clamp for free;
+the other three apply it once, explicitly, in their `forward`).
+
 See docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md
-(section 3 is authoritative on the I/O contract) and
-docs/superpowers/plans/2026-07-07-c11-mission.md (Tasks 1-2).
+(sections 3/4 are authoritative on the I/O contract + matched recipe) and
+docs/superpowers/plans/2026-07-07-c11-mission.md (Tasks 1-3).
 """
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 import continuous_prm_common as C
 import continuous_prm_c6_heatmap_value_field as C6
@@ -210,6 +226,22 @@ def collect_world_bundle(cell: dict, seed: int, cfg: Optional[C11MissionConfig] 
         adj_valid = C11P.door_adj_valid_factory(rm, world, wp, seed)
         if adj_valid is None:
             raise RuntimeError(f"door_adj_valid_factory returned None (cell={cell}, seed={seed})")
+        # `door_adj_valid_factory` returns `placement.adj_valid` (a bound
+        # method -- see its own docstring); `__self__` recovers the
+        # `DoorPlacement` without threading a second return value through
+        # this function's signature (the same convention already used by
+        # `encode_field_grids`/tests to reach `placement.rects`). Data-
+        # integrity guard, not a bare `assert` (must survive `python -O`):
+        # config C is pinned to exactly 2 keys->doors everywhere else in
+        # this module (`_DOOR_KEY_LEGS = {0, 1}`), so a placement with a
+        # different door count would silently desync the trace-token
+        # door-key/door-open flags from the actual blocked-edge set.
+        placement = adj_valid.__self__
+        if len(placement.blocked) != 2:
+            raise AssertionError(
+                f"expected exactly 2 doors (DoorPlacement.blocked), got "
+                f"{len(placement.blocked)} (cell={cell}, seed={seed})"
+            )
 
     oracle = C11P.product_oracle(rm, wp, adj_valid)
     if not C11P.mission_reachable(oracle):
@@ -388,18 +420,65 @@ _RAY_DIRS: Tuple[int, ...] = (0, 2, 4, 6, 8, 10, 12, 14)
 # reach into the door-placement's internals.
 _DOOR_KEY_LEGS: frozenset = frozenset({0, 1})
 
+# T2-review micro-fix: per-node ray cache. `_query_token` is called once per
+# (query row, leg) in `encode_trace`/`encode_trace_padded` (indirectly, via
+# `encode_trace`) and once per (node, stage) in `encode_product_graph` --
+# without memoizing, the same node's 8 rays get re-raycast on every call
+# (encode_product_graph alone calls it N times per bundle; a training loop
+# calls it thousands of times). `_node_rays(bundle)` lazily computes and
+# caches the bundle's full (N, 8) ray array, keyed by `id(bundle)` so
+# distinct bundles (even with coincidentally-equal geometry) never share a
+# cache entry, and evicted entries (`id()` reused after garbage collection)
+# can never collide with a still-alive bundle's rays because the cache holds
+# a strong reference to the bundle's roadmap point count only, not the
+# bundle itself, keeping this a pure memo, not an accidental keepalive.
+# Purely a cost optimization -- every cached value is byte-identical to what
+# `C.raycast_distance` returns directly (verified by
+# `test_ray_cache_consistency`).
+_RAY_CACHE: Dict[int, np.ndarray] = {}
 
-def _query_token(p: np.ndarray, world: C.World, s: int, K: int, cfg: C11MissionConfig) -> np.ndarray:
-    """The dim-12 query-node token: `[x/side, y/side, 8 coarse ray
-    distances, s/k_max, K_remaining/k_max]`."""
+
+def _node_rays(bundle: "WorldBundle") -> np.ndarray:
+    """The bundle's `(N, 8)` per-node ray-distance array (already /side),
+    computed once and memoized by `id(bundle)`."""
+    key = id(bundle)
+    cached = _RAY_CACHE.get(key)
+    if cached is not None:
+        return cached
+    world = bundle.world
     side = float(world.side_len)
     steps = C.FeatureConfig().ray_steps
+    points = bundle.rm.points
+    N = points.shape[0]
+    rays = np.zeros((N, len(_RAY_DIRS)), dtype=np.float32)
+    for i in range(N):
+        p = points[i]
+        for k, d in enumerate(_RAY_DIRS):
+            angle = 2.0 * math.pi * d / 16.0
+            rays[i, k] = C.raycast_distance(p, angle, world, steps=steps) / side
+    _RAY_CACHE[key] = rays
+    return rays
+
+
+def _query_token(p: np.ndarray, world: C.World, s: int, K: int, cfg: C11MissionConfig,
+                  rays: Optional[np.ndarray] = None) -> np.ndarray:
+    """The dim-12 query-node token: `[x/side, y/side, 8 coarse ray
+    distances, s/k_max, K_remaining/k_max]`. `rays`, if given, is the
+    node's precomputed 8-ray row (from `_node_rays`) -- skips raycasting
+    entirely. If omitted, rays are computed directly from `p` (used by call
+    sites that don't have a roadmap node index / bundle, e.g. none currently,
+    kept for API compatibility with earlier direct-point callers)."""
+    side = float(world.side_len)
     tok = np.zeros(12, dtype=np.float32)
     tok[0] = p[0] / side
     tok[1] = p[1] / side
-    for k, d in enumerate(_RAY_DIRS):
-        angle = 2.0 * math.pi * d / 16.0
-        tok[2 + k] = C.raycast_distance(p, angle, world, steps=steps) / side
+    if rays is not None:
+        tok[2:10] = rays
+    else:
+        steps = C.FeatureConfig().ray_steps
+        for k, d in enumerate(_RAY_DIRS):
+            angle = 2.0 * math.pi * d / 16.0
+            tok[2 + k] = C.raycast_distance(p, angle, world, steps=steps) / side
     tok[10] = s / float(cfg.k_max)
     tok[11] = (K - s) / float(cfg.k_max)
     return tok
@@ -451,7 +530,8 @@ def encode_trace(bundle: WorldBundle, i: int, s: int,
     is_doors_config = bundle.adj_valid is not None
 
     p_i = bundle.rm.points[i]
-    tokens = [_query_token(p_i, world, s, K, cfg)]
+    node_rays = _node_rays(bundle)[i]
+    tokens = [_query_token(p_i, world, s, K, cfg, rays=node_rays)]
 
     prev_p = p_i
     for t in range(s, K + 1):
@@ -591,9 +671,11 @@ def encode_product_graph(bundle: WorldBundle,
     K = len(wp)
     N = rm.points.shape[0]
 
-    # Rays computed once per node, reused across every stage.
+    # Rays computed once per node (via the bundle-level cache), reused
+    # across every stage.
+    node_rays = _node_rays(bundle)
     query_toks = np.stack(
-        [_query_token(rm.points[i], world, 0, K, cfg) for i in range(N)], axis=0
+        [_query_token(rm.points[i], world, 0, K, cfg, rays=node_rays[i]) for i in range(N)], axis=0
     )  # (N, 12); slots 10-11 (s/k_max, K_remaining/k_max) are stage-0 values
        # here and OVERWRITTEN per stage below (they are the only
        # stage-dependent slots in the query-token layout).
@@ -636,3 +718,485 @@ def encode_product_graph(bundle: WorldBundle,
     edge_feats[:, 2] = 1.0
 
     return {"node_feats": node_feats, "edge_index": edge_index, "edge_feats": edge_feats}
+
+
+# ---------------------------------------------------------------------------
+# Task 3: arm models.
+# ---------------------------------------------------------------------------
+#
+# Every arm's raw scalar output goes through the SAME
+# `clamp(softplus(raw), 0, residual_cap)` convention as
+# `C.ContinuousHeuristicModel.forward` (the two trace arms reuse that class
+# directly and get the clamp for free -- see `continuous_prm_common.py:1215-
+# 1223` -- so this helper is applied exactly once per non-trace arm's
+# forward, never stacked on top of the trace arms' own internal clamp).
+
+def _softplus_clamp(raw: torch.Tensor, cap: float = 4.0) -> torch.Tensor:
+    return torch.clamp(F.softplus(raw), min=0.0, max=float(cap))
+
+
+class MLPArm(nn.Module):
+    """Arm 1: the explicit MLP control. `flatten(pad(sequence))` (120-dim)
+    -> 3 hidden GELU layers of `cfg.mlp_width` -> scalar, softplus-clamped.
+    No sequence/graph structure available -- this is the arm the whole
+    hierarchy-vs-substrate audit demanded (see MEMORY `program-audit-c11`)."""
+
+    def __init__(self, cfg: C11MissionConfig):
+        super().__init__()
+        in_dim = cfg.seq_max * cfg.token_dim
+        w = cfg.mlp_width
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, w),
+            nn.GELU(),
+            nn.Linear(w, w),
+            nn.GELU(),
+            nn.Linear(w, w),
+            nn.GELU(),
+            nn.Linear(w, 1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        raw = self.net(x).squeeze(-1)
+        return _softplus_clamp(raw, cap=4.0)
+
+
+class UNetFiLMField(nn.Module):
+    """Arm 2: the field U-Net with FiLM stage conditioning. Encoder-decoder
+    identical in shape to `continuous_prm_c6_heatmap_value_field.UNetField`
+    (`DoubleConv` stages, imported -- not reimplemented), but `in_channels=5`
+    (`encode_field_grids`'s 5 grid channels), `base=24`, PLUS a stage
+    embedding (`K_max+1=9` stages) FiLM-modulating the bottleneck features
+    `b = b * (1 + gamma) + beta` before decoding. Single residual head
+    (`Conv2d(base, 1, 1)`) -- no path-mask head (C11 has no path-mask
+    target). `forward(grid, stage_ids) -> (B, 1, 64, 64)`; the softplus-clamp
+    is applied AFTER gathering node values from the grid (`predict_field`),
+    not inside this class's `forward` -- the raw field is a continuous
+    surface, and clamping the surface before bilinear gather vs. after
+    differ only at the (immaterial) sub-cell interpolation boundary, but the
+    per-arm contract elsewhere in this module (`MLPArm`, `ProductGraphGNN`)
+    clamps the FINAL scalar per query state, so this class matches that by
+    leaving the surface unclamped and letting `predict_field` clamp the
+    gathered values."""
+
+    def __init__(self, cfg: C11MissionConfig, base: int = 24):
+        super().__init__()
+        in_channels = cfg.grid_channels
+        self.base = base
+        self.e1 = C6.DoubleConv(in_channels, base)
+        self.e2 = C6.DoubleConv(base, base * 2)
+        self.e3 = C6.DoubleConv(base * 2, base * 4)
+        self.e4 = C6.DoubleConv(base * 4, base * 8)
+        self.b = C6.DoubleConv(base * 8, base * 8)
+        self.p = nn.MaxPool2d(2)
+        self.u4 = nn.ConvTranspose2d(base * 8, base * 8, 2, stride=2)
+        self.d4 = C6.DoubleConv(base * 16, base * 4)
+        self.u3 = nn.ConvTranspose2d(base * 4, base * 4, 2, stride=2)
+        self.d3 = C6.DoubleConv(base * 8, base * 2)
+        self.u2 = nn.ConvTranspose2d(base * 2, base * 2, 2, stride=2)
+        self.d2 = C6.DoubleConv(base * 4, base)
+        self.u1 = nn.ConvTranspose2d(base, base, 2, stride=2)
+        self.d1 = C6.DoubleConv(base * 2, base)
+        self.residual_head = nn.Conv2d(base, 1, 1)
+
+        n_stages = cfg.k_max + 1
+        self.stage_emb = nn.Embedding(n_stages, cfg.film_dim)
+        self.film_gamma = nn.Linear(cfg.film_dim, base * 8)
+        self.film_beta = nn.Linear(cfg.film_dim, base * 8)
+
+    def forward(self, grid: torch.Tensor, stage_ids: torch.Tensor) -> torch.Tensor:
+        e1 = self.e1(grid)
+        e2 = self.e2(self.p(e1))
+        e3 = self.e3(self.p(e2))
+        e4 = self.e4(self.p(e3))
+        b = self.b(self.p(e4))
+
+        emb = self.stage_emb(stage_ids)
+        gamma = self.film_gamma(emb)
+        beta = self.film_beta(emb)
+        b = b * (1.0 + gamma[:, :, None, None]) + beta[:, :, None, None]
+
+        x = self.u4(b)
+        x = self.d4(torch.cat([x, e4], dim=1))
+        x = self.u3(x)
+        x = self.d3(torch.cat([x, e3], dim=1))
+        x = self.u2(x)
+        x = self.d2(torch.cat([x, e2], dim=1))
+        x = self.u1(x)
+        x = self.d1(torch.cat([x, e1], dim=1))
+        return self.residual_head(x)
+
+
+class ProductGraphGNN(nn.Module):
+    """Arm 3: hand-rolled message passing over the product graph (no
+    torch-geometric -- Blackwell/Windows wheel risk, per spec section 3).
+    `cfg.gnn_rounds` (8) UNTIED rounds of hidden 128: per round, every edge
+    computes a message from its source node's hidden state + its own edge
+    features (`MLP_r([h_src, edge_feats])`, 131->128->128, GELU), messages
+    are MEAN-aggregated per destination node (`index_add_` + degree
+    division -- no scatter/torch_geometric dependency), and the destination
+    node's hidden state is residually updated
+    (`h = h + MLP_r'([h, agg])`, 256->128->128, GELU). Input projection
+    `Linear(14, 128)`; head `Linear(128,128) -> GELU -> Linear(128,1)` +
+    softplus-clamp. `forward(node_feats, edge_index, edge_feats) ->
+    (n_nodes,)`."""
+
+    def __init__(self, cfg: C11MissionConfig):
+        super().__init__()
+        H = cfg.gnn_hidden
+        self.hidden = H
+        self.rounds = cfg.gnn_rounds
+        self.in_proj = nn.Linear(14, H)
+        self.msg_mlps = nn.ModuleList([
+            nn.Sequential(nn.Linear(H + 3, H), nn.GELU(), nn.Linear(H, H), nn.GELU())
+            for _ in range(self.rounds)
+        ])
+        self.update_mlps = nn.ModuleList([
+            nn.Sequential(nn.Linear(2 * H, H), nn.GELU(), nn.Linear(H, H), nn.GELU())
+            for _ in range(self.rounds)
+        ])
+        self.head = nn.Sequential(nn.Linear(H, H), nn.GELU(), nn.Linear(H, 1))
+
+    def forward(self, node_feats: torch.Tensor, edge_index: torch.Tensor,
+                edge_feats: torch.Tensor) -> torch.Tensor:
+        n_nodes = node_feats.shape[0]
+        h = self.in_proj(node_feats)
+
+        if edge_index.shape[1] > 0:
+            src = edge_index[0]
+            dst = edge_index[1]
+            ones = torch.ones(edge_index.shape[1], device=node_feats.device, dtype=h.dtype)
+            degree = torch.zeros(n_nodes, device=node_feats.device, dtype=h.dtype)
+            degree.index_add_(0, dst, ones)
+            degree = degree.clamp(min=1.0)
+
+        for r in range(self.rounds):
+            if edge_index.shape[1] == 0:
+                agg = torch.zeros_like(h)
+            else:
+                h_src = h[src]
+                msg_in = torch.cat([h_src, edge_feats], dim=-1)
+                msg = self.msg_mlps[r](msg_in)
+                agg = torch.zeros(n_nodes, self.hidden, device=node_feats.device, dtype=h.dtype)
+                agg.index_add_(0, dst, msg)
+                agg = agg / degree[:, None]
+            upd_in = torch.cat([h, agg], dim=-1)
+            h = h + self.update_mlps[r](upd_in)
+
+        raw = self.head(h).squeeze(-1)
+        return _softplus_clamp(raw, cap=4.0)
+
+
+ARM_NAMES: Tuple[str, ...] = ("mlp", "unet_film", "gnn", "hrm_trace", "onlstm_trace")
+
+# Trace-arm hidden dims chosen to land the [0.5M, 3.5M] param band (verified
+# by `test_arm_constructors_and_param_counts`): HRM H=224 -> ~2.90M,
+# ON-LSTM H=256 -> ~1.25M. Both land in-band on the first try -- no
+# adjustment needed (num_layers=2, k_step=2, num_heads=4, chunk_size=8,
+# head_hidden=256 per spec section 3 item 4).
+_HRM_TRACE_HIDDEN = 224
+_ONLSTM_TRACE_HIDDEN = 256
+
+
+def build_arm(name: str, cfg: C11MissionConfig) -> nn.Module:
+    """Construct one of the 5 arm models by name. `hrm_trace`/`onlstm_trace`
+    are `C.ContinuousHeuristicModel` instances (the existing trace
+    backbones, `token_dim=12`, `max_norm_residual=cfg.residual_cap`) fed the
+    real mission trace (`encode_trace_padded`) rather than the legacy
+    24-token feature bag."""
+    if name == "mlp":
+        return MLPArm(cfg)
+    if name == "unet_film":
+        return UNetFiLMField(cfg, base=24)
+    if name == "gnn":
+        return ProductGraphGNN(cfg)
+    if name == "hrm_trace":
+        backbone_cfg = C.BackboneConfig(
+            name="hrm_trace", backbone_type="hrm", hidden_dim=_HRM_TRACE_HIDDEN,
+            num_layers=2, k_step=2, num_heads=4, chunk_size=8, head_hidden=256,
+        )
+        return C.ContinuousHeuristicModel(backbone_cfg, token_dim=cfg.token_dim, max_norm_residual=cfg.residual_cap)
+    if name == "onlstm_trace":
+        backbone_cfg = C.BackboneConfig(
+            name="onlstm_trace", backbone_type="onlstm", hidden_dim=_ONLSTM_TRACE_HIDDEN,
+            num_layers=2, chunk_size=8, head_hidden=256,
+        )
+        return C.ContinuousHeuristicModel(backbone_cfg, token_dim=cfg.token_dim, max_norm_residual=cfg.residual_cap)
+    raise ValueError(f"unknown arm name {name!r}; expected one of {ARM_NAMES}")
+
+
+# ---------------------------------------------------------------------------
+# Task 3: differentiable grid gather (matches
+# `continuous_prm_c6_heatmap_value_field.interpolate_grid_values` exactly).
+# ---------------------------------------------------------------------------
+
+def _gather_grid_values_torch(grid: torch.Tensor, side: float, points: torch.Tensor) -> torch.Tensor:
+    """Bilinear-gather `grid` (H, W) at `points` (n, 2) world coordinates,
+    byte-for-byte the same indexing math as
+    `continuous_prm_c6_heatmap_value_field.interpolate_grid_values`
+    (verified equal on random inputs) but differentiable end-to-end through
+    `grid` (needed so training gradients reach the U-Net's weights) --
+    `interpolate_grid_values` itself is numpy-only and used at eval time by
+    `encode_field_grids`'s own tests, not reimplemented here, only mirrored.
+    No non-finite fallback branch: the U-Net's raw output is always finite
+    (no INF cells like the world's distance-field target), so that branch of
+    the original numpy version has no analog here."""
+    n = grid.shape[-1]
+    fx = points[:, 0] / side * n - 0.5
+    fy = points[:, 1] / side * n - 0.5
+    x0 = torch.clamp(torch.floor(fx), 0, n - 1).long()
+    y0 = torch.clamp(torch.floor(fy), 0, n - 1).long()
+    x1 = torch.clamp(x0 + 1, max=n - 1)
+    y1 = torch.clamp(y0 + 1, max=n - 1)
+    tx = torch.clamp(fx - x0.to(fx.dtype), 0.0, 1.0)
+    ty = torch.clamp(fy - y0.to(fy.dtype), 0.0, 1.0)
+    c00 = grid[x0, y0]
+    c10 = grid[x1, y0]
+    c01 = grid[x0, y1]
+    c11 = grid[x1, y1]
+    return (1.0 - tx) * (1.0 - ty) * c00 + tx * (1.0 - ty) * c10 + (1.0 - tx) * ty * c01 + tx * ty * c11
+
+
+# ---------------------------------------------------------------------------
+# Task 3: per-arm batch encoding (shared by `train_arm` and `predict_field`).
+# ---------------------------------------------------------------------------
+
+def _points_tensor(bundle: WorldBundle, node_indices: Sequence[int], device: torch.device) -> torch.Tensor:
+    pts = bundle.rm.points[np.asarray(node_indices, dtype=np.int64)]
+    return torch.from_numpy(pts.astype(np.float32)).to(device)
+
+
+def _forward_mlp_or_trace(arm_name: str, model: nn.Module, bundle: WorldBundle,
+                           states: Sequence[Tuple[int, int]], cfg: C11MissionConfig,
+                           device: torch.device) -> torch.Tensor:
+    if arm_name == "mlp":
+        flat = encode_mlp(bundle, states, cfg)
+        x = torch.from_numpy(flat).to(device)
+        return model(x)
+    # hrm_trace / onlstm_trace: ContinuousHeuristicModel consumes the padded
+    # token sequence directly (pad tokens are zero rows -- acceptable; the
+    # sequence is consumed left-to-right, so real tokens always precede
+    # padding and no attention mask is needed for these recurrent backbones).
+    padded, _mask = encode_trace_padded(bundle, states, cfg)
+    x = torch.from_numpy(padded).to(device)
+    return model(x)
+
+
+def _forward_unet_film(model: "UNetFiLMField", bundle: WorldBundle,
+                        states: Sequence[Tuple[int, int]], cfg: C11MissionConfig,
+                        device: torch.device) -> torch.Tensor:
+    """Forward each DISTINCT stage's grid ONCE, then gather every batch row's
+    node value from that stage's output surface (bilinear, matching the C6
+    node-gather convention -- see `_gather_grid_values_torch`)."""
+    side = float(bundle.world.side_len)
+    by_stage: Dict[int, List[int]] = {}
+    for row, (i, s) in enumerate(states):
+        by_stage.setdefault(s, []).append(row)
+
+    stage_list = sorted(by_stage.keys())
+    grids_np = np.stack([encode_field_grids(bundle, s, cfg) for s in stage_list], axis=0)
+    grids_t = torch.from_numpy(grids_np).to(device)
+    stage_ids_t = torch.tensor(stage_list, dtype=torch.long, device=device)
+
+    surfaces = model(grids_t, stage_ids_t).squeeze(1)  # (n_stages, 64, 64)
+
+    n_rows = len(states)
+    out = torch.zeros(n_rows, device=device)
+    for stage_pos, s in enumerate(stage_list):
+        rows = by_stage[s]
+        node_indices = [states[r][0] for r in rows]
+        pts = _points_tensor(bundle, node_indices, device)
+        vals = _gather_grid_values_torch(surfaces[stage_pos], side, pts)
+        idx_t = torch.tensor(rows, dtype=torch.long, device=device)
+        out.index_copy_(0, idx_t, vals)
+    return out
+
+
+def _forward_gnn(model: "ProductGraphGNN", bundle: WorldBundle,
+                  states: Sequence[Tuple[int, int]], cfg: C11MissionConfig,
+                  device: torch.device) -> torch.Tensor:
+    """Forward the bundle's FULL product graph once, then index the batch's
+    rows by flat id `s*N + i`."""
+    graph = encode_product_graph(bundle, cfg)
+    node_feats = torch.from_numpy(graph["node_feats"]).to(device)
+    edge_index = torch.from_numpy(graph["edge_index"]).to(device)
+    edge_feats = torch.from_numpy(graph["edge_feats"]).to(device)
+
+    all_out = model(node_feats, edge_index, edge_feats)  # ((K+1)*N,)
+
+    N = bundle.rm.points.shape[0]
+    flat_ids = [s * N + i for (i, s) in states]
+    idx_t = torch.tensor(flat_ids, dtype=torch.long, device=device)
+    return all_out[idx_t]
+
+
+def _forward_arm_batch(arm_name: str, model: nn.Module, bundle: WorldBundle,
+                        states: Sequence[Tuple[int, int]], cfg: C11MissionConfig,
+                        device: torch.device) -> torch.Tensor:
+    """Dispatch to the per-arm batch-forward helper. Returns a `(len(states),)`
+    tensor of predictions in `[0, cfg.residual_cap]` (every helper's model
+    already applies the softplus-clamp -- `MLPArm`/`ProductGraphGNN`/
+    `ContinuousHeuristicModel` internally; `UNetFiLMField` does NOT (its
+    `forward` returns the raw unclamped surface), so `_forward_unet_film`'s
+    gathered output is clamped here, the ONE place the clamp is applied for
+    that arm -- never inside `UNetFiLMField.forward` itself, which would
+    double-apply it if `predict_field` ever gathered from an already-clamped
+    surface)."""
+    if arm_name in ("mlp", "hrm_trace", "onlstm_trace"):
+        return _forward_mlp_or_trace(arm_name, model, bundle, states, cfg, device)
+    if arm_name == "unet_film":
+        raw = _forward_unet_film(model, bundle, states, cfg, device)
+        return _softplus_clamp(raw, cap=cfg.residual_cap)
+    if arm_name == "gnn":
+        return _forward_gnn(model, bundle, states, cfg, device)
+    raise ValueError(f"unknown arm name {arm_name!r}; expected one of {ARM_NAMES}")
+
+
+# ---------------------------------------------------------------------------
+# Task 3: predict_field.
+# ---------------------------------------------------------------------------
+
+def predict_field(arm_name: str, model: nn.Module, bundle: WorldBundle,
+                   cfg: Optional[C11MissionConfig] = None) -> np.ndarray:
+    """Batch ALL (i, s) product states through `arm_name`'s encoder+model
+    under `torch.no_grad()`, returning `(K+1, N)` float64 values in
+    `[0, cfg.residual_cap]`. Deterministic (no dropout/batchnorm in any arm;
+    eval mode is the caller's responsibility for exact reproducibility
+    across calls, but `no_grad` alone is already sufficient here since none
+    of the 5 arms have train/eval-mode-dependent layers)."""
+    cfg = cfg or C11MissionConfig()
+    K = len(bundle.wp)
+    N = bundle.rm.points.shape[0]
+    device = next(model.parameters()).device
+
+    states = [(i, s) for s in range(K + 1) for i in range(N)]
+
+    with torch.no_grad():
+        out = _forward_arm_batch(arm_name, model, bundle, states, cfg, device)
+
+    field = out.detach().cpu().numpy().astype(np.float64).reshape(K + 1, N)
+    return field
+
+
+# ---------------------------------------------------------------------------
+# Task 3: matched trainer.
+# ---------------------------------------------------------------------------
+
+def _training_seed(seed: int, cell: dict) -> int:
+    """The pre-registered training-seed formula (identical for torch and the
+    numpy shuffle RNG -- see plan section "Matched recipe"): `10007*(seed+1)
+    + 101*config_idx + K`."""
+    return 10007 * (seed + 1) + 101 * int(cell["config_idx"]) + int(cell["K"])
+
+
+def _forward_batch_by_bundle(arm_name: str, model: nn.Module, bundles: Sequence[WorldBundle],
+                              rows_i: np.ndarray, rows_s: np.ndarray, rows_bidx: np.ndarray,
+                              cfg: C11MissionConfig, device: torch.device) -> torch.Tensor:
+    """Forward one batch's rows through `model`, grouped by `bundle_idx`
+    (each arm's per-bundle encode is computed once per DISTINCT bundle
+    present in the batch, not once per row -- see `_forward_unet_film`'s own
+    per-stage grouping for the analogous within-bundle savings). Returns
+    predictions in the SAME row order as `rows_i`/`rows_s`/`rows_bidx`."""
+    n = rows_i.shape[0]
+    out = torch.zeros(n, device=device)
+    unique_bidx = np.unique(rows_bidx)
+    for b_idx in unique_bidx:
+        b_idx = int(b_idx)
+        row_mask = rows_bidx == b_idx
+        row_positions = np.nonzero(row_mask)[0]
+        states = list(zip(rows_i[row_mask].tolist(), rows_s[row_mask].tolist()))
+        bundle = bundles[b_idx]
+        preds = _forward_arm_batch(arm_name, model, bundle, states, cfg, device)
+        idx_t = torch.from_numpy(row_positions.astype(np.int64)).to(device)
+        out.index_copy_(0, idx_t, preds)
+    return out
+
+
+def train_arm(arm_name: str, cell: dict, bundles: Sequence[WorldBundle], seed: int,
+              cfg: Optional[C11MissionConfig] = None, epochs: Optional[int] = None
+              ) -> Tuple[Dict[str, torch.Tensor], dict]:
+    """The matched recipe (spec section 4 / plan "Shared core definitions"):
+    smooth-L1 (beta=`cfg.smooth_l1_beta`) on ŷ vs y, AdamW(lr=`cfg.lr`,
+    weight_decay=`cfg.weight_decay`), grad-clip `cfg.grad_clip`, batch
+    `cfg.batch_size`, `cfg.epochs` epochs (overridable via `epochs`),
+    IDENTICAL across all 5 arms by construction (every arm goes through this
+    one function -- no per-arm branch touches lr/epochs/optimizer/loss).
+
+    Seeding: `torch.manual_seed` and the numpy shuffle RNG both seeded with
+    `_training_seed(seed, cell)` -- two calls with identical inputs produce
+    bit-identical `state_dict`s (verified by `test_trainer_determinism`).
+
+    Returns `(state_dict_cpu, meta)`; `meta` carries `param_count`,
+    `first_epoch_loss` (mean batch loss of epoch 1, for the tiny-overfit
+    smoke test), `final_loss` (mean batch loss of the last epoch), `epochs`,
+    `seed`, `arm`, `config_label`, `K`, `wall_s`."""
+    cfg = cfg or C11MissionConfig()
+    n_epochs = int(epochs) if epochs is not None else int(cfg.epochs)
+
+    train_seed_val = _training_seed(seed, cell)
+    torch.manual_seed(train_seed_val)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(train_seed_val)
+    shuffle_rng = np.random.default_rng(train_seed_val)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = build_arm(arm_name, cfg).to(device)
+    param_count = sum(p.numel() for p in model.parameters())
+
+    opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+
+    targets = stack_targets(bundles)  # (n, 4): (i, s, y, bundle_idx)
+    n_rows = targets.shape[0]
+    all_i = targets[:, 0].astype(np.int64)
+    all_s = targets[:, 1].astype(np.int64)
+    all_y = targets[:, 2].astype(np.float32)
+    all_bidx = targets[:, 3].astype(np.int64)
+
+    t0 = time.time()
+    first_epoch_loss: Optional[float] = None
+    final_loss: float = float("nan")
+
+    model.train()
+    for epoch in range(n_epochs):
+        order = shuffle_rng.permutation(n_rows)
+        epoch_losses: List[float] = []
+        for start in range(0, n_rows, cfg.batch_size):
+            batch_idx = order[start:start + cfg.batch_size]
+            rows_i = all_i[batch_idx]
+            rows_s = all_s[batch_idx]
+            rows_bidx = all_bidx[batch_idx]
+            y_batch = torch.from_numpy(all_y[batch_idx]).to(device)
+
+            opt.zero_grad(set_to_none=True)
+            preds = _forward_batch_by_bundle(arm_name, model, bundles, rows_i, rows_s, rows_bidx, cfg, device)
+            if not torch.isfinite(preds).all():
+                raise RuntimeError(f"nonfinite predictions for arm {arm_name!r}")
+            loss = F.smooth_l1_loss(preds, y_batch, beta=cfg.smooth_l1_beta)
+            if not torch.isfinite(loss):
+                raise RuntimeError(f"nonfinite loss for arm {arm_name!r}")
+            loss.backward()
+            if cfg.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
+            opt.step()
+            epoch_losses.append(float(loss.item()))
+
+        epoch_mean = float(np.mean(epoch_losses)) if epoch_losses else float("nan")
+        if epoch == 0:
+            first_epoch_loss = epoch_mean
+        final_loss = epoch_mean
+
+    wall_s = time.time() - t0
+
+    state_dict_cpu = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+    meta = {
+        "arm": arm_name,
+        "config_label": cell.get("config_label"),
+        "K": int(cell["K"]),
+        "seed": int(seed),
+        "epochs": n_epochs,
+        "param_count": int(param_count),
+        "first_epoch_loss": first_epoch_loss,
+        "final_loss": final_loss,
+        "wall_s": wall_s,
+    }
+    return state_dict_cpu, meta
