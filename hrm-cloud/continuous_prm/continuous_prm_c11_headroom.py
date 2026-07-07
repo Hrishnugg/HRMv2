@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""C11 G0-H headroom probe -- Tasks 1-3: mission layer, product graph, exact
-oracle, product A*, the matched three-arm eval, and the keys->doors
-stage-dependent adjacency config.
+"""C11 G0-H headroom probe -- Tasks 1-4: mission layer, product graph, exact
+oracle, product A*, the matched three-arm eval, the keys->doors
+stage-dependent adjacency config, and the probe runner + analysis + CLI.
 
 Measures whether compositional missions (visit K ordered waypoints, then reach
 the goal) on the existing hard-map roadmaps create real heuristic headroom for
@@ -16,7 +16,11 @@ cell). Task 3 adds config C: `place_doors` / `DoorPlacement` /
 roadmap edges until the corresponding waypoint is completed -- a genuinely
 stage-dependent adjacency that euclid-based heuristics cannot see, plugged
 into `product_oracle` / `astar_product` / `eval_cell` via the existing
-`adj_valid` / `adj_valid_factory` hooks.
+`adj_valid` / `adj_valid_factory` hooks. Task 4 adds `analyze_probe` (pure
+per-cell summary: binding budget, per-arm success/median-expansions, matched
+oracle/legsum and next/legsum ratios, success gap), `run_probe` (the 3
+configs x 3 K-values x 25-world grid, CSV + results-doc writer), and a
+minimal `--probe` CLI.
 
 New-file-only; reuses `continuous_prm_common` (worlds, PRM, INF) and
 `continuous_prm_c7_hard_maps` (hard-map suites) by import. Does not modify
@@ -24,9 +28,14 @@ either. See docs/superpowers/plans/2026-07-07-c11-headroom-probe.md.
 """
 from __future__ import annotations
 
+import argparse
+import csv
 import heapq
+import os
+import statistics
+import time
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -694,3 +703,557 @@ def door_adj_valid_factory(rm, world, wp: Sequence[int], seed: int,
     """
     placement = place_doors(rm, world, wp, seed, cfg)
     return placement.adj_valid
+
+
+# ---------------------------------------------------------------------------
+# Task 4 -- analyze_probe, run_probe, CLI.
+# ---------------------------------------------------------------------------
+
+ARMS: Tuple[str, ...] = ("h_next", "h_legsum", "h_oracle")
+
+# The 9 (config, K) cells the pre-registered probe grid runs. config_idx
+# values are PRE-REGISTERED (T3's door tests already pin config C to 2) --
+# do not renumber. adj_valid_factory=None for configs A/B (plain missions on
+# C_hard_maze / C_hard_rooms_large); config C reuses C_hard_maze + the
+# keys->doors factory from Task 3.
+PROBE_CELL_SPECS: Tuple[dict, ...] = tuple(
+    {"cell_id": f"{cfg_label}_K{K}", "config_label": cfg_label, "spec_name": spec_name,
+     "config_idx": config_idx, "K": K, "adj_valid_factory": factory}
+    for cfg_label, spec_name, config_idx, factory in (
+        ("A", "C_hard_maze", 0, None),
+        ("B", "C_hard_rooms_large", 1, None),
+        ("C", "C_hard_maze", 2, "door_adj_valid_factory"),
+    )
+    for K in (2, 4, 8)
+)
+
+
+def analyze_probe(records: Sequence[dict]) -> Dict[Tuple[str, int], dict]:
+    """Pure per-cell summary of a probe's raw eval_cell records.
+
+    Groups `records` by `(config, K)` (the `config` field, i.e. the spec
+    name -- NOT `config_label`/`config_idx`; callers running configs A and C
+    both on `C_hard_maze` at the same K must pass records that are otherwise
+    already separated, e.g. by calling this once per config_idx-distinct
+    subset, since `config` alone does not disambiguate A from C). For each
+    cell:
+
+      - `(binding_budget, degenerate) = calibrate_binding_budget(cell_records,
+        budgets)` -- `budgets` is the sorted set of distinct `budget` values
+        present in the cell's own records (so this function is CSV-
+        regenerable: it does not need the original run's budgets argument,
+        only the records it produced).
+      - At the binding budget, per arm in `h_next`, `h_legsum`, `h_oracle`:
+          * `success[arm]`: fraction of the cell's WORLDS (not records) with
+            `found=True` for that arm at the binding budget. One record per
+            (world, arm, budget) is assumed (eval_cell's contract), so this
+            is `mean(found)` over that arm's records at the binding budget.
+          * `median_expansions_all[arm]`: median `expansions` over ALL of the
+            arm's records at the binding budget -- a not-found record's
+            `expansions` is astar_product's own budget-truncated count (it
+            stops at `budget` expansions when the heap empties or the goal is
+            never reached), so a failed world contributes its (typically
+            budget-sized) expansion count, not a penalty value or exclusion.
+            This is a deliberate choice: it lets "harder cell" = "higher
+            median expansions" hold even when many worlds fail, at the cost
+            of the median being dominated by `budget` itself in a
+            low-success cell (see `median_expansions_solved` for the
+            solved-only view).
+          * `median_expansions_solved[arm]`: median `expansions` over only
+            that arm's `found=True` records at the binding budget (`None` if
+            no world solved).
+      - `matched_oracle_legsum`: on worlds where BOTH `h_oracle` and
+        `h_legsum` are `found=True` at the binding budget, the per-world
+        ratio `oracle_expansions / legsum_expansions`; reports `median`,
+        `iqr25`, `iqr75` (25th/75th percentiles via
+        `statistics.quantiles(..., n=4, method="inclusive")`, matching the
+        common "IQR" convention), and `n_matched` (count of such worlds). If
+        `n_matched == 0`, `median`/`iqr25`/`iqr75` are all `None` (no
+        fabricated ratio).
+      - `matched_next_legsum`: the identical construction for `h_next` vs
+        `h_legsum` (secondary line: how much of the oracle's cut is just
+        "knowing the next target").
+      - `success_gap`: `success["h_oracle"] - success["h_legsum"]`.
+
+    Returns `{(config, K): {...}}` with all of the above plus `budgets` (the
+    cell's sorted distinct budgets, as a tuple) and `degenerate`
+    (`calibrate_binding_budget`'s flag).
+    """
+    cells: Dict[Tuple[str, int], List[dict]] = {}
+    for r in records:
+        cells.setdefault((r["config"], r["K"]), []).append(r)
+
+    result: Dict[Tuple[str, int], dict] = {}
+    for key, cell_records in cells.items():
+        cell_budgets = tuple(sorted({r["budget"] for r in cell_records}))
+        binding_budget, degenerate = calibrate_binding_budget(cell_records, cell_budgets)
+
+        at_binding = [r for r in cell_records if r["budget"] == binding_budget]
+        by_arm = {arm: [r for r in at_binding if r["arm"] == arm] for arm in ARMS}
+
+        success = {arm: _success_rate(by_arm[arm]) for arm in ARMS}
+        median_all = {arm: _median_or_none([r["expansions"] for r in by_arm[arm]]) for arm in ARMS}
+        median_solved = {
+            arm: _median_or_none([r["expansions"] for r in by_arm[arm] if r["found"]])
+            for arm in ARMS
+        }
+
+        matched_oracle_legsum = _matched_ratio(by_arm["h_oracle"], by_arm["h_legsum"])
+        matched_next_legsum = _matched_ratio(by_arm["h_next"], by_arm["h_legsum"])
+
+        result[key] = {
+            "config": key[0],
+            "K": key[1],
+            "budgets": cell_budgets,
+            "binding_budget": binding_budget,
+            "degenerate": degenerate,
+            "success": success,
+            "median_expansions_all": median_all,
+            "median_expansions_solved": median_solved,
+            "matched_oracle_legsum": matched_oracle_legsum,
+            "matched_next_legsum": matched_next_legsum,
+            "success_gap": success["h_oracle"] - success["h_legsum"],
+        }
+    return result
+
+
+def _success_rate(arm_records: Sequence[dict]) -> float:
+    if not arm_records:
+        return float("nan")
+    return sum(1 for r in arm_records if r["found"]) / len(arm_records)
+
+
+def _median_or_none(values: Sequence[float]) -> Optional[float]:
+    if not values:
+        return None
+    return float(statistics.median(values))
+
+
+def _matched_ratio(numerator_records: Sequence[dict], denominator_records: Sequence[dict]) -> dict:
+    """Per-world ratio `numerator.expansions / denominator.expansions` on
+    worlds where BOTH arms are `found=True`, keyed by `world_idx`."""
+    num_by_world = {r["world_idx"]: r for r in numerator_records if r["found"]}
+    den_by_world = {r["world_idx"]: r for r in denominator_records if r["found"]}
+    matched_worlds = sorted(set(num_by_world) & set(den_by_world))
+
+    ratios = [
+        num_by_world[w]["expansions"] / den_by_world[w]["expansions"]
+        for w in matched_worlds
+        if den_by_world[w]["expansions"] > 0
+    ]
+
+    n_matched = len(ratios)
+    if n_matched == 0:
+        return {"median": None, "iqr25": None, "iqr75": None, "n_matched": 0}
+    if n_matched == 1:
+        # statistics.quantiles requires >= 2 data points; a single-point
+        # sample's 25th/75th percentile is the point itself under any
+        # sane convention.
+        v = float(ratios[0])
+        return {"median": v, "iqr25": v, "iqr75": v, "n_matched": 1}
+
+    q = statistics.quantiles(ratios, n=4, method="inclusive")
+    return {
+        "median": float(statistics.median(ratios)),
+        "iqr25": float(q[0]),
+        "iqr75": float(q[2]),
+        "n_matched": n_matched,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Probe runner.
+# ---------------------------------------------------------------------------
+
+def _run_one_cell(cell_spec: dict, n_worlds: int, budgets: Sequence[int]) -> List[dict]:
+    """Run `eval_cell` for one PROBE_CELL_SPECS entry. Module-level (not a
+    closure/lambda) and takes only picklable arguments so it can be shipped
+    to a `ProcessPoolExecutor` worker on Windows (spawn-based multiprocessing
+    pickles the callable and its arguments; `door_adj_valid_factory` itself
+    IS picklable as a plain module-level function, but we pass its NAME here
+    and resolve it locally to keep this worker's argument list trivially
+    picklable and to avoid relying on factory-function identity surviving
+    the pickle round trip)."""
+    factory = door_adj_valid_factory if cell_spec["adj_valid_factory"] == "door_adj_valid_factory" else None
+    return eval_cell(
+        cell_spec["spec_name"], cell_spec["config_idx"], cell_spec["K"],
+        n_worlds=n_worlds, budgets=budgets, adj_valid_factory=factory,
+    )
+
+
+def run_probe(out_dir: str = "runs/c11_probe", n_worlds: int = 25,
+              budgets: Sequence[int] = (100, 200, 400, 800, 1600, 3200)) -> None:
+    """Run the full G0-H headroom probe: 3 configs x K in (2, 4, 8) = 9
+    cells, `n_worlds` worlds each, matched three-arm eval at every budget in
+    `budgets`. Writes `<out_dir>/c11_probe_records.csv` (one row per record)
+    and `hrm-cloud/continuous_prm/C11_HEADROOM.md` (the analysis + gate
+    verdict), then prints the per-cell table and verdict to stdout.
+
+    Estimates wall time first by timing ONE world of the expected-slowest
+    cell (config C, K=8: keys->doors placement/validation on top of the
+    largest product graph) end to end, extrapolated to all 9 cells x
+    `n_worlds` worlds. If the serial estimate exceeds ~45 minutes, the 9
+    cells are run in parallel via `concurrent.futures.ProcessPoolExecutor`
+    (cells are fully independent -- disjoint worlds, disjoint output rows);
+    otherwise cells run serially in-process (simpler, same output).
+    """
+    os.makedirs(out_dir, exist_ok=True)
+
+    slowest_spec = next(s for s in PROBE_CELL_SPECS if s["config_label"] == "C" and s["K"] == 8)
+    t0 = time.perf_counter()
+    _run_one_cell(slowest_spec, n_worlds=1, budgets=budgets)
+    per_world_s = time.perf_counter() - t0
+
+    n_cells = len(PROBE_CELL_SPECS)
+    serial_estimate_s = per_world_s * n_worlds * n_cells
+    print(
+        f"[c11-probe] timed 1 world of the expected-slowest cell "
+        f"({slowest_spec['cell_id']}) end-to-end: {per_world_s:.2f}s. "
+        f"Serial estimate for {n_cells} cells x {n_worlds} worlds: "
+        f"{serial_estimate_s / 60.0:.1f} min.",
+        flush=True,
+    )
+
+    use_parallel = serial_estimate_s > 45 * 60
+    t_run0 = time.perf_counter()
+    all_records: List[dict] = []
+    if use_parallel:
+        max_workers = min(n_cells, os.cpu_count() or 1)
+        print(f"[c11-probe] parallelizing at cell level across {max_workers} workers.", flush=True)
+        import concurrent.futures
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as pool:
+            futures = {
+                pool.submit(_run_one_cell, spec, n_worlds, budgets): spec
+                for spec in PROBE_CELL_SPECS
+            }
+            for fut in concurrent.futures.as_completed(futures):
+                spec = futures[fut]
+                cell_records = fut.result()
+                all_records.extend(cell_records)
+                print(f"[c11-probe] cell {spec['cell_id']} done ({len(cell_records)} records).", flush=True)
+    else:
+        print("[c11-probe] running serially in-process.", flush=True)
+        for spec in PROBE_CELL_SPECS:
+            cell_records = _run_one_cell(spec, n_worlds, budgets)
+            all_records.extend(cell_records)
+            print(f"[c11-probe] cell {spec['cell_id']} done ({len(cell_records)} records).", flush=True)
+    wall_s = time.perf_counter() - t_run0
+    print(f"[c11-probe] all cells done in {wall_s / 60.0:.1f} min ({len(all_records)} records total).", flush=True)
+
+    csv_path = os.path.join(out_dir, "c11_probe_records.csv")
+    _write_records_csv(all_records, csv_path)
+    print(f"[c11-probe] wrote {csv_path}", flush=True)
+
+    # Config A/C share spec_name "C_hard_maze" -- analyze_probe groups by
+    # (config, K), which would collide A and C's records. Disambiguate by
+    # analyzing each config_idx's records separately and re-keying the
+    # merged result by (config_label, K) instead of (spec_name, K).
+    analysis: Dict[Tuple[str, int], dict] = {}
+    label_by_config_idx = {spec["config_idx"]: spec["config_label"] for spec in PROBE_CELL_SPECS}
+    for config_idx, label in label_by_config_idx.items():
+        subset = [r for r in all_records if r["config_idx"] == config_idx]
+        for (spec_name, K), cell in analyze_probe(subset).items():
+            analysis[(label, K)] = cell
+
+    md_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "C11_HEADROOM.md")
+    verdict = _write_results_doc(analysis, md_path, n_worlds=n_worlds, wall_s=wall_s,
+                                  per_world_s=per_world_s, used_parallel=use_parallel)
+    print(f"[c11-probe] wrote {md_path}", flush=True)
+
+    _print_report(analysis, verdict)
+
+
+def _write_records_csv(records: Sequence[dict], path: str) -> None:
+    if not records:
+        raise RuntimeError("run_probe produced zero records -- nothing to write")
+    fieldnames = list(records[0].keys())
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in records:
+            writer.writerow(r)
+
+
+# ---------------------------------------------------------------------------
+# Results doc + gate verdict.
+# ---------------------------------------------------------------------------
+
+GATE_TEXT = (
+    "the exact oracle must cut ≥40–50% of A* expansions vs the admissible "
+    "leg-sum baseline at the binding budget (i.e. matched median ratio ≤ 0.5–0.6) "
+    "on ≥1 config — ideally with the gap GROWING in K (dose-response)."
+)
+
+
+def _gate_verdict(analysis: Dict[Tuple[str, int], dict]) -> dict:
+    """Evaluate the pre-registered gate against the analysis dict.
+
+    A (config, K) cell "clears" the gate if its matched oracle/legsum median
+    ratio is <= 0.6 (the lenient end of the pre-registered 0.5-0.6 band) AND
+    it has n_matched >= 1 (a ratio computed from zero matched worlds cannot
+    clear anything). Cells with ratio in (0.5, 0.6] are flagged as "marginal"
+    (lenient-threshold-only) passes; ratio <= 0.5 is an unqualified pass.
+
+    Returns a dict: `passed` (bool, True iff >=1 cell has ratio <= 0.6),
+    `marginal` (bool, True iff the best cell's ratio is in (0.5, 0.6]),
+    `best_cell` ((config, K) with the lowest ratio among cells with
+    n_matched >= 1, or None if no cell has any matched worlds at all),
+    `best_ratio` (that cell's median ratio, or None).
+    """
+    candidates = [
+        (key, cell["matched_oracle_legsum"]["median"])
+        for key, cell in analysis.items()
+        if cell["matched_oracle_legsum"]["n_matched"] >= 1
+    ]
+    if not candidates:
+        return {"passed": False, "marginal": False, "best_cell": None, "best_ratio": None}
+
+    best_cell, best_ratio = min(candidates, key=lambda kv: kv[1])
+    passed = best_ratio <= 0.6
+    marginal = passed and best_ratio > 0.5
+    return {"passed": passed, "marginal": marginal, "best_cell": best_cell, "best_ratio": best_ratio}
+
+
+def _fmt(v, spec: str = ".3f") -> str:
+    if v is None:
+        return "n/a"
+    if isinstance(v, float) and (v != v):  # NaN
+        return "nan"
+    return format(v, spec)
+
+
+def _write_results_doc(analysis: Dict[Tuple[str, int], dict], path: str, n_worlds: int,
+                        wall_s: float, per_world_s: float, used_parallel: bool) -> dict:
+    verdict = _gate_verdict(analysis)
+    config_labels = sorted({key[0] for key in analysis})
+    k_values = sorted({key[1] for key in analysis})
+
+    lines: List[str] = []
+    lines.append("# C11 G0-H Headroom Probe -- Results")
+    lines.append("")
+    lines.append("**Date:** 2026-07-07")
+    lines.append(
+        "**Purpose:** G0-H gate for C11 (compositional-mission PRM) per "
+        "`../PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md` §7 -- measure whether "
+        "compositional missions create real heuristic headroom for A* search "
+        "BEFORE building the C11 phase, at the cost of a probe rather than a phase."
+    )
+    lines.append(f"**Pre-registered gate (verbatim):** {GATE_TEXT}")
+    lines.append(
+        "**Spec/plan:** `../../docs/superpowers/plans/2026-07-07-c11-headroom-probe.md`."
+    )
+    lines.append("")
+
+    lines.append("## Run configuration")
+    lines.append("")
+    lines.append("| Knob | Value |")
+    lines.append("|---|---|")
+    lines.append("| Config A | `C_hard_maze` waypoint missions, config_idx=0, no adjacency factory |")
+    lines.append("| Config B | `C_hard_rooms_large` waypoint missions, config_idx=1, no adjacency factory |")
+    lines.append("| Config C | `C_hard_maze` + keys→doors stage-dependent adjacency, config_idx=2 |")
+    lines.append(f"| K grid | {sorted({key[1] for key in analysis})} |")
+    lines.append(f"| Worlds/cell | {n_worlds} |")
+    budgets_seen = sorted({b for cell in analysis.values() for b in cell["budgets"]})
+    lines.append(f"| Budgets grid | {budgets_seen} |")
+    lines.append("| World seed formula | `seed = 1234 + 7919*world_idx + 104729*config_idx + 15485863*K` |")
+    lines.append(
+        "| Binding-budget rule | lowest budget in the grid with h_legsum success rate "
+        ">= 0.05 across the cell's worlds; else largest budget, flagged DEGENERATE |"
+    )
+    lines.append(f"| Wall time | {wall_s / 60.0:.1f} min total ({'parallel' if used_parallel else 'serial'}); "
+                  f"{per_world_s:.2f}s estimation probe (1 world, config C K=8) |")
+    lines.append("")
+
+    lines.append("## Per-cell results")
+    lines.append("")
+    header = ("| Config | K | Binding budget | Degenerate | Succ h_next | Succ h_legsum | "
+               "Succ h_oracle | Med.exp h_next (solved) | Med.exp h_legsum (solved) | "
+               "Med.exp h_oracle (solved) | Oracle/legsum ratio [IQR] (n) | "
+               "Next/legsum ratio [IQR] (n) | Success gap |")
+    lines.append(header)
+    lines.append("|" + "---|" * 13)
+    for label in config_labels:
+        for K in k_values:
+            key = (label, K)
+            if key not in analysis:
+                continue
+            cell = analysis[key]
+            ol = cell["matched_oracle_legsum"]
+            nl = cell["matched_next_legsum"]
+            ol_str = (f"{_fmt(ol['median'])} [{_fmt(ol['iqr25'])}, {_fmt(ol['iqr75'])}] (n={ol['n_matched']})"
+                      if ol["n_matched"] else f"n/a (n=0)")
+            nl_str = (f"{_fmt(nl['median'])} [{_fmt(nl['iqr25'])}, {_fmt(nl['iqr75'])}] (n={nl['n_matched']})"
+                      if nl["n_matched"] else f"n/a (n=0)")
+            deg_str = "**DEGENERATE**" if cell["degenerate"] else "no"
+            lines.append(
+                f"| {label} | {K} | {cell['binding_budget']} | {deg_str} | "
+                f"{_fmt(cell['success']['h_next'], '.2f')} | {_fmt(cell['success']['h_legsum'], '.2f')} | "
+                f"{_fmt(cell['success']['h_oracle'], '.2f')} | "
+                f"{_fmt(cell['median_expansions_solved']['h_next'], '.1f')} | "
+                f"{_fmt(cell['median_expansions_solved']['h_legsum'], '.1f')} | "
+                f"{_fmt(cell['median_expansions_solved']['h_oracle'], '.1f')} | "
+                f"{ol_str} | {nl_str} | {_fmt(cell['success_gap'], '.2f')} |"
+            )
+    lines.append("")
+
+    lines.append("## Dose-response read")
+    lines.append("")
+    lines.append(
+        "Per config, how the matched oracle/legsum ratio and the success gap move across "
+        "K=2 -> 4 -> 8. The audit's predicted signature: the oracle's advantage over "
+        "leg-sum should GROW (ratio shrink, gap widen) as mission length increases, if "
+        "compositional structure is what creates the headroom (rather than, say, a fixed "
+        "per-cell offset that doesn't compound)."
+    )
+    lines.append("")
+    for label in config_labels:
+        ratios = []
+        gaps = []
+        for K in k_values:
+            key = (label, K)
+            if key not in analysis:
+                continue
+            cell = analysis[key]
+            ol = cell["matched_oracle_legsum"]
+            ratios.append((K, ol["median"], ol["n_matched"]))
+            gaps.append((K, cell["success_gap"]))
+        ratio_str = ", ".join(
+            f"K={k}: {_fmt(r)} (n={n})" for k, r, n in ratios
+        )
+        gap_str = ", ".join(f"K={k}: {_fmt(g, '.2f')}" for k, g in gaps)
+        lines.append(f"- **Config {label}** -- oracle/legsum ratio: {ratio_str}")
+        lines.append(f"  success gap: {gap_str}")
+    lines.append("")
+
+    lines.append("## Gate verdict")
+    lines.append("")
+    if verdict["best_cell"] is None:
+        lines.append(
+            "**FAIL.** No (config, K) cell had even one world where both h_oracle and "
+            "h_legsum found a path at the binding budget -- the matched ratio is undefined "
+            "everywhere. The gate requires a ratio <= 0.5-0.6; with zero matched worlds "
+            "there is nothing to measure, so this cannot pass."
+        )
+    elif verdict["passed"] and not verdict["marginal"]:
+        lines.append(
+            f"**PASS.** Config {verdict['best_cell'][0]} at K={verdict['best_cell'][1]} achieves a "
+            f"matched oracle/legsum median ratio of {_fmt(verdict['best_ratio'])} <= 0.5, clearing "
+            f"the pre-registered gate outright (oracle cuts >= "
+            f"{(1 - verdict['best_ratio']) * 100:.0f}% of A* expansions vs leg-sum on matched worlds)."
+        )
+    elif verdict["passed"] and verdict["marginal"]:
+        lines.append(
+            f"**Marginal PASS at the lenient threshold.** Config {verdict['best_cell'][0]} at "
+            f"K={verdict['best_cell'][1]} achieves a matched oracle/legsum median ratio of "
+            f"{_fmt(verdict['best_ratio'])}, which is > 0.5 but <= 0.6 -- inside the pre-registered "
+            f"band's lenient end, not its strict end. This is a real but modest cut "
+            f"({(1 - verdict['best_ratio']) * 100:.0f}% fewer expansions on matched worlds), not the "
+            f"unambiguous 40-50%+ the strict reading of the gate asks for."
+        )
+    else:
+        lines.append(
+            f"**FAIL.** The best matched oracle/legsum median ratio across all 9 cells is "
+            f"{_fmt(verdict['best_ratio'])} (config {verdict['best_cell'][0]}, K={verdict['best_cell'][1]}), "
+            f"which is > 0.6 -- outside even the lenient end of the pre-registered 0.5-0.6 band. "
+            f"The oracle does not create the required expansion-count headroom over leg-sum on "
+            f"this substrate at this scale."
+        )
+    lines.append("")
+
+    lines.append("## Honest caveats")
+    lines.append("")
+    lines.append(f"- **Probe scale:** {n_worlds} worlds/cell, no seeds-over-missions replication "
+                  "(one mission per world; a different waypoint sample on the same world is untested).")
+    lines.append("- **Waypoint sampling choices:** connected-to-goal candidates only, a minimum "
+                  "pairwise separation constraint (relaxed once if unfillable) -- both bias missions "
+                  "toward well-spread, reachable waypoints rather than adversarial or clustered ones.")
+    lines.append("- **Single binding budget per cell**, calibrated on h_legsum's success rate alone "
+                  "(not h_oracle's or h_next's), then reused for all three arms.")
+    lines.append("- **Doors geometry (config C):** 2 doors, fixed half-width/half-height fractions, "
+                  "midpoint-first placement with limited resampling -- a specific, not exhaustively "
+                  "tuned, keys-and-doors construction.")
+    lines.append("- **h_next / h_legsum are geometric (straight-line), not learned, baselines.** The "
+                  "probe measures ORACLE headroom -- an upper bound on what any learned heuristic "
+                  "could capture, not a claim about what a trained model would actually achieve.")
+    lines.append("")
+
+    lines.append("## Decision implication")
+    lines.append("")
+    if verdict["passed"]:
+        lines.append(
+            "PASS -> proceed to C11 phase design: the six arms from the audit (explicit MLP "
+            "control, U-Net field, GNN over the product graph, HRM/ON-LSTM fed the mission trace, "
+            "the iterative field refiner, plus the cheap scale-confound addendum), gated by "
+            "G1 (dose-response in structure, with the n_stages=1 degenerate-to-C7 control), "
+            "G2 (depth-of-compute vs iteration count k), and G3 (honest closure if everything "
+            "still ties)."
+        )
+    else:
+        lines.append(
+            "FAIL -> pivot to publication consolidation (strategy memo thrust #5: the transfer + "
+            "integration paper). The compositional-mission substrate does not create sufficient "
+            "oracle-vs-leg-sum headroom at this scale to justify a full C11 phase; do not spend a "
+            "phase's budget chasing an architecture signal the substrate itself cannot support."
+        )
+    lines.append("")
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+    return verdict
+
+
+def _print_report(analysis: Dict[Tuple[str, int], dict], verdict: dict) -> None:
+    print("\n" + "=" * 100)
+    print("C11 G0-H HEADROOM PROBE -- PER-CELL RESULTS")
+    print("=" * 100)
+    header = (f"{'cfg':<4}{'K':<4}{'bind':<7}{'deg':<6}{'succ_next':<11}{'succ_lsum':<11}"
+              f"{'succ_ora':<10}{'medexp_next':<13}{'medexp_lsum':<13}{'medexp_ora':<12}"
+              f"{'ora/lsum[IQR](n)':<30}{'gap':<8}")
+    print(header)
+    for (label, K), cell in sorted(analysis.items()):
+        ol = cell["matched_oracle_legsum"]
+        ol_str = (f"{_fmt(ol['median'])}[{_fmt(ol['iqr25'])},{_fmt(ol['iqr75'])}](n={ol['n_matched']})"
+                  if ol["n_matched"] else "n/a(n=0)")
+        row = (f"{label:<4}{K:<4}{cell['binding_budget']:<7}"
+               f"{'YES' if cell['degenerate'] else 'no':<6}"
+               f"{_fmt(cell['success']['h_next'], '.2f'):<11}{_fmt(cell['success']['h_legsum'], '.2f'):<11}"
+               f"{_fmt(cell['success']['h_oracle'], '.2f'):<10}"
+               f"{_fmt(cell['median_expansions_solved']['h_next'], '.1f'):<13}"
+               f"{_fmt(cell['median_expansions_solved']['h_legsum'], '.1f'):<13}"
+               f"{_fmt(cell['median_expansions_solved']['h_oracle'], '.1f'):<12}"
+               f"{ol_str:<30}{_fmt(cell['success_gap'], '.2f'):<8}")
+        print(row)
+    print("=" * 100)
+    if verdict["best_cell"] is None:
+        print("VERDICT: FAIL (no cell has any matched oracle/legsum worlds)")
+    elif verdict["passed"] and not verdict["marginal"]:
+        print(f"VERDICT: PASS -- best cell {verdict['best_cell']} ratio={_fmt(verdict['best_ratio'])} <= 0.5")
+    elif verdict["passed"] and verdict["marginal"]:
+        print(f"VERDICT: MARGINAL PASS (lenient threshold) -- best cell {verdict['best_cell']} "
+              f"ratio={_fmt(verdict['best_ratio'])} in (0.5, 0.6]")
+    else:
+        print(f"VERDICT: FAIL -- best cell {verdict['best_cell']} ratio={_fmt(verdict['best_ratio'])} > 0.6")
+    print("=" * 100 + "\n")
+
+
+# ---------------------------------------------------------------------------
+# CLI.
+# ---------------------------------------------------------------------------
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="C11 G0-H headroom probe.")
+    parser.add_argument("--probe", action="store_true", help="Run the full headroom probe.")
+    parser.add_argument("--out-dir", default="runs/c11_probe", help="Output directory for records CSV.")
+    parser.add_argument("--n-worlds", type=int, default=25, help="Worlds per (config, K) cell.")
+    args = parser.parse_args(argv)
+
+    if args.probe:
+        run_probe(out_dir=args.out_dir, n_worlds=args.n_worlds)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

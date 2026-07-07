@@ -581,3 +581,197 @@ def test_factory_runtime_error_surfaces_as_world_skip():
     skipped_seed = seen_seeds[0]
     assert all(r["seed"] != skipped_seed for r in records)
     assert all(r["world_idx"] == 0 for r in records)  # ordinal, not attempt index
+
+
+# ---------------------------------------------------------------------------
+# Task 4: analyze_probe -- pure function over hand-built synthetic records.
+#
+# One cell ("cfgX", K=2, budgets=(400, 3200)), 4 worlds, constructed so every
+# quantity analyze_probe must report is known by hand:
+#
+#   world 0: h_next found (cost=10, exp=50), h_legsum found (cost=10, exp=40),
+#            h_oracle found (cost=10, exp=20)          -- ONLY world with all
+#                                                          three arms solved.
+#   world 1: h_next NOT found (exp=400), h_legsum NOT found (exp=400),
+#            h_oracle found (cost=15, exp=100)
+#   world 2: h_next NOT found (exp=400), h_legsum NOT found (exp=400),
+#            h_oracle NOT found (exp=400)              -- all three fail.
+#   world 3: h_next found (cost=8, exp=30), h_legsum NOT found (exp=400),
+#            h_oracle found (cost=8, exp=15)
+#
+# At budget=400, h_legsum succeeds in world 0 only: success rate 1/4 = 0.25
+# >= 0.05, so budget=400 is the (non-degenerate) binding budget -- the LOWER
+# of the two budgets in this cell's grid, so calibrate_binding_budget's
+# "lowest qualifying budget" rule is genuinely exercised (not just "the only
+# budget"). Records at budget=3200 are present (all found, cheap) purely to
+# confirm analyze_probe reads ONLY the binding-budget slice.
+#
+# By hand, at the binding budget (400):
+#   succ:      h_next=2/4=0.50   h_legsum=1/4=0.25   h_oracle=3/4=0.75
+#   median expansions, ALL worlds (not-found counts its truncated exp):
+#     h_next:   sorted(30,50,400,400)  -> (50+400)/2   = 225.0
+#     h_legsum: sorted(40,400,400,400) -> (400+400)/2  = 400.0
+#     h_oracle: sorted(15,20,100,400)  -> (20+100)/2   = 60.0
+#   median expansions, SOLVED worlds only:
+#     h_next:   {50, 30}      -> 40.0
+#     h_legsum: {40}          -> 40.0
+#     h_oracle: {20, 100, 15} -> 20.0
+#   matched oracle/legsum ratio (both found -- world 0 ONLY): 20/40 = 0.5;
+#     n_matched=1; median=IQR25=IQR75=0.5 (a single-point sample).
+#   matched next/legsum ratio (both found -- world 0 ONLY): 50/40 = 1.25;
+#     n_matched=1.
+#   success gap = succ_oracle - succ_legsum = 0.75 - 0.25 = 0.5.
+#
+# A second cell ("cfgX", K=8) is all-zero h_legsum success at every budget
+# -> DEGENERATE, binding budget = largest (3200) -- verifies degenerate
+# propagation and that calibrate_binding_budget is genuinely wired through
+# (not just hard-coded to "first budget").
+# ---------------------------------------------------------------------------
+
+_SYNTH_BUDGETS = (400, 3200)
+
+
+def _mk_record(config, K, world_idx, arm, budget, found, cost, expansions):
+    return {
+        "config": config, "config_idx": 0, "K": K, "world_idx": world_idx,
+        "seed": 1000 + world_idx, "arm": arm, "budget": budget,
+        "found": found, "cost": cost, "expansions": expansions,
+        "closed": expansions, "opt_cost": 10.0 if found else float("nan"),
+    }
+
+
+def _synthetic_cell_k2():
+    """The hand-computed (cfgX, K=2) cell described above."""
+    recs = []
+    # world 0: all three found at budget 400 (and, cheaply, at 3200).
+    per_world_400 = {
+        0: {"h_next": (True, 10.0, 50), "h_legsum": (True, 10.0, 40), "h_oracle": (True, 10.0, 20)},
+        1: {"h_next": (False, float("nan"), 400), "h_legsum": (False, float("nan"), 400), "h_oracle": (True, 15.0, 100)},
+        2: {"h_next": (False, float("nan"), 400), "h_legsum": (False, float("nan"), 400), "h_oracle": (False, float("nan"), 400)},
+        3: {"h_next": (True, 8.0, 30), "h_legsum": (False, float("nan"), 400), "h_oracle": (True, 8.0, 15)},
+    }
+    for world_idx, arms in per_world_400.items():
+        for arm, (found, cost, exp) in arms.items():
+            recs.append(_mk_record("cfgX", 2, world_idx, arm, 400, found, cost, exp))
+    # budget 3200: everything trivially found and cheap (irrelevant to the
+    # binding-budget slice, present only to prove analyze_probe ignores it).
+    for world_idx in per_world_400:
+        for arm in ("h_next", "h_legsum", "h_oracle"):
+            recs.append(_mk_record("cfgX", 2, world_idx, arm, 3200, True, 5.0, 5))
+    return recs
+
+
+def _synthetic_cell_k8_degenerate():
+    """A (cfgX, K=8) cell where h_legsum NEVER succeeds -> DEGENERATE."""
+    recs = []
+    for world_idx in range(4):
+        for budget in _SYNTH_BUDGETS:
+            recs.append(_mk_record("cfgX", 8, world_idx, "h_legsum", budget, False, float("nan"), budget))
+            recs.append(_mk_record("cfgX", 8, world_idx, "h_next", budget, False, float("nan"), budget))
+            recs.append(_mk_record("cfgX", 8, world_idx, "h_oracle", budget, False, float("nan"), budget))
+    return recs
+
+
+def test_analyze_probe_binding_budget_and_success_rates():
+    records = _synthetic_cell_k2() + _synthetic_cell_k8_degenerate()
+    result = C11.analyze_probe(records)
+
+    assert set(result.keys()) == {("cfgX", 2), ("cfgX", 8)}
+
+    cell = result[("cfgX", 2)]
+    assert cell["binding_budget"] == 400
+    assert cell["degenerate"] is False
+    assert cell["budgets"] == tuple(sorted(_SYNTH_BUDGETS))
+    assert cell["success"]["h_next"] == pytest.approx(0.5)
+    assert cell["success"]["h_legsum"] == pytest.approx(0.25)
+    assert cell["success"]["h_oracle"] == pytest.approx(0.75)
+
+    degenerate_cell = result[("cfgX", 8)]
+    assert degenerate_cell["binding_budget"] == 3200
+    assert degenerate_cell["degenerate"] is True
+    assert degenerate_cell["success"]["h_legsum"] == pytest.approx(0.0)
+
+
+def test_analyze_probe_median_expansions_all_and_solved():
+    records = _synthetic_cell_k2()
+    cell = C11.analyze_probe(records)[("cfgX", 2)]
+
+    med_all = cell["median_expansions_all"]
+    assert med_all["h_next"] == pytest.approx(225.0)
+    assert med_all["h_legsum"] == pytest.approx(400.0)
+    assert med_all["h_oracle"] == pytest.approx(60.0)
+
+    med_solved = cell["median_expansions_solved"]
+    assert med_solved["h_next"] == pytest.approx(40.0)
+    assert med_solved["h_legsum"] == pytest.approx(40.0)
+    assert med_solved["h_oracle"] == pytest.approx(20.0)
+
+
+def test_analyze_probe_matched_ratio_uses_only_both_solved_worlds():
+    records = _synthetic_cell_k2()
+    cell = C11.analyze_probe(records)[("cfgX", 2)]
+
+    # Only world 0 has BOTH h_oracle and h_legsum found at the binding
+    # budget (world 1's oracle found but legsum did not; world 3 likewise;
+    # world 2 neither) -- n_matched must be exactly 1, not 3 (all-oracle-
+    # found) or 4 (all worlds).
+    oracle_legsum = cell["matched_oracle_legsum"]
+    assert oracle_legsum["n_matched"] == 1
+    assert oracle_legsum["median"] == pytest.approx(0.5)
+    assert oracle_legsum["iqr25"] == pytest.approx(0.5)
+    assert oracle_legsum["iqr75"] == pytest.approx(0.5)
+
+    next_legsum = cell["matched_next_legsum"]
+    assert next_legsum["n_matched"] == 1
+    assert next_legsum["median"] == pytest.approx(1.25)
+
+
+def test_analyze_probe_success_gap_arithmetic():
+    records = _synthetic_cell_k2()
+    cell = C11.analyze_probe(records)[("cfgX", 2)]
+    assert cell["success_gap"] == pytest.approx(0.75 - 0.25)
+
+
+def test_analyze_probe_matched_ratio_empty_when_no_both_solved_world():
+    # A cell where h_oracle and h_legsum are never BOTH found at the binding
+    # budget -- analyze_probe must not crash (e.g. divide-by-zero / statistics
+    # on an empty sequence) and must report n_matched=0 with no fabricated
+    # ratio value.
+    recs = []
+    for world_idx in range(3):
+        recs.append(_mk_record("cfgY", 2, world_idx, "h_legsum", 400, True, 10.0, 40))
+        recs.append(_mk_record("cfgY", 2, world_idx, "h_oracle", 400, False, float("nan"), 400))
+        recs.append(_mk_record("cfgY", 2, world_idx, "h_next", 400, False, float("nan"), 400))
+    result = C11.analyze_probe(recs)
+    cell = result[("cfgY", 2)]
+    assert cell["matched_oracle_legsum"]["n_matched"] == 0
+    assert cell["matched_oracle_legsum"]["median"] is None
+
+
+# ---------------------------------------------------------------------------
+# Task 4: run_probe smoke test.
+#
+# The full grid (9 cells x 25 worlds x 6 budgets) is measured (interactively,
+# outside pytest) at well under a second per world even for the slowest cell
+# (config C, K=8), so a smoke run over ALL 9 cells at n_worlds=2 and a
+# 2-point budget grid is itself fast (~seconds, not minutes) -- no need to
+# restrict to a subset of configs for this smoke test.
+# ---------------------------------------------------------------------------
+
+def test_run_probe_smoke_writes_csv_and_md_with_verdict(tmp_path):
+    out_dir = tmp_path / "c11_probe_smoke"
+    C11.run_probe(out_dir=str(out_dir), n_worlds=2, budgets=(400, 3200))
+
+    csv_path = out_dir / "c11_probe_records.csv"
+    assert csv_path.exists()
+    csv_text = csv_path.read_text(encoding="utf-8")
+    csv_lines = [ln for ln in csv_text.splitlines() if ln.strip()]
+    # header + (9 cells x 2 worlds x 3 arms x 2 budgets) data rows.
+    assert len(csv_lines) == 1 + 9 * 2 * 3 * 2
+
+    md_path = Path(__file__).resolve().parents[1] / "C11_HEADROOM.md"
+    assert md_path.exists()
+    md_text = md_path.read_text(encoding="utf-8")
+    assert "## Gate verdict" in md_text
+    assert ("PASS" in md_text) or ("FAIL" in md_text)
+    assert "Pre-registered gate (verbatim)" in md_text
