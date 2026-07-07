@@ -171,7 +171,17 @@ class WorldBundle:
     """Everything collected for one valid (cell, seed) world: the built
     world/roadmap/mission, the exact oracle field, the door adjacency
     predicate (None for configs A/B), the legsum callable, and the
-    admissibility-clipped residual-over-legsum training targets."""
+    admissibility-clipped residual-over-legsum training targets.
+
+    `node_rays` / `field_grids` are lazily-computed per-bundle caches
+    (store-on-bundle pattern: the cache's lifetime is exactly the bundle's
+    own, so it can never be handed to a different bundle -- unlike a
+    module-global dict keyed by `id(bundle)`, whose entries outlive their
+    bundle and get inherited by a NEW bundle when the allocator reuses the
+    freed address). Filled by `_node_rays` ((N, 8) ray distances) and
+    `_bundle_grids` ((K+1, grid_channels, grid_size, grid_size) field-grid
+    stack); pure cost caches, value-transparent by construction and pinned
+    by `test_ray_cache_consistency` / `test_bundle_grids_value_transparency`."""
 
     world: C.World
     rm: C.Roadmap
@@ -182,6 +192,8 @@ class WorldBundle:
     targets: np.ndarray  # (n_finite, 3) float64 columns (i, s, y)
     preclip_min: float
     seed: int
+    node_rays: Optional[np.ndarray] = field(default=None, repr=False, compare=False)
+    field_grids: Optional[np.ndarray] = field(default=None, repr=False, compare=False)
 
 
 def collect_world_bundle(cell: dict, seed: int, cfg: Optional[C11MissionConfig] = None) -> WorldBundle:
@@ -420,31 +432,28 @@ _RAY_DIRS: Tuple[int, ...] = (0, 2, 4, 6, 8, 10, 12, 14)
 # reach into the door-placement's internals.
 _DOOR_KEY_LEGS: frozenset = frozenset({0, 1})
 
-# T2-review micro-fix: per-node ray cache. `_query_token` is called once per
-# (query row, leg) in `encode_trace`/`encode_trace_padded` (indirectly, via
-# `encode_trace`) and once per (node, stage) in `encode_product_graph` --
-# without memoizing, the same node's 8 rays get re-raycast on every call
-# (encode_product_graph alone calls it N times per bundle; a training loop
-# calls it thousands of times). `_node_rays(bundle)` lazily computes and
-# caches the bundle's full (N, 8) ray array, keyed by `id(bundle)` so
-# distinct bundles (even with coincidentally-equal geometry) never share a
-# cache entry, and evicted entries (`id()` reused after garbage collection)
-# can never collide with a still-alive bundle's rays because the cache holds
-# a strong reference to the bundle's roadmap point count only, not the
-# bundle itself, keeping this a pure memo, not an accidental keepalive.
-# Purely a cost optimization -- every cached value is byte-identical to what
-# `C.raycast_distance` returns directly (verified by
+# T2-review micro-fix, amended per T3 review: per-node ray memo.
+# `_query_token` is called once per query row in `encode_trace` and once per
+# (node, stage) in `encode_product_graph` -- without memoizing, the same
+# node's 8 rays get re-raycast on every call (encode_product_graph alone
+# calls it N times per bundle; a training loop calls it thousands of times).
+# The memo lives ON the bundle (`WorldBundle.node_rays`, store-on-bundle
+# pattern) so its lifetime is exactly the bundle's own. The earlier
+# module-global dict keyed by `id(bundle)` was unsound: `id()` values are
+# reused after garbage collection, so a fresh bundle allocated at a dead
+# bundle's address inherited the dead bundle's rays (silent corruption --
+# demonstrated in the T3 review as 22/40 fresh bundles receiving stale rays
+# under the training loop's per-cell bundle lifecycle). Purely a cost
+# optimization -- every cached value is byte-identical to what
+# `C.raycast_distance` returns directly (pinned by
 # `test_ray_cache_consistency`).
-_RAY_CACHE: Dict[int, np.ndarray] = {}
-
 
 def _node_rays(bundle: "WorldBundle") -> np.ndarray:
     """The bundle's `(N, 8)` per-node ray-distance array (already /side),
-    computed once and memoized by `id(bundle)`."""
-    key = id(bundle)
-    cached = _RAY_CACHE.get(key)
-    if cached is not None:
-        return cached
+    computed once on first use and stored on the bundle itself
+    (`bundle.node_rays`)."""
+    if bundle.node_rays is not None:
+        return bundle.node_rays
     world = bundle.world
     side = float(world.side_len)
     steps = C.FeatureConfig().ray_steps
@@ -456,7 +465,7 @@ def _node_rays(bundle: "WorldBundle") -> np.ndarray:
         for k, d in enumerate(_RAY_DIRS):
             angle = 2.0 * math.pi * d / 16.0
             rays[i, k] = C.raycast_distance(p, angle, world, steps=steps) / side
-    _RAY_CACHE[key] = rays
+    bundle.node_rays = rays
     return rays
 
 
@@ -745,6 +754,10 @@ class MLPArm(nn.Module):
         super().__init__()
         in_dim = cfg.seq_max * cfg.token_dim
         w = cfg.mlp_width
+        # Cap sourced from cfg (like the trace arms' max_norm_residual and
+        # the unet path's cfg.residual_cap) so a future cap change cannot
+        # silently diverge across arms (T3-review Minor).
+        self.cap = float(cfg.residual_cap)
         self.net = nn.Sequential(
             nn.Linear(in_dim, w),
             nn.GELU(),
@@ -757,7 +770,7 @@ class MLPArm(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         raw = self.net(x).squeeze(-1)
-        return _softplus_clamp(raw, cap=4.0)
+        return _softplus_clamp(raw, cap=self.cap)
 
 
 class UNetFiLMField(nn.Module):
@@ -845,6 +858,8 @@ class ProductGraphGNN(nn.Module):
         H = cfg.gnn_hidden
         self.hidden = H
         self.rounds = cfg.gnn_rounds
+        # Cap sourced from cfg -- see MLPArm.__init__ (T3-review Minor).
+        self.cap = float(cfg.residual_cap)
         self.in_proj = nn.Linear(14, H)
         self.msg_mlps = nn.ModuleList([
             nn.Sequential(nn.Linear(H + 3, H), nn.GELU(), nn.Linear(H, H), nn.GELU())
@@ -883,7 +898,7 @@ class ProductGraphGNN(nn.Module):
             h = h + self.update_mlps[r](upd_in)
 
         raw = self.head(h).squeeze(-1)
-        return _softplus_clamp(raw, cap=4.0)
+        return _softplus_clamp(raw, cap=self.cap)
 
 
 ARM_NAMES: Tuple[str, ...] = ("mlp", "unet_film", "gnn", "hrm_trace", "onlstm_trace")
@@ -981,19 +996,41 @@ def _forward_mlp_or_trace(arm_name: str, model: nn.Module, bundle: WorldBundle,
     return model(x)
 
 
+def _bundle_grids(bundle: WorldBundle, cfg: C11MissionConfig) -> np.ndarray:
+    """The bundle's full `(K+1, grid_channels, grid_size, grid_size)`
+    float32 field-grid stack (`encode_field_grids` for every stage s in
+    0..K), computed once on first use and stored on the bundle
+    (`bundle.field_grids`). Rasterizing a stage costs ~quarter-second;
+    the training loop touches every (batch x bundle x distinct-stage)
+    combination, so re-encoding per batch turns a minutes-scale U-Net run
+    into hours at the full recipe (T3-review Important). Value-transparent
+    by construction -- a plain per-stage stack of `encode_field_grids`
+    outputs, pinned by `test_bundle_grids_value_transparency` and the
+    call-count test `test_unet_grid_cache_call_count`."""
+    if bundle.field_grids is not None:
+        return bundle.field_grids
+    K = len(bundle.wp)
+    grids = np.stack([encode_field_grids(bundle, s, cfg) for s in range(K + 1)], axis=0)
+    bundle.field_grids = grids
+    return grids
+
+
 def _forward_unet_film(model: "UNetFiLMField", bundle: WorldBundle,
                         states: Sequence[Tuple[int, int]], cfg: C11MissionConfig,
                         device: torch.device) -> torch.Tensor:
-    """Forward each DISTINCT stage's grid ONCE, then gather every batch row's
-    node value from that stage's output surface (bilinear, matching the C6
-    node-gather convention -- see `_gather_grid_values_torch`)."""
+    """Forward each DISTINCT stage's grid ONCE per batch (grids themselves
+    come from the bundle-level `_bundle_grids` stack -- rasterized once per
+    bundle EVER, not per batch), then gather every batch row's node value
+    from that stage's output surface (bilinear, matching the C6 node-gather
+    convention -- see `_gather_grid_values_torch`)."""
     side = float(bundle.world.side_len)
     by_stage: Dict[int, List[int]] = {}
     for row, (i, s) in enumerate(states):
         by_stage.setdefault(s, []).append(row)
 
     stage_list = sorted(by_stage.keys())
-    grids_np = np.stack([encode_field_grids(bundle, s, cfg) for s in stage_list], axis=0)
+    all_grids = _bundle_grids(bundle, cfg)  # (K+1, C, H, W)
+    grids_np = all_grids[np.asarray(stage_list, dtype=np.int64)]
     grids_t = torch.from_numpy(grids_np).to(device)
     stage_ids_t = torch.tensor(stage_list, dtype=torch.long, device=device)
 
@@ -1124,6 +1161,12 @@ def train_arm(arm_name: str, cell: dict, bundles: Sequence[WorldBundle], seed: i
     Seeding: `torch.manual_seed` and the numpy shuffle RNG both seeded with
     `_training_seed(seed, cell)` -- two calls with identical inputs produce
     bit-identical `state_dict`s (verified by `test_trainer_determinism`).
+    Bit-determinism is guaranteed on CPU ONLY: the CUDA kernels backing
+    `index_add_` (GNN aggregation, batch scatter-copy) and cuDNN
+    convolutions are not bitwise deterministic, so identical-seed GPU runs
+    may differ in the last ulps. Arm fairness rests on the matched
+    data/recipe and the 3 pre-registered training seeds per (arm, config,
+    K), not on bit-reproducibility of any single run.
 
     Returns `(state_dict_cpu, meta)`; `meta` carries `param_count`,
     `first_epoch_loss` (mean batch loss of epoch 1, for the tiny-overfit

@@ -864,7 +864,8 @@ def test_trainer_determinism(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Test 21: ray-cache consistency (T2 micro-fix: cache is value-transparent).
+# Test 21: ray-cache consistency (T2 micro-fix: cache is value-transparent;
+# T3-review Critical fix: cache lives ON the bundle, no module-global dict).
 # ---------------------------------------------------------------------------
 
 def test_ray_cache_consistency():
@@ -888,3 +889,84 @@ def test_ray_cache_consistency():
     M.encode_product_graph(bundle)
     tokens_after_graph = M.encode_trace(bundle, 5, 0)
     assert np.array_equal(tokens_first, tokens_after_graph)
+
+    # T3-review Critical fix: rays live ON the bundle (store-on-bundle
+    # pattern), never in a module-global id()-keyed dict -- `id()` values
+    # are reused after garbage collection, so a fresh bundle allocated at a
+    # dead bundle's address inherited the dead bundle's rays (silent
+    # corruption, demonstrated 22/40 under the training loop's per-cell
+    # bundle lifecycle). The global cache must not exist at all.
+    assert bundle.node_rays is not None
+    assert M._node_rays(bundle) is bundle.node_rays  # memoized on the bundle
+    assert not hasattr(M, "_RAY_CACHE")
+
+    # Two DIFFERENT bundle objects -- a same-(cell, seed) twin, so the
+    # geometry (and therefore ray VALUES) are identical -- must each own
+    # their own ray array: equal content, never the same object.
+    twin = M.collect_world_bundle(cell, bundle.seed)
+    rays_a = M._node_rays(bundle)
+    rays_b = M._node_rays(twin)
+    assert rays_a is not rays_b
+    assert np.array_equal(rays_a, rays_b)
+
+
+# ---------------------------------------------------------------------------
+# Test 22: bundle-level field-grid stack is value-transparent (T3-review
+# Important fix: grids computed once per bundle, stored on the bundle).
+# ---------------------------------------------------------------------------
+
+def test_bundle_grids_value_transparency():
+    cfg = M.C11MissionConfig()
+    for label, max_attempts in (("A", 60), ("C", 80)):
+        cell = _cell(label, 2)
+        bundle = _find_first_valid_test_bundle(cell, max_attempts=max_attempts)
+        K = cell["K"]
+
+        stack = M._bundle_grids(bundle, cfg)
+        assert stack.shape == (K + 1, 5, 64, 64)
+        assert stack.dtype == np.float32
+        assert bundle.field_grids is stack  # stored on the bundle
+        assert M._bundle_grids(bundle, cfg) is stack  # memoized
+
+        # Value-transparent: every stage slice equals a direct (uncached)
+        # encode_field_grids call.
+        for s in range(K + 1):
+            direct = M.encode_field_grids(bundle, s, cfg)
+            assert np.array_equal(stack[s], direct), f"{label} stage {s} grid drifted"
+
+
+# ---------------------------------------------------------------------------
+# Test 23: U-Net grid cache call count -- encode_field_grids is called at
+# most (K+1) times per bundle TOTAL, not per batch.
+# ---------------------------------------------------------------------------
+
+def test_unet_grid_cache_call_count(monkeypatch):
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+    bundle = _find_first_valid_test_bundle(cell)
+    K = cell["K"]
+
+    calls = {"n": 0}
+    orig = M.encode_field_grids
+
+    def counting(*args, **kwargs):
+        calls["n"] += 1
+        return orig(*args, **kwargs)
+
+    monkeypatch.setattr(M, "encode_field_grids", counting)
+
+    model = M.build_arm("unet_film", cfg)
+    model.eval()
+    device = torch.device("cpu")
+
+    with torch.no_grad():
+        M._forward_arm_batch("unet_film", model, bundle, [(0, 0), (1, 1), (2, 2)], cfg, device)
+        first_batch_calls = calls["n"]
+        M._forward_arm_batch("unet_film", model, bundle, [(3, 0), (4, 1), (5, 2)], cfg, device)
+
+    assert calls["n"] <= K + 1, (
+        f"encode_field_grids called {calls['n']} times; expected <= K+1 = {K + 1} "
+        "(once per stage per bundle, ever -- not per batch)"
+    )
+    # Second batch on the same bundle must trigger ZERO new encodes.
+    assert calls["n"] == first_batch_calls
