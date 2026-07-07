@@ -205,3 +205,142 @@ def test_waypoint_arrival_transition_consistency():
     # rule where oracle[0, w0] would equal oracle[1, w0]).
     cheapest_roundtrip = min(2.0 * w for _, w in rm.adj[w0])
     assert oracle[0, w0] <= oracle[1, w0] + cheapest_roundtrip + 1e-9
+
+
+# ---------------------------------------------------------------------------
+# Task 2: product A*, calibration, matched three-arm eval.
+# ---------------------------------------------------------------------------
+
+def _valid_worlds(spec_name: str, K: int, config_idx: int, n_worlds: int):
+    """Mirror eval_cell's own world-validity loop (pre-eval_cell existing):
+    advance world_idx, seed via the pre-registered formula, skip on build_world
+    / build_prm / sample_mission failure or unreachable oracle."""
+    specs = C.build_anchor_specs()
+    spec = specs[spec_name]
+    out = []
+    world_idx = 0
+    attempts = 0
+    while len(out) < n_worlds and attempts < 200:
+        seed = 1234 + 7919 * world_idx + 104729 * config_idx + 15485863 * K
+        attempts += 1
+        world_idx += 1
+        world = C.build_world(spec, seed, 0.45)
+        if world is None:
+            continue
+        rm = C.build_prm(world, C.RoadmapConfig(n_nodes=192, k_neighbors=7), seed + 17)
+        if rm is None:
+            continue
+        try:
+            wp = C11.sample_mission(rm, world, K, seed)
+        except RuntimeError:
+            continue
+        oracle = C11.product_oracle(rm, wp)
+        if not C11.mission_reachable(oracle):
+            continue
+        out.append((seed, world, rm, wp, oracle))
+    assert len(out) >= n_worlds, f"only found {len(out)} valid worlds, need {n_worlds}"
+    return out
+
+
+def test_astar_product_oracle_optimal_and_fewest_expansions():
+    worlds = _valid_worlds("C_hard_maze", K=4, config_idx=0, n_worlds=3)
+    for seed, world, rm, wp, oracle in worlds:
+        opt_cost = float(oracle[0, 0])
+        assert opt_cost < C.INF / 10.0
+
+        h_oracle = oracle
+        h_next_fn = C11.h_next(rm, wp)
+        h_legsum_fn = C11.h_legsum(rm, wp)
+        K_ = len(wp)
+        N = rm.points.shape[0]
+        h_next_arr = np.array([[h_next_fn(i, s) for i in range(N)] for s in range(K_ + 1)])
+        h_legsum_arr = np.array([[h_legsum_fn(i, s) for i in range(N)] for s in range(K_ + 1)])
+
+        res_oracle = C11.astar_product(rm.adj, wp, h_oracle, budget=3200)
+        res_next = C11.astar_product(rm.adj, wp, h_next_arr, budget=3200)
+        res_legsum = C11.astar_product(rm.adj, wp, h_legsum_arr, budget=3200)
+
+        assert res_oracle["found"]
+        assert res_oracle["cost"] == pytest.approx(opt_cost, abs=1e-6)
+        assert res_oracle["expansions"] <= res_next["expansions"], (seed, res_oracle, res_next)
+        assert res_oracle["expansions"] <= res_legsum["expansions"], (seed, res_oracle, res_legsum)
+
+        if res_next["found"]:
+            assert res_next["cost"] == pytest.approx(opt_cost, abs=1e-6)
+        if res_legsum["found"]:
+            assert res_legsum["cost"] == pytest.approx(opt_cost, abs=1e-6)
+
+
+def test_astar_product_budget_exhaustion_returns_not_found():
+    worlds = _valid_worlds("C_hard_maze", K=4, config_idx=0, n_worlds=1)
+    seed, world, rm, wp, oracle = worlds[0]
+    res = C11.astar_product(rm.adj, wp, oracle, budget=1)
+    assert res["found"] is False
+    assert res["expansions"] <= 1
+    assert np.isnan(res["cost"])
+
+
+def test_calibrate_binding_budget_thresholds_at_five_percent():
+    budgets = (100, 200, 400, 800, 1600, 3200)
+
+    def _records(success_by_budget):
+        recs = []
+        for b in budgets:
+            n_success = success_by_budget[b]
+            for w in range(25):
+                recs.append({
+                    "arm": "h_legsum", "budget": b,
+                    "found": w < n_success,
+                })
+        return recs
+
+    # 0/25 at 100 (0.00), 1/25 at 200 (0.04, below 0.05), 2/25 at 400 (0.08, >= 0.05).
+    recs_below_then_pass = _records({100: 0, 200: 1, 400: 2, 800: 2, 1600: 2, 3200: 2})
+    budget, degenerate = C11.calibrate_binding_budget(recs_below_then_pass, budgets)
+    assert budget == 400
+    assert degenerate is False
+
+    # All-zero success at every budget -> largest budget, DEGENERATE.
+    recs_all_zero = _records({b: 0 for b in budgets})
+    budget, degenerate = C11.calibrate_binding_budget(recs_all_zero, budgets)
+    assert budget == 3200
+    assert degenerate is True
+
+
+def _records_equal_nan_aware(recs_a, recs_b) -> bool:
+    """Dict equality where NaN == NaN (plain `==` would call two runs with
+    identical not-found records "different" merely because `nan != nan`)."""
+    if len(recs_a) != len(recs_b):
+        return False
+    for a, b in zip(recs_a, recs_b):
+        if a.keys() != b.keys():
+            return False
+        for k in a:
+            va, vb = a[k], b[k]
+            if isinstance(va, float) and isinstance(vb, float) and np.isnan(va) and np.isnan(vb):
+                continue
+            if va != vb:
+                return False
+    return True
+
+
+def test_eval_cell_small_integration():
+    budgets = (400, 3200)
+    records1 = C11.eval_cell("C_hard_maze", config_idx=0, K=2, n_worlds=3, budgets=budgets)
+    records2 = C11.eval_cell("C_hard_maze", config_idx=0, K=2, n_worlds=3, budgets=budgets)
+
+    assert len(records1) == 3 * 3 * 2  # worlds x arms x budgets
+    assert _records_equal_nan_aware(records1, records2)  # deterministic
+
+    seen_worlds = set()
+    for r in records1:
+        assert r["config"] == "C_hard_maze"
+        assert r["config_idx"] == 0
+        assert r["K"] == 2
+        assert r["arm"] in ("h_next", "h_legsum", "h_oracle")
+        assert r["budget"] in budgets
+        assert r["opt_cost"] < C.INF / 10.0
+        seen_worlds.add(r["world_idx"])
+        if r["found"]:
+            assert r["cost"] == pytest.approx(r["opt_cost"], abs=1e-6)
+    assert len(seen_worlds) == 3
