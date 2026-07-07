@@ -882,12 +882,16 @@ def _run_one_cell(cell_spec: dict, n_worlds: int, budgets: Sequence[int]) -> Lis
 
 
 def run_probe(out_dir: str = "runs/c11_probe", n_worlds: int = 25,
-              budgets: Sequence[int] = (100, 200, 400, 800, 1600, 3200)) -> None:
+              budgets: Sequence[int] = (100, 200, 400, 800, 1600, 3200),
+              md_path: Optional[str] = None) -> None:
     """Run the full G0-H headroom probe: 3 configs x K in (2, 4, 8) = 9
     cells, `n_worlds` worlds each, matched three-arm eval at every budget in
     `budgets`. Writes `<out_dir>/c11_probe_records.csv` (one row per record)
-    and `hrm-cloud/continuous_prm/C11_HEADROOM.md` (the analysis + gate
-    verdict), then prints the per-cell table and verdict to stdout.
+    and the results doc (analysis + gate verdict) to `md_path` -- default
+    `<out_dir>/C11_HEADROOM.md`, so test/smoke invocations with a tmp
+    out_dir can never clobber the repo's committed document of record; the
+    `--probe` CLI passes the canonical module-dir path explicitly. Prints
+    the per-cell table and verdict to stdout.
 
     Estimates wall time first by timing ONE world of the expected-slowest
     cell (config C, K=8: keys->doors placement/validation on top of the
@@ -956,7 +960,8 @@ def run_probe(out_dir: str = "runs/c11_probe", n_worlds: int = 25,
         for (spec_name, K), cell in analyze_probe(subset).items():
             analysis[(label, K)] = cell
 
-    md_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "C11_HEADROOM.md")
+    if md_path is None:
+        md_path = os.path.join(out_dir, "C11_HEADROOM.md")
     verdict = _write_results_doc(analysis, md_path, n_worlds=n_worlds, wall_s=wall_s,
                                   per_world_s=per_world_s, used_parallel=use_parallel)
     print(f"[c11-probe] wrote {md_path}", flush=True)
@@ -1132,14 +1137,24 @@ def _write_results_doc(analysis: Dict[Tuple[str, int], dict], path: str, n_world
         gap_monotone_up = all(
             finite_gaps[i] <= finite_gaps[i + 1] for i in range(len(finite_gaps) - 1)
         ) if len(finite_gaps) >= 2 else None
-        ratio_read = "shrinks monotonically" if ratio_monotone_down else "does NOT shrink monotonically"
-        gap_read = "widens monotonically" if gap_monotone_up else "does NOT widen monotonically"
-        lines.append(
-            f"  -- read: the ratio {ratio_read} across K=2->4->8 (the oracle's RELATIVE cut over "
-            f"leg-sum grows with mission length, matching the predicted signature); the success gap "
-            f"{gap_read} (it is non-monotonic here -- both arms' success rates move with the "
-            "budget-calibration interaction across K, not a clean widening trend)."
-        )
+        if ratio_monotone_down:
+            ratio_read = (
+                "shrinks monotonically across K=2->4->8 (the oracle's RELATIVE cut over leg-sum "
+                "grows with mission length, matching the predicted dose-response signature)"
+            )
+        else:
+            ratio_read = (
+                "does NOT shrink monotonically across K=2->4->8 (the predicted dose-response "
+                "signature is absent or noisy in this config)"
+            )
+        if gap_monotone_up:
+            gap_read = "widens monotonically with K"
+        else:
+            gap_read = (
+                "does NOT widen monotonically (both arms' success rates move with the per-cell "
+                "budget-calibration interaction across K, not a clean widening trend)"
+            )
+        lines.append(f"  -- read: the ratio {ratio_read}; the success gap {gap_read}.")
     lines.append("")
 
     lines.append("## Gate verdict")
@@ -1283,7 +1298,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     args = parser.parse_args(argv)
 
     if args.probe:
-        run_probe(out_dir=args.out_dir, n_worlds=args.n_worlds)
+        canonical_md = os.path.join(os.path.dirname(os.path.abspath(__file__)), "C11_HEADROOM.md")
+        run_probe(out_dir=args.out_dir, n_worlds=args.n_worlds, md_path=canonical_md)
     else:
         parser.print_help()
 

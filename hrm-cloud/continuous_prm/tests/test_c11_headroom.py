@@ -769,9 +769,19 @@ def test_run_probe_smoke_writes_csv_and_md_with_verdict(tmp_path):
     # header + (9 cells x 2 worlds x 3 arms x 2 budgets) data rows.
     assert len(csv_lines) == 1 + 9 * 2 * 3 * 2
 
-    md_path = Path(__file__).resolve().parents[1] / "C11_HEADROOM.md"
+    # The md defaults into out_dir precisely so this smoke run can NEVER
+    # clobber the repo's committed C11_HEADROOM.md (the document of record
+    # for the gate decision); only the --probe CLI writes the canonical path.
+    md_path = out_dir / "C11_HEADROOM.md"
     assert md_path.exists()
     md_text = md_path.read_text(encoding="utf-8")
     assert "## Gate verdict" in md_text
     assert ("PASS" in md_text) or ("FAIL" in md_text)
     assert "Pre-registered gate (verbatim)" in md_text
+
+    # Tripwire for the clobber bug class: the committed document of record,
+    # if present, must never hold smoke-scale numbers ("2 worlds/cell" is
+    # this test's n_worlds; the canonical run writes "25 worlds/cell").
+    repo_md = Path(__file__).resolve().parents[1] / "C11_HEADROOM.md"
+    if repo_md.exists():
+        assert "2 worlds/cell" not in repo_md.read_text(encoding="utf-8")
