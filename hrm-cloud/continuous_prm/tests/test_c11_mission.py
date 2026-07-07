@@ -1329,4 +1329,276 @@ def test_k0_binding_calibration(tmp_path):
         rows = list(csv.DictReader(f))
     arms_seen = {r["arm"] for r in rows}
     assert arms_seen == {"h_next", "h_legsum", "h_oracle"}
-    assert all(r["K"] == "0" for r in rows)
+
+
+# ===========================================================================
+# Task 5: analyze mode -- G1/G3 pure-function stats (synthetic records only,
+# no training, no world building). Records below are hand-built as plain
+# dicts with STRING-typed values everywhere a real `csv.DictReader` readback
+# would produce strings (found as "True"/"False", ints/floats as digit
+# strings) -- `M.analyze` must coerce these via a single `_coerce_record`
+# helper (spec section 6 / plan Task 5's pre-registered `analyze` contract).
+# ===========================================================================
+
+def _rec(config_label, K, world_idx, seed, arm, train_seed, budget, found, cost,
+          expansions, closed, opt_cost, config="C_hard_maze", config_idx=0):
+    """Build one synthetic raw-CSV-style record, matching `EVAL_RAW_COLS` /
+    `run_eval`'s schema exactly (string-typed the way `csv.DictReader` would
+    hand it back -- `found` as "True"/"False", everything else as digit
+    strings) so `analyze`'s `_coerce_record` helper is genuinely exercised
+    rather than tests handing it already-typed data."""
+    return {
+        "config": config,
+        "config_label": config_label,
+        "config_idx": str(config_idx),
+        "K": str(K),
+        "world_idx": str(world_idx),
+        "seed": str(seed),
+        "arm": arm,
+        "train_seed": train_seed,
+        "budget": str(budget),
+        "found": "True" if found else "False",
+        "cost": str(float(cost)),
+        "expansions": str(int(expansions)),
+        "closed": str(int(closed)),
+        "opt_cost": str(float(opt_cost)),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Test 27: coercion + binding-budget selection.
+# ---------------------------------------------------------------------------
+
+def test_coerce_and_binding_selection():
+    # A world found at budget 3200 but NOT at the binding budget (400) must
+    # count as not-found once `analyze` restricts to the binding-budget rows
+    # ONLY -- the binding-budget row is the sole source of truth per cell.
+    records = [
+        _rec("A", 2, 0, "", "h_legsum", "", 400, False, 0.0, 999, 999, 10.0),
+        _rec("A", 2, 0, "", "h_legsum", "", 3200, True, 10.0, 50, 60, 10.0),
+        _rec("A", 2, 0, "0", "mlp", "0", 400, True, 12.0, 80, 90, 10.0),
+        _rec("A", 2, 0, "0", "mlp", "0", 3200, True, 10.0, 40, 50, 10.0),
+    ]
+    binding = {("A", 2): 400}
+    analysis = M.analyze(records, binding)
+
+    cell = analysis[("A", 2)]
+    assert cell["binding"] == 400
+    # legsum's success rate must reflect the budget-400 row (not-found), even
+    # though a budget-3200 row for the SAME world exists and IS found.
+    assert cell["success"]["h_legsum"] == pytest.approx(0.0)
+    assert cell["success"]["mlp"] == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Test 28: paired arm-vs-MLP ratio (both-found pairs; matched-seed pairing
+# trap: an arm's seed-0 record must pair ONLY with MLP's seed-0 record at
+# the SAME world, never with MLP's seed-1 record at that world).
+# ---------------------------------------------------------------------------
+
+def test_paired_arm_vs_mlp_ratio():
+    binding = {("A", 2): 400}
+    B = 400
+    records = [
+        # World 0, seed 0: gnn=25 vs mlp=50 -> matched ratio 0.5. MLP ALSO has
+        # a seed-1 record (exp=100) at world 0 -- if pairing wrongly ignored
+        # seed and grabbed "any mlp row for this world", 25/100 = 0.25 would
+        # leak in; matched-seed pairing must use 25/50 = 0.5 only.
+        _rec("A", 2, 0, "0", "gnn", "0", B, True, 12.0, 25, 30, 10.0),
+        _rec("A", 2, 0, "0", "mlp", "0", B, True, 12.0, 50, 55, 10.0),
+        _rec("A", 2, 0, "1", "mlp", "1", B, True, 12.0, 100, 110, 10.0),
+        # World 0, seed 1: gnn=35 vs mlp=70 -> matched ratio 0.5.
+        _rec("A", 2, 0, "1", "gnn", "1", B, True, 12.0, 35, 40, 10.0),
+        # World 1, seed 0: gnn=45 vs mlp=90 -> matched ratio 0.5.
+        _rec("A", 2, 1, "0", "gnn", "0", B, True, 12.0, 45, 50, 10.0),
+        _rec("A", 2, 1, "0", "mlp", "0", B, True, 12.0, 90, 95, 10.0),
+        # World 1, seed 1: gnn NOT found; mlp found (MLP-only discordant pair
+        # -> McNemar c=1, b=0). Excluded from the both-found ratio set.
+        _rec("A", 2, 1, "1", "gnn", "1", B, False, 0.0, 999, 999, 10.0),
+        _rec("A", 2, 1, "1", "mlp", "1", B, True, 12.0, 999, 999, 10.0),
+    ]
+    analysis = M.analyze(records, binding)
+    stats = analysis[("A", 2)]["vs_mlp"]["gnn"]
+
+    assert stats["n_pairs"] == 3
+    assert stats["ratio_median"] == pytest.approx(0.5)
+    # McNemar over ALL pairs (not just both-found): b = arm-found-mlp-not = 0,
+    # c = mlp-found-arm-not = 1 -> p = 2*C(1,0)*0.5^1 = 1.0.
+    assert stats["b"] == 0
+    assert stats["c"] == 1
+    assert stats["mcnemar_p"] == pytest.approx(1.0)
+    assert 0.0 <= stats["ci_lo"] <= stats["ratio_median"] <= stats["ci_hi"]
+
+
+# ---------------------------------------------------------------------------
+# Test 29: BH correction (hand-computed).
+# ---------------------------------------------------------------------------
+
+def test_bh_correction():
+    pvals = [0.01, 0.04, 0.03, 0.9]
+    qvals = M._bh(pvals)
+    expected = [0.04, 0.04 * 4 / 3, 0.04 * 4 / 3, 0.9]
+    assert len(qvals) == 4
+    for got, exp in zip(qvals, expected):
+        assert got == pytest.approx(exp, abs=1e-9)
+    # Order preservation: input order must match output order (q_i keyed to
+    # p_i, not sorted).
+    assert qvals[0] < qvals[1]
+    assert qvals[1] == pytest.approx(qvals[2], abs=1e-9)
+    assert qvals[3] > qvals[1]
+
+
+# ---------------------------------------------------------------------------
+# Test 30: McNemar exact p (hand-computed, incl. clip-to-1.0 case).
+# ---------------------------------------------------------------------------
+
+def test_mcnemar_exact():
+    # b=5, c=0 -> p = 2 * C(5,0) * 0.5^5 = 2/32 = 0.0625.
+    assert M._mcnemar_exact_p(5, 0) == pytest.approx(0.0625)
+    assert M._mcnemar_exact_p(0, 5) == pytest.approx(0.0625)
+    # b=c=1 -> n=2, k=1, prob=(C(2,0)+C(2,1))*0.25=0.75 -> p=min(1,1.5)=1.0.
+    assert M._mcnemar_exact_p(1, 1) == pytest.approx(1.0)
+    # b=c=0 -> no discordant pairs; must not raise or divide by zero.
+    assert M._mcnemar_exact_p(0, 0) == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Test 31: K=0 continuity verdict logic (synthetic analysis dicts, not run
+# through `analyze` -- exercising `k0_continuity`'s own PASS/FAIL rule in
+# isolation, per the plan's pre-registered definition).
+# ---------------------------------------------------------------------------
+
+def _synthetic_vs_mlp(ratio_median=1.0, ci_lo=0.9, ci_hi=1.1, n_pairs=10,
+                        mcnemar_p=0.8, mcnemar_q=0.8, b=1, c=1):
+    return dict(ratio_median=ratio_median, ci_lo=ci_lo, ci_hi=ci_hi, n_pairs=n_pairs,
+                mcnemar_p=mcnemar_p, mcnemar_q=mcnemar_q, b=b, c=c)
+
+
+def test_k0_continuity_logic():
+    # Tie everywhere at K=0 -> PASS.
+    analysis_tie = {
+        ("A", 0): {"vs_mlp": {"gnn": _synthetic_vs_mlp(), "unet_film": _synthetic_vs_mlp()}},
+        ("B", 0): {"vs_mlp": {"gnn": _synthetic_vs_mlp()}},
+        # K=2 cell present too -- must be ignored by k0_continuity entirely.
+        ("A", 2): {"vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=0.3, ci_lo=0.2, ci_hi=0.4, mcnemar_q=0.001)}},
+    }
+    result = M.k0_continuity(analysis_tie)
+    assert result["pass"] is True
+    assert result["violations"] == []
+
+    # One arm separated at K=0 via CI excluding 1.0 (ci_hi=0.9) -> FAIL, with
+    # the violation listed.
+    analysis_fail = {
+        ("A", 0): {"vs_mlp": {
+            "gnn": _synthetic_vs_mlp(ratio_median=0.85, ci_lo=0.7, ci_hi=0.9, mcnemar_q=0.6),
+            "unet_film": _synthetic_vs_mlp(),
+        }},
+        ("B", 0): {"vs_mlp": {"gnn": _synthetic_vs_mlp()}},
+    }
+    result2 = M.k0_continuity(analysis_fail)
+    assert result2["pass"] is False
+    assert len(result2["violations"]) == 1
+    config_label, arm, reason = result2["violations"][0]
+    assert config_label == "A"
+    assert arm == "gnn"
+    assert isinstance(reason, str) and reason
+
+
+# ---------------------------------------------------------------------------
+# Test 32: G1 verdict logic (synthetic analysis dicts).
+# ---------------------------------------------------------------------------
+
+def test_g1_verdict_logic():
+    # Positive case: gnn beats MLP at K=4 (q<0.05, success higher) and K=8
+    # (CI excludes 1 from above), with a monotone non-increasing ratio
+    # sequence 0.9 (K=2, no beat) -> 0.7 (K=4, beat) -> 0.5 (K=8, beat).
+    analysis_positive = {
+        ("A", 2): {
+            "success": {"gnn": 0.5, "mlp": 0.5},
+            "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=0.9, ci_lo=0.8, ci_hi=1.05,
+                                                  mcnemar_q=0.5, n_pairs=10)},
+        },
+        ("A", 4): {
+            "success": {"gnn": 0.9, "mlp": 0.5},
+            "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=0.7, ci_lo=0.6, ci_hi=0.95,
+                                                  mcnemar_q=0.01, n_pairs=10)},
+        },
+        ("A", 8): {
+            "success": {"gnn": 0.6, "mlp": 0.6},
+            "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=0.5, ci_lo=0.3, ci_hi=0.85,
+                                                  mcnemar_q=0.5, n_pairs=10)},
+        },
+    }
+    verdict = M.g1_verdict(analysis_positive)
+    assert verdict["positive"] is True
+    assert ("gnn", "A") in verdict["positive_arms"]
+
+    # All-ties case: no beats anywhere -> not positive.
+    analysis_ties = {
+        ("A", 2): {"success": {"gnn": 0.5, "mlp": 0.5},
+                    "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=1.0, ci_lo=0.9, ci_hi=1.1,
+                                                          mcnemar_q=0.9, n_pairs=10)}},
+        ("A", 4): {"success": {"gnn": 0.5, "mlp": 0.5},
+                    "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=1.0, ci_lo=0.9, ci_hi=1.1,
+                                                          mcnemar_q=0.9, n_pairs=10)}},
+        ("A", 8): {"success": {"gnn": 0.5, "mlp": 0.5},
+                    "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=1.0, ci_lo=0.9, ci_hi=1.1,
+                                                          mcnemar_q=0.9, n_pairs=10)}},
+    }
+    verdict_ties = M.g1_verdict(analysis_ties)
+    assert verdict_ties["positive"] is False
+    assert verdict_ties["positive_arms"] == []
+
+    # Monotonicity-violated case: exactly 2 beats (K=2, K=4) but the ratio
+    # sequence 0.5 -> 0.7 -> 0.6 is NOT monotone non-increasing (K=2->K=4
+    # INCREASES) -> despite >=2 beats, arm/config must NOT be positive.
+    analysis_nonmono = {
+        ("A", 2): {"success": {"gnn": 0.9, "mlp": 0.5},
+                    "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=0.5, ci_lo=0.4, ci_hi=0.6,
+                                                          mcnemar_q=0.01, n_pairs=10)}},
+        ("A", 4): {"success": {"gnn": 0.9, "mlp": 0.5},
+                    "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=0.7, ci_lo=0.6, ci_hi=0.8,
+                                                          mcnemar_q=0.01, n_pairs=10)}},
+        ("A", 8): {"success": {"gnn": 0.5, "mlp": 0.5},
+                    "vs_mlp": {"gnn": _synthetic_vs_mlp(ratio_median=0.6, ci_lo=0.5, ci_hi=1.05,
+                                                          mcnemar_q=0.9, n_pairs=10)}},
+    }
+    verdict_nonmono = M.g1_verdict(analysis_nonmono)
+    assert ("gnn", "A") not in verdict_nonmono["positive_arms"]
+    assert verdict_nonmono["positive"] is False
+
+
+# ---------------------------------------------------------------------------
+# Test 33: secondary vs-legsum ratios + oracle ceiling row.
+# ---------------------------------------------------------------------------
+
+def test_vs_legsum_and_oracle_rows():
+    binding = {("A", 2): 400}
+    B = 400
+    records = [
+        # legsum: one record per world (reference arm, train_seed="").
+        _rec("A", 2, 0, "", "h_legsum", "", B, True, 20.0, 100, 110, 10.0),
+        _rec("A", 2, 1, "", "h_legsum", "", B, True, 40.0, 200, 210, 20.0),
+        # h_oracle: one record per world too.
+        _rec("A", 2, 0, "", "h_oracle", "", B, True, 10.0, 50, 55, 10.0),
+        _rec("A", 2, 1, "", "h_oracle", "", B, True, 20.0, 100, 105, 20.0),
+        # gnn: two train seeds per world, each paired against legsum's
+        # PER-WORLD record.
+        _rec("A", 2, 0, "0", "gnn", "0", B, True, 12.0, 50, 60, 10.0),
+        _rec("A", 2, 0, "1", "gnn", "1", B, True, 12.0, 60, 70, 10.0),
+        _rec("A", 2, 1, "0", "gnn", "0", B, True, 12.0, 100, 110, 20.0),
+        _rec("A", 2, 1, "1", "gnn", "1", B, True, 12.0, 120, 130, 20.0),
+    ]
+    analysis = M.analyze(records, binding)
+    cell = analysis[("A", 2)]
+
+    # gnn vs legsum: world0 ratios 50/100=0.5, 60/100=0.6; world1 ratios
+    # 100/200=0.5, 120/200=0.6 -> pooled [0.5, 0.6, 0.5, 0.6], n=4.
+    gnn_vs_ls = cell["vs_legsum"]["gnn"]
+    assert gnn_vs_ls["n"] == 4
+    assert gnn_vs_ls["ratio_median"] == pytest.approx(0.55)
+
+    # Oracle ceiling: world0 50/100=0.5, world1 100/200=0.5 -> median 0.5.
+    oracle_row = cell["oracle_vs_legsum"]
+    assert oracle_row["n"] == 2
+    assert oracle_row["ratio_median"] == pytest.approx(0.5)

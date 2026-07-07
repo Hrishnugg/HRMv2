@@ -1762,6 +1762,393 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
 
 
 # ---------------------------------------------------------------------------
+# Task 5: analyze mode -- pure G1 stats (arm-vs-MLP paired comparison, BH
+# correction, K=0 continuity control, G1 dose-response verdict).
+#
+# Everything below is a PURE function over the raw eval-CSV records (a list
+# of dicts, string-typed exactly as `csv.DictReader` hands them back from
+# `run_eval`'s `c11_eval_raw.csv`) -- no I/O, no world/PRM building, no
+# training. This mirrors the C-series "analyzer is a pure function over the
+# raw CSV" convention (spec section 6) and is why this task is entirely
+# synthetic-testable: every test below hand-builds records or hand-builds
+# `analysis` dicts directly, never touching `collect_world_bundle`/
+# `run_train`/`run_eval`.
+#
+# `_mcnemar_exact_p` / `_bh` are COPIED from `continuous_prm_c6_heatmap_
+# value_field.mcnemar_exact_p` / `.bh_q_values` (verified byte-identical
+# algorithm) rather than imported, per the plan's "phase modules must not
+# import each other" convention -- C9's `continuous_prm_c9_transfer.py` and
+# C9b's `continuous_prm_c9b_dynamics_transfer.py` both import those same two
+# functions directly from C6 (a shared utility module, not a phase module),
+# so importing from C6 here would be consistent with that precedent; the
+# plan's instruction is nonetheless to copy with attribution, so that is
+# what's done. `_bootstrap_ratio_ci` mirrors `continuous_prm_c7_integration_
+# compare.bootstrap_median_ci`'s exact resampling convention (percentile CI
+# on the median via `np.random.default_rng(seed)`) and IS imported directly
+# from that (non-phase, shared-utility) module, matching C9/C9b's own usage
+# of it.
+# ---------------------------------------------------------------------------
+
+from continuous_prm_c7_integration_compare import bootstrap_median_ci as _bootstrap_median_ci
+
+
+def _mcnemar_exact_p(b: int, c: int) -> float:
+    """Exact two-sided binomial McNemar p-value for discordant counts
+    (b, c). Copied from `continuous_prm_c6_heatmap_value_field.
+    mcnemar_exact_p` (attribution per plan Task 5): n = b + c, k = min(b, c),
+    prob = sum_{i=0}^{k} C(n, i) * 0.5^n, p = min(1.0, 2*prob). n == 0 (no
+    discordant pairs at all) returns 1.0 -- there is no evidence of a
+    difference when nothing disagrees."""
+    n = int(b) + int(c)
+    if n == 0:
+        return 1.0
+    k = min(int(b), int(c))
+    prob = sum(math.comb(n, i) for i in range(k + 1)) * (0.5 ** n)
+    return float(min(1.0, 2.0 * prob))
+
+
+def _bh(pvals: Sequence[float]) -> List[float]:
+    """Benjamini-Hochberg q-values, order-preserving (q[i] corresponds to
+    pvals[i], NOT sorted). Copied from `continuous_prm_c6_heatmap_value_
+    field.bh_q_values` (attribution per plan Task 5): q_(m) = p_(m); walking
+    from the largest p-value down to the smallest, q_(i) = min(q_(i+1),
+    p_(i) * m / i) -- i.e. q_i = min over j >= i of p_(j) * m / j, exactly
+    the pre-registered definition."""
+    m = len(pvals)
+    if m == 0:
+        return []
+    order = sorted(range(m), key=lambda i: pvals[i])
+    q = [1.0] * m
+    running = 1.0
+    for rank_from_end, idx in enumerate(reversed(order), start=1):
+        rank = m - rank_from_end + 1
+        val = float(pvals[idx]) * m / max(1, rank)
+        running = min(running, val)
+        q[idx] = min(1.0, running)
+    return q
+
+
+def _coerce_record(row: dict) -> dict:
+    """Coerce one raw eval record (string-typed, as read back from
+    `c11_eval_raw.csv` via `csv.DictReader`, OR already-typed if the caller
+    built it directly) into a canonically-typed dict. The ONE place this
+    coercion happens (plan Task 5: "write ONE `_coerce_record` helper used
+    everywhere"). Idempotent: re-coercing an already-coerced record is a
+    no-op, since `bool`/`int`/`float` pass through their own constructors
+    unchanged and the found-parsing branch only string-parses `str` inputs."""
+    found_val = row["found"]
+    if isinstance(found_val, str):
+        found = found_val.strip().lower() in ("true", "1", "yes")
+    else:
+        found = bool(found_val)
+    return {
+        "config": str(row["config"]),
+        "config_label": str(row["config_label"]),
+        "config_idx": int(row["config_idx"]),
+        "K": int(row["K"]),
+        "world_idx": int(row["world_idx"]),
+        "seed": str(row["seed"]),
+        "arm": str(row["arm"]),
+        "train_seed": str(row["train_seed"]),
+        "budget": int(row["budget"]),
+        "found": found,
+        "cost": float(row["cost"]),
+        "expansions": int(row["expansions"]),
+        "closed": int(row["closed"]),
+        "opt_cost": float(row["opt_cost"]),
+    }
+
+
+def analyze(records: Sequence[dict], binding: Dict[Tuple[str, int], int],
+            cfg: Optional[C11MissionConfig] = None) -> dict:
+    """Pure analysis over raw eval records -- no I/O, no world/PRM/A* calls.
+
+    `records`: list of dicts as read back from `c11_eval_raw.csv` (or
+    already-typed equivalents); coerced uniformly via `_coerce_record`.
+    `binding`: `{(config_label, K): budget}` for every cell present --
+    assembled by the caller from `cfg.binding_budgets` (K in {2,4,8}) plus
+    `binding_k0.json` (K=0); this function does NOT assemble it (that is
+    T8's job, per the plan).
+
+    Restricts EVERY per-cell computation to that cell's binding-budget rows
+    ONLY (a world found at a non-binding budget but not at the binding
+    budget counts as not-found -- the binding budget is the sole source of
+    truth for a cell's "found" status, matching the probe/C-series
+    convention of reading dose-response curves but reporting headline
+    numbers at one calibrated budget per cell).
+
+    Per cell (config_label, K), returns:
+        {"binding": budget,
+         "success": {arm: rate},
+         "vs_mlp": {arm: {ratio_median, ci_lo, ci_hi, n_pairs, mcnemar_p,
+                           mcnemar_q, b, c}},           # arm != "mlp" only
+         "vs_legsum": {arm: {ratio_median, n}},         # every arm incl. mlp
+         "oracle_vs_legsum": {ratio_median, n}}
+    keyed by `(config_label, K)`."""
+    cfg = cfg or C11MissionConfig()
+    coerced = [_coerce_record(r) for r in records]
+
+    by_cell: Dict[Tuple[str, int], List[dict]] = {}
+    for r in coerced:
+        by_cell.setdefault((r["config_label"], r["K"]), []).append(r)
+
+    result: Dict[Tuple[str, int], dict] = {}
+
+    for cell_key, cell_binding in binding.items():
+        cell_key = (str(cell_key[0]), int(cell_key[1]))
+        cell_rows = by_cell.get(cell_key, [])
+        binding_rows = [r for r in cell_rows if r["budget"] == int(cell_binding)]
+
+        # -- success rates, per arm. Learned arms: mean over (world x
+        # train_seed) of found. Reference arms (train_seed == ""): mean
+        # over worlds (there is exactly one record per world for these).
+        by_arm: Dict[str, List[dict]] = {}
+        for r in binding_rows:
+            by_arm.setdefault(r["arm"], []).append(r)
+        success: Dict[str, float] = {
+            arm: float(np.mean([1.0 if r["found"] else 0.0 for r in rows]))
+            for arm, rows in by_arm.items()
+        }
+
+        # -- pairing indices. Learned-arm rows keyed by (world_idx,
+        # train_seed) since that IS the pre-registered pairing unit.
+        # Reference-arm rows (h_legsum, h_oracle) keyed by world_idx alone
+        # (train_seed == "" for all of them; one row per world).
+        def _by_world_seed(arm_name: str) -> Dict[Tuple[int, str], dict]:
+            return {(r["world_idx"], r["train_seed"]): r for r in by_arm.get(arm_name, [])}
+
+        def _by_world(arm_name: str) -> Dict[int, dict]:
+            return {r["world_idx"]: r for r in by_arm.get(arm_name, [])}
+
+        mlp_by_ws = _by_world_seed("mlp")
+        legsum_by_world = _by_world("h_legsum")
+        oracle_by_world = _by_world("h_oracle")
+
+        learned_arms = sorted(a for a in by_arm if a not in REFERENCE_ARMS and a != "mlp")
+
+        # -- primary: arm-vs-MLP paired comparison, one per learned arm.
+        vs_mlp_pvals: List[float] = []
+        vs_mlp_stats: Dict[str, dict] = {}
+        for arm_name in learned_arms:
+            arm_by_ws = _by_world_seed(arm_name)
+            keys = sorted(set(arm_by_ws) | set(mlp_by_ws))
+
+            ratios: List[float] = []
+            b_count = 0  # arm found, mlp not.
+            c_count = 0  # mlp found, arm not.
+            for key in keys:
+                arm_row = arm_by_ws.get(key)
+                mlp_row = mlp_by_ws.get(key)
+                arm_found = bool(arm_row["found"]) if arm_row is not None else False
+                mlp_found = bool(mlp_row["found"]) if mlp_row is not None else False
+                if arm_found and mlp_found:
+                    ratios.append(float(arm_row["expansions"]) / float(mlp_row["expansions"]))
+                elif arm_found and not mlp_found:
+                    b_count += 1
+                elif mlp_found and not arm_found:
+                    c_count += 1
+
+            med, ci_lo, ci_hi = _bootstrap_median_ci(ratios, seed=12345, n_boot=1000, lo=2.5, hi=97.5)
+            p = _mcnemar_exact_p(b_count, c_count)
+            vs_mlp_pvals.append(p)
+            vs_mlp_stats[arm_name] = {
+                "ratio_median": med,
+                "ci_lo": ci_lo,
+                "ci_hi": ci_hi,
+                "n_pairs": len(ratios),
+                "mcnemar_p": p,
+                "b": b_count,
+                "c": c_count,
+            }
+
+        qvals = _bh(vs_mlp_pvals)
+        for arm_name, q in zip(learned_arms, qvals):
+            vs_mlp_stats[arm_name]["mcnemar_q"] = q
+
+        # -- secondary: every arm (incl. mlp) vs h_legsum. Pairing: each
+        # learned (world, train_seed) row against legsum's PER-WORLD row
+        # (legsum has exactly one record per world -- no seed dimension).
+        vs_legsum: Dict[str, dict] = {}
+        for arm_name in sorted(a for a in by_arm if a not in REFERENCE_ARMS):
+            arm_by_ws = _by_world_seed(arm_name)
+            ratios = []
+            for (world_idx, _train_seed), arm_row in arm_by_ws.items():
+                ls_row = legsum_by_world.get(world_idx)
+                if ls_row is None:
+                    continue
+                if bool(arm_row["found"]) and bool(ls_row["found"]):
+                    ratios.append(float(arm_row["expansions"]) / float(ls_row["expansions"]))
+            med, _lo, _hi = _bootstrap_median_ci(ratios, seed=12345, n_boot=1000, lo=2.5, hi=97.5)
+            vs_legsum[arm_name] = {"ratio_median": med, "n": len(ratios)}
+
+        # -- oracle ceiling row: h_oracle vs h_legsum, matched per-world
+        # (both are reference arms, one record per world, no seed dim).
+        oracle_ratios = []
+        for world_idx, or_row in oracle_by_world.items():
+            ls_row = legsum_by_world.get(world_idx)
+            if ls_row is None:
+                continue
+            if bool(or_row["found"]) and bool(ls_row["found"]):
+                oracle_ratios.append(float(or_row["expansions"]) / float(ls_row["expansions"]))
+        o_med, _o_lo, _o_hi = _bootstrap_median_ci(oracle_ratios, seed=12345, n_boot=1000, lo=2.5, hi=97.5)
+        oracle_vs_legsum = {"ratio_median": o_med, "n": len(oracle_ratios)}
+
+        result[cell_key] = {
+            "binding": int(cell_binding),
+            "success": success,
+            "vs_mlp": vs_mlp_stats,
+            "vs_legsum": vs_legsum,
+            "oracle_vs_legsum": oracle_vs_legsum,
+        }
+
+    return result
+
+
+def k0_continuity(analysis: dict) -> dict:
+    """G1's continuity control (spec section 1: "at K=0 the task reduces
+    exactly to C7 ... and all arms must statistically tie -- if they don't,
+    it is a formulation/implementation bug and the phase halts for
+    diagnosis, not a result").
+
+    Over K=0 cells ONLY: PASS iff NO learned arm's vs_mlp comparison shows
+    separation from the MLP control, where separation = (mcnemar_q < 0.05)
+    OR (the ratio bootstrap CI entirely excludes 1.0, i.e. ci_hi < 1.0 or
+    ci_lo > 1.0). This is the pre-registered C7-continuity control: it gates
+    whether G1 is readable at all, so it is checked FIRST and independently
+    of the dose-response verdict itself.
+
+    Returns {"pass": bool, "violations": [(config_label, arm, reason)]}."""
+    violations: List[Tuple[str, str, str]] = []
+    for (config_label, K), cell in analysis.items():
+        if K != 0:
+            continue
+        for arm_name, stats in cell.get("vs_mlp", {}).items():
+            reasons = []
+            if stats["mcnemar_q"] < 0.05:
+                reasons.append(f"mcnemar_q={stats['mcnemar_q']:.4g} < 0.05")
+            if stats["ci_hi"] < 1.0:
+                reasons.append(f"ci_hi={stats['ci_hi']:.4g} < 1.0")
+            elif stats["ci_lo"] > 1.0:
+                reasons.append(f"ci_lo={stats['ci_lo']:.4g} > 1.0")
+            if reasons:
+                violations.append((config_label, arm_name, "; ".join(reasons)))
+    return {"pass": len(violations) == 0, "violations": violations}
+
+
+# Structured arms evaluated for the G1 dose-response verdict -- every
+# learned arm EXCEPT the MLP control itself (spec section 1: "each
+# structured arm vs the MLP control"). `hrmv2_act` (Task 7) participates
+# automatically once records for it exist, since this list is enumerated
+# from the analysis dict's own learned-arm keys, not hardcoded per-arm --
+# see `g1_verdict`'s docstring.
+G1_STRUCTURED_ARM_NAMES: Tuple[str, ...] = ("unet_film", "gnn", "hrm_trace", "onlstm_trace")
+
+G1_K_VALUES: Tuple[int, ...] = (2, 4, 8)
+
+
+def g1_verdict(analysis: dict) -> dict:
+    """G1 verdict logic (spec section 1, quoted verbatim):
+
+    "G1 -- dose-response in structure. Primary read: per (config, K), each
+    structured arm vs the MLP control on matched per-world expansion-ratio
+    differences (both-solved worlds) + success McNemar. Continuity control:
+    at K=0 the task reduces exactly to C7 (legsum == euclid, no mission
+    tokens beyond the goal leg) and all arms must statistically tie -- if
+    they don't, it is a formulation/implementation bug and the phase halts
+    for diagnosis, not a result. Positive verdict: >=1 structured arm beats
+    the MLP with BH q < 0.05 at >=2 of the 3 K in {2,4,8} values on >=1
+    config, with the gap monotone non-decreasing in K. Anything less is a
+    negative for that arm."
+
+    (Note: "monotone non-decreasing in K" in the spec's prose describes the
+    GAP growing with depth, i.e. the arm-vs-MLP expansion RATIO shrinking
+    toward/below 1 as K increases -- the plan's pre-registered operational
+    definition below makes this precise: "the ratio_median sequence over
+    the K values where n_pairs >= 1 is monotone non-increasing".)
+
+    Over K in {2,4,8} cells: for each structured arm (`unet_film`, `gnn`,
+    `hrm_trace`, `onlstm_trace` -- restricted to arms actually present in
+    `analysis`, so an incomplete run doesn't KeyError) and config: a "beat"
+    at (config, K) = (mcnemar_q < 0.05 AND success_arm > success_mlp) OR
+    (ratio ci_hi < 1.0). Arm is POSITIVE on a config iff beats at >= 2 of
+    the 3 K values AND the ratio_median sequence over the K values where
+    n_pairs >= 1 is monotone non-increasing (gap grows with depth). Cells
+    with n_pairs == 0 contribute no beat and break monotonicity assessment
+    only if they leave < 2 usable K values (then that (arm, config) is
+    "insufficient", not positive).
+
+    Returns {"positive": bool, "positive_arms": [(arm, config_label)],
+             "table": {(arm, config_label): {"beats": {K: bool},
+                                              "ratio_by_k": {K: ratio_median or None},
+                                              "monotone": bool or None,
+                                              "n_beats": int,
+                                              "status": "positive"|"negative"|"insufficient"}}}."""
+    configs = sorted({key[0] for key in analysis if key[1] in G1_K_VALUES})
+    present_arms = set()
+    for key, cell in analysis.items():
+        if key[1] in G1_K_VALUES:
+            present_arms.update(cell.get("vs_mlp", {}).keys())
+    arm_names = [a for a in G1_STRUCTURED_ARM_NAMES if a in present_arms]
+
+    table: Dict[Tuple[str, str], dict] = {}
+    positive_arms: List[Tuple[str, str]] = []
+
+    for arm_name in arm_names:
+        for config_label in configs:
+            beats: Dict[int, bool] = {}
+            ratio_by_k: Dict[int, Optional[float]] = {}
+            for K in G1_K_VALUES:
+                cell = analysis.get((config_label, K))
+                if cell is None:
+                    ratio_by_k[K] = None
+                    continue
+                stats = cell.get("vs_mlp", {}).get(arm_name)
+                if stats is None or stats["n_pairs"] == 0:
+                    ratio_by_k[K] = None
+                    continue
+                ratio_by_k[K] = stats["ratio_median"]
+                success = cell.get("success", {})
+                beat = (
+                    (stats["mcnemar_q"] < 0.05 and success.get(arm_name, 0.0) > success.get("mlp", 0.0))
+                    or (stats["ci_hi"] < 1.0)
+                )
+                beats[K] = bool(beat)
+
+            n_beats = sum(1 for v in beats.values() if v)
+            usable_ks = [K for K in G1_K_VALUES if ratio_by_k.get(K) is not None]
+            usable_ratios = [ratio_by_k[K] for K in usable_ks]
+            monotone = None
+            if len(usable_ks) >= 2:
+                monotone = all(
+                    usable_ratios[i] >= usable_ratios[i + 1] - 1e-12
+                    for i in range(len(usable_ratios) - 1)
+                )
+
+            if len(usable_ks) < 2:
+                status = "insufficient"
+            elif n_beats >= 2 and monotone:
+                status = "positive"
+            else:
+                status = "negative"
+
+            table[(arm_name, config_label)] = {
+                "beats": beats,
+                "ratio_by_k": ratio_by_k,
+                "monotone": monotone,
+                "n_beats": n_beats,
+                "status": status,
+            }
+            if status == "positive":
+                positive_arms.append((arm_name, config_label))
+
+    return {
+        "positive": len(positive_arms) > 0,
+        "positive_arms": positive_arms,
+        "table": table,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Task 4: CLI stub.
 # ---------------------------------------------------------------------------
 #
