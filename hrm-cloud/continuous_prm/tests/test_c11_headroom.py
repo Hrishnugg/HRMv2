@@ -344,3 +344,196 @@ def test_eval_cell_small_integration():
         if r["found"]:
             assert r["cost"] == pytest.approx(r["opt_cost"], abs=1e-6)
     assert len(seen_worlds) == 3
+
+
+# ---------------------------------------------------------------------------
+# Task 3: keys->doors stage-dependent adjacency.
+#
+# A fixture mission (K=2) on C_hard_maze, built the same way eval_cell would
+# (T2 seed formula: seed = 1234 + 7919*world_idx + 104729*config_idx +
+# 15485863*K, config_idx=2 for config C). We search a handful of world_idx
+# candidates and keep the first that (a) yields a valid world/roadmap/mission
+# and (b) accepts a door placement -- mirroring eval_cell's own skip-on-
+# failure loop, so a fixture failure here would also mean config C is
+# unusable for T4, which is exactly what these tests should catch.
+# ---------------------------------------------------------------------------
+
+DOORS_CONFIG_IDX = 2  # matches config C's slot in the eventual eval_cell("C_hard_maze", 2, K, ...) call.
+
+
+def _doors_fixture(K: int = 2, spec_name: str = "C_hard_maze", max_world_idx: int = 40):
+    """First valid (world, rm, wp, seed, placement) for config C, T2 seed formula."""
+    specs = C.build_anchor_specs()
+    spec = specs[spec_name]
+    for world_idx in range(max_world_idx):
+        seed = 1234 + 7919 * world_idx + 104729 * DOORS_CONFIG_IDX + 15485863 * K
+        world = C.build_world(spec, seed, 0.45)
+        if world is None:
+            continue
+        rm = C.build_prm(world, ROADMAP_CFG, seed + 17)
+        if rm is None:
+            continue
+        try:
+            wp = C11.sample_mission(rm, world, K, seed)
+        except RuntimeError:
+            continue
+        try:
+            placement = C11.place_doors(rm, world, wp, seed)
+        except RuntimeError:
+            continue
+        return world, rm, wp, seed, placement
+    raise RuntimeError(f"no valid config-C fixture found in {max_world_idx} world_idx attempts")
+
+
+def test_doors_block_at_least_three_edges_and_open_at_later_stage():
+    world, rm, wp, seed, placement = _doors_fixture(K=2)
+
+    assert len(placement.rects) == 2
+    assert len(placement.blocked) == 2
+    for d in range(2):
+        assert len(placement.blocked[d]) >= 3
+
+    # Pick a specific edge blocked by door 0 and check it is invalid at s=0
+    # (s <= d=0 -> blocked) and valid again at s=2 (s=K=2 > 1 >= both d's ->
+    # both doors open).
+    i, j = next(iter(placement.blocked[0]))
+    assert placement.adj_valid(i, j, 0) is False
+    K = len(wp)
+    assert placement.adj_valid(i, j, K) is True
+
+
+def test_oracle_with_doors_is_finite_and_elementwise_geq_plain_oracle():
+    world, rm, wp, seed, placement = _doors_fixture(K=2)
+
+    oracle_plain = C11.product_oracle(rm, wp)
+    oracle_doors = C11.product_oracle(rm, wp, placement.adj_valid)
+
+    assert C11.mission_reachable(oracle_doors)
+
+    finite_mask = (oracle_plain < C.INF / 10.0) & (oracle_doors < C.INF / 10.0)
+    assert finite_mask.any()
+    assert np.all(oracle_doors[finite_mask] >= oracle_plain[finite_mask] - 1e-9)
+
+    # Lenient: if any blocked edge lies on a plain-optimal shortest path
+    # somewhere in the product graph, doors should strictly raise the cost
+    # to go at least at one reachable state. Not forced if it doesn't hold
+    # naturally on this fixture.
+    strictly_worse = (oracle_doors[finite_mask] > oracle_plain[finite_mask] + 1e-12).any()
+    if not strictly_worse:
+        print(
+            "note: doors did not strictly raise h* anywhere on this fixture "
+            "(no blocked edge fell on a plain-optimal path) -- allowed, not forced."
+        )
+
+
+def test_admissibility_preserved_with_doors_on_sampled_states():
+    world, rm, wp, seed, placement = _doors_fixture(K=2)
+    oracle_doors = C11.product_oracle(rm, wp, placement.adj_valid)
+    hl = C11.h_legsum(rm, wp)
+
+    N = rm.points.shape[0]
+    K = len(wp)
+    reachable = [
+        (i, s)
+        for s in range(K + 1)
+        for i in range(N)
+        if oracle_doors[s, i] < C.INF / 10.0
+    ]
+    assert len(reachable) >= 100, f"only {len(reachable)} reachable states, need >= 100"
+
+    rng = np.random.RandomState(1357)
+    take = min(len(reachable), 150)
+    idxs = rng.choice(len(reachable), size=take, replace=False)
+    for idx in idxs:
+        i, s = reachable[idx]
+        assert hl(i, s) <= oracle_doors[s, i] + 1e-9, (i, s, hl(i, s), oracle_doors[s, i])
+
+
+def test_astar_product_optimal_under_doors_with_oracle_and_legsum():
+    world, rm, wp, seed, placement = _doors_fixture(K=2)
+    oracle_doors = C11.product_oracle(rm, wp, placement.adj_valid)
+    assert C11.mission_reachable(oracle_doors)
+    opt_cost = float(oracle_doors[0, 0])
+
+    hl = C11.h_legsum(rm, wp)
+    K = len(wp)
+    N = rm.points.shape[0]
+    h_legsum_arr = np.array([[hl(i, s) for i in range(N)] for s in range(K + 1)])
+
+    res_oracle = C11.astar_product(rm.adj, wp, oracle_doors, budget=3200, adj_valid=placement.adj_valid)
+    assert res_oracle["found"]
+    assert res_oracle["cost"] == pytest.approx(opt_cost, abs=1e-6)
+
+    res_legsum = C11.astar_product(rm.adj, wp, h_legsum_arr, budget=3200, adj_valid=placement.adj_valid)
+    if res_legsum["found"]:
+        assert res_legsum["cost"] == pytest.approx(opt_cost, abs=1e-6)
+
+
+def test_door_validator_rejects_bad_placements():
+    world, rm, wp, seed, placement = _doors_fixture(K=2)
+    N = rm.points.shape[0]
+
+    # A rect centered exactly on wp[0] (tiny but non-degenerate) must be
+    # rejected: it CONTAINS a waypoint position.
+    wp0_pt = rm.points[wp[0]]
+    tiny = 1e-6
+    bad_rect_on_waypoint = (
+        float(wp0_pt[0]) - tiny, float(wp0_pt[1]) - tiny,
+        float(wp0_pt[0]) + tiny, float(wp0_pt[1]) + tiny,
+    )
+    assert C11._door_rect_contains_any_special_point(bad_rect_on_waypoint, rm, wp) is True
+
+    # A tiny rect far outside the world (side_len is 1.0 or 2.0 for all specs
+    # used here; world coordinates live in [0, side_len]) blocks 0 edges and
+    # must be rejected on the min-blocked-edges predicate.
+    side = float(world.side_len)
+    empty_rect = (side * 10.0, side * 10.0, side * 10.0 + tiny, side * 10.0 + tiny)
+    blocked_empty = C11._edges_blocked_by_rect(rm, empty_rect)
+    assert len(blocked_empty) == 0
+
+    cfg = C11.C11ProbeConfig()
+    assert len(blocked_empty) < cfg.door_min_blocked_edges
+
+
+def test_place_doors_is_deterministic():
+    world, rm, wp, seed, placement1 = _doors_fixture(K=2)
+    placement2 = C11.place_doors(rm, world, wp, seed)
+
+    assert placement1.rects == placement2.rects
+    assert placement1.blocked == placement2.blocked
+    # Cross-check the callables agree pointwise on a sample of (i, j, s).
+    N = rm.points.shape[0]
+    K = len(wp)
+    for i in range(0, N, 17):
+        for j, _ in rm.adj[i]:
+            for s in range(K + 1):
+                assert placement1.adj_valid(i, j, s) == placement2.adj_valid(i, j, s)
+
+
+def test_door_adj_valid_factory_matches_place_doors_and_plugs_into_eval_cell():
+    world, rm, wp, seed, placement = _doors_fixture(K=2)
+
+    factory_adj_valid = C11.door_adj_valid_factory(rm, world, wp, seed)
+    assert factory_adj_valid is not None
+    N = rm.points.shape[0]
+    K = len(wp)
+    for i in range(0, N, 17):
+        for j, _ in rm.adj[i]:
+            for s in range(K + 1):
+                assert factory_adj_valid(i, j, s) == placement.adj_valid(i, j, s)
+
+    # Full integration: config C runs end-to-end through eval_cell, and a
+    # RuntimeError from the factory (placement exhausted its resample
+    # attempts) surfaces as a world-skip rather than propagating.
+    records = C11.eval_cell(
+        "C_hard_maze", config_idx=DOORS_CONFIG_IDX, K=2, n_worlds=2,
+        budgets=(400, 3200), adj_valid_factory=C11.door_adj_valid_factory,
+    )
+    assert len(records) == 2 * 3 * 2  # worlds x arms x budgets
+    seen_worlds = set()
+    for r in records:
+        assert r["arm"] in ("h_next", "h_legsum", "h_oracle")
+        seen_worlds.add(r["world_idx"])
+        if r["found"]:
+            assert r["cost"] == pytest.approx(r["opt_cost"], abs=1e-6)
+    assert len(seen_worlds) == 2

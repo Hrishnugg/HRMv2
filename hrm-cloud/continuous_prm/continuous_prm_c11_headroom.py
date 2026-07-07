@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""C11 G0-H headroom probe -- Tasks 1-2: mission layer, product graph, exact
-oracle, product A*, and the matched three-arm eval.
+"""C11 G0-H headroom probe -- Tasks 1-3: mission layer, product graph, exact
+oracle, product A*, the matched three-arm eval, and the keys->doors
+stage-dependent adjacency config.
 
 Measures whether compositional missions (visit K ordered waypoints, then reach
 the goal) on the existing hard-map roadmaps create real heuristic headroom for
@@ -10,7 +11,12 @@ Dijkstra oracle over the product graph, and the two admissible heuristics
 (`h_next`, `h_legsum`). Task 2 adds `astar_product` (budget-limited A* on the
 product graph, mirroring `C.astar_search`'s conventions), binding-budget
 calibration, and `eval_cell` (the matched three-arm eval for one config x K
-cell).
+cell). Task 3 adds config C: `place_doors` / `DoorPlacement` /
+`door_adj_valid_factory`, placing two "keys->doors" rectangles that block
+roadmap edges until the corresponding waypoint is completed -- a genuinely
+stage-dependent adjacency that euclid-based heuristics cannot see, plugged
+into `product_oracle` / `astar_product` / `eval_cell` via the existing
+`adj_valid` / `adj_valid_factory` hooks.
 
 New-file-only; reuses `continuous_prm_common` (worlds, PRM, INF) and
 `continuous_prm_c7_hard_maps` (hard-map suites) by import. Does not modify
@@ -41,6 +47,14 @@ class C11ProbeConfig:
     n_worlds: int = 25
     budgets: Sequence[int] = (100, 200, 400, 800, 1600, 3200)
     k_values: Sequence[int] = (2, 4, 8)
+
+    # Keys->doors config C knobs (Task 3).
+    n_doors: int = 2
+    door_halfwidth_frac: float = 0.02
+    door_halfheight_frac: float = 0.10
+    door_t_range: tuple = (0.3, 0.7)
+    door_max_attempts: int = 20
+    door_min_blocked_edges: int = 3
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +343,7 @@ def calibrate_binding_budget(records: Sequence[dict], budgets: Sequence[int]) ->
     budget) is >= 0.05. If no budget qualifies, returns the largest budget
     with the DEGENERATE flag set. Returns `(budget, degenerate)`.
     """
+    budgets = tuple(sorted(budgets))
     for b in budgets:
         legsum_at_b = [r for r in records if r.get("arm") == "h_legsum" and r.get("budget") == b]
         if not legsum_at_b:
@@ -361,6 +376,12 @@ def eval_cell(spec_name: str, config_idx: int, K: int, n_worlds: int = 25,
     `opt_cost` within 1e-6 (all three heuristics are admissible, so this
     catches wiring bugs at run time). Deterministic: identical inputs
     produce identical records (no RNG outside the seed formula).
+
+    Note: a record's `world_idx` is the valid-world ordinal (0..n_worlds-1)
+    at which it was collected, NOT the seed-formula attempt index (worlds
+    skipped for build/mission/door failures do not consume a `world_idx`
+    slot) -- the recorded `seed` field is the ground truth for reproducing
+    any individual record's (world, roadmap, mission) triple.
     """
     H7.install_c7_hard_maps()
     specs = C.build_anchor_specs()
@@ -395,7 +416,13 @@ def eval_cell(spec_name: str, config_idx: int, K: int, n_worlds: int = 25,
 
         adj_valid = None
         if adj_valid_factory is not None:
-            adj_valid = adj_valid_factory(rm, world, wp, seed)
+            try:
+                adj_valid = adj_valid_factory(rm, world, wp, seed)
+            except RuntimeError:
+                # Placement exhausted its resample budget (e.g. door
+                # validation never succeeded on this world) -- same
+                # skip-world convention as sample_mission's RuntimeError.
+                continue
             if adj_valid is None:
                 continue
 
@@ -444,3 +471,226 @@ def _approx_eq(a: float, b: float, abs_tol: float = 1e-6) -> bool:
     """Local abs-tolerance equality check (avoids a pytest import in the
     library module; used only for the internal optimality sanity assert)."""
     return abs(a - b) <= abs_tol
+
+
+# ---------------------------------------------------------------------------
+# Task 3 -- keys->doors stage-dependent adjacency.
+# ---------------------------------------------------------------------------
+#
+# D = 2 doors, d in {0, 1}. Door d's key is waypoint d: the edges it blocks
+# are usable only once the mission has completed waypoint d, i.e. usable at
+# stage s > d; blocked for s <= d. Doors are placed as thin rectangles across
+# the straight-line corridor from wp[d] to the mission's NEXT target after
+# wp[d] (wp[d+1] if it exists, else the goal node), and only ever REMOVE
+# roadmap edges from consideration -- the world, its obstacles, and the
+# roadmap itself are never modified; a door is purely an edge mask consumed
+# through `adj_valid(i, j, s)`.
+
+Rect = tuple  # (xmin, ymin, xmax, ymax)
+
+
+@dataclass
+class DoorPlacement:
+    """Result of placing config C's keys->doors on one (rm, world, wp).
+
+    `rects[d]` is door d's axis-aligned rectangle `(xmin, ymin, xmax, ymax)`.
+    `blocked[d]` is the frozenset of undirected roadmap edges `{i, j}`
+    (stored as sorted `(min(i,j), max(i,j))` tuples, matching
+    `continuous_prm_common.build_prm`'s own edge-set convention) that door d's
+    rectangle intersects. `adj_valid(i, j, s)` is the stage-dependent
+    edge-validity predicate: False iff edge {i,j} is blocked by some door d
+    with `s <= d`, True otherwise.
+    """
+
+    rects: List[Rect]
+    blocked: List[frozenset]
+
+    def adj_valid(self, i: int, j: int, s: int) -> bool:
+        key = (i, j) if i <= j else (j, i)
+        for d, blocked_d in enumerate(self.blocked):
+            if s <= d and key in blocked_d:
+                return False
+        return True
+
+
+def _segment_intersects_rect(p1: np.ndarray, p2: np.ndarray, rect: Rect) -> bool:
+    """Standard segment-vs-AABB test (slab / Liang-Barsky clipping).
+
+    Returns True iff the closed segment p1->p2 has any point (including
+    either endpoint) inside or on the boundary of `rect`. Handles the
+    degenerate zero-length segment (p1 == p2) as a point-in-rect test.
+    """
+    xmin, ymin, xmax, ymax = rect
+    x1, y1 = float(p1[0]), float(p1[1])
+    x2, y2 = float(p2[0]), float(p2[1])
+    dx, dy = x2 - x1, y2 - y1
+
+    if dx == 0.0 and dy == 0.0:
+        return xmin <= x1 <= xmax and ymin <= y1 <= ymax
+
+    t_enter, t_exit = 0.0, 1.0
+    for delta, lo, hi, coord in ((dx, xmin, xmax, x1), (dy, ymin, ymax, y1)):
+        if delta == 0.0:
+            # Segment is parallel to this axis's slab boundaries: if the
+            # constant coordinate already lies outside [lo, hi], no
+            # intersection is possible for any t; otherwise this slab
+            # imposes no constraint on t.
+            if coord < lo or coord > hi:
+                return False
+            continue
+        t_lo = (lo - coord) / delta
+        t_hi = (hi - coord) / delta
+        if t_lo > t_hi:
+            t_lo, t_hi = t_hi, t_lo
+        t_enter = max(t_enter, t_lo)
+        t_exit = min(t_exit, t_hi)
+        if t_enter > t_exit:
+            return False
+
+    return t_enter <= t_exit
+
+
+def _edges_blocked_by_rect(rm, rect: Rect) -> frozenset:
+    """The undirected roadmap edges whose segment intersects `rect`."""
+    blocked = set()
+    points = rm.points
+    N = points.shape[0]
+    for i in range(N):
+        for j, _w in rm.adj[i]:
+            if j <= i:
+                continue  # visit each undirected edge once
+            if _segment_intersects_rect(points[i], points[j], rect):
+                blocked.add((i, j))
+    return frozenset(blocked)
+
+
+def _point_in_rect(p: np.ndarray, rect: Rect) -> bool:
+    """Inclusive point-in-rect test (boundary contact counts as contains --
+    the conservative choice: a door whose edge merely touches a special
+    point still gets rejected and resampled, rather than risking start/goal/
+    waypoint positions sitting exactly on a door's edge)."""
+    xmin, ymin, xmax, ymax = rect
+    return xmin <= float(p[0]) <= xmax and ymin <= float(p[1]) <= ymax
+
+
+def _door_rect_contains_any_special_point(rect: Rect, rm, wp: Sequence[int],
+                                           start_idx: int = 0, goal_idx: int = 1) -> bool:
+    """Whether `rect` contains the start, the goal, or any waypoint position."""
+    special = [start_idx, goal_idx] + list(wp)
+    return any(_point_in_rect(rm.points[idx], rect) for idx in special)
+
+
+def _make_door_rect(p_from: np.ndarray, p_to: np.ndarray, t: float, side: float,
+                     cfg: C11ProbeConfig) -> Rect:
+    """Axis-aligned door rectangle centered at parameter `t` along the
+    straight segment p_from->p_to: thin along the corridor's dominant axis,
+    wide across it (half-extents `door_halfwidth_frac*side` /
+    `door_halfheight_frac*side`, swapped depending on which axis dominates).
+    """
+    cx = float(p_from[0]) + t * (float(p_to[0]) - float(p_from[0]))
+    cy = float(p_from[1]) + t * (float(p_to[1]) - float(p_from[1]))
+    dx = abs(float(p_to[0]) - float(p_from[0]))
+    dy = abs(float(p_to[1]) - float(p_from[1]))
+
+    half_thin = cfg.door_halfwidth_frac * side
+    half_wide = cfg.door_halfheight_frac * side
+    if dx >= dy:
+        # Corridor mostly horizontal: thin in x, wide in y.
+        half_x, half_y = half_thin, half_wide
+    else:
+        # Corridor mostly vertical: thin in y, wide in x.
+        half_x, half_y = half_wide, half_thin
+
+    return (cx - half_x, cy - half_y, cx + half_x, cy + half_y)
+
+
+def _door_endpoints(wp: Sequence[int], d: int, goal_idx: int = 1) -> tuple:
+    """(from_node, to_node) for door d: from wp[d] to the NEXT mission target
+    after wp[d] -- wp[d+1] if it exists, else the goal node."""
+    K = len(wp)
+    from_node = wp[d]
+    to_node = wp[d + 1] if d + 1 < K else goal_idx
+    return from_node, to_node
+
+
+def place_doors(rm, world, wp: Sequence[int], seed: int,
+                 cfg: Optional[C11ProbeConfig] = None) -> DoorPlacement:
+    """Place and validate config C's `cfg.n_doors` (default 2) keys->doors.
+
+    Door d is a thin rectangle across the straight corridor from wp[d] to
+    the next mission target after wp[d] (wp[d+1], or the goal if d is the
+    last waypoint). Door d blocks its intersected roadmap edges for stages
+    s <= d (its key is completing waypoint d) and reopens them for s > d.
+
+    Deterministic in (rm, world, wp, seed): attempt 0 centers every door at
+    t=0.5 along its corridor; if validation fails, a seeded RNG
+    (`np.random.default_rng(seed + 7717)`) draws a fresh `t ~
+    U(*cfg.door_t_range)` independently for EACH door on each retry, up to
+    `cfg.door_max_attempts` attempts total.
+
+    Validation (all must hold for an attempt to be accepted):
+      1. Each door blocks >= cfg.door_min_blocked_edges roadmap edges.
+      2. No door's rectangle contains the start, the goal, or any waypoint
+         position (inclusive/boundary-counts-as-contains test).
+      3. The mission stays feasible under the resulting adj_valid
+         (`mission_reachable(product_oracle(rm, wp, adj_valid))`).
+
+    Raises RuntimeError if no attempt validates within `door_max_attempts`
+    -- callers should treat this as "skip this world" (same convention as
+    `sample_mission`).
+    """
+    cfg = cfg or C11ProbeConfig()
+    side = float(world.side_len)
+    D = cfg.n_doors
+    K = len(wp)
+    if K < D:
+        raise RuntimeError(f"need at least {D} waypoints to place {D} doors, got K={K}")
+
+    rng = np.random.default_rng(seed + 7717)
+
+    for attempt in range(cfg.door_max_attempts):
+        ts = [0.5] * D if attempt == 0 else [
+            float(rng.uniform(cfg.door_t_range[0], cfg.door_t_range[1])) for _ in range(D)
+        ]
+
+        rects: List[Rect] = []
+        for d in range(D):
+            from_node, to_node = _door_endpoints(wp, d)
+            rect = _make_door_rect(rm.points[from_node], rm.points[to_node], ts[d], side, cfg)
+            rects.append(rect)
+
+        if any(_door_rect_contains_any_special_point(r, rm, wp) for r in rects):
+            continue
+
+        blocked = [_edges_blocked_by_rect(rm, r) for r in rects]
+        if any(len(b) < cfg.door_min_blocked_edges for b in blocked):
+            continue
+
+        placement = DoorPlacement(rects=rects, blocked=blocked)
+        oracle = product_oracle(rm, wp, placement.adj_valid)
+        if not mission_reachable(oracle):
+            continue
+
+        return placement
+
+    raise RuntimeError(
+        f"could not place {D} valid doors within {cfg.door_max_attempts} attempts "
+        f"(K={K}, seed={seed})"
+    )
+
+
+def door_adj_valid_factory(rm, world, wp: Sequence[int], seed: int,
+                            cfg: Optional[C11ProbeConfig] = None):
+    """`adj_valid_factory` conforming to `eval_cell`'s hook contract.
+
+    Called as `adj_valid_factory(rm, world, wp, seed)` (see `eval_cell`'s
+    world loop): returns the placement's `adj_valid` callable on success.
+    `place_doors`'s RuntimeError (placement exhausted its resample attempts)
+    is allowed to propagate -- `eval_cell` catches it as a world-skip, the
+    same convention already used for `sample_mission`'s RuntimeError.
+
+    Pass this directly as `eval_cell("C_hard_maze", 2, K, ...,
+    adj_valid_factory=door_adj_valid_factory)` to run config C.
+    """
+    placement = place_doors(rm, world, wp, seed, cfg)
+    return placement.adj_valid
