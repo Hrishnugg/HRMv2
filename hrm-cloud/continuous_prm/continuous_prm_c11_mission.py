@@ -37,17 +37,24 @@ the other three apply it once, explicitly, in their `forward`).
 Task 4 adds the provider registry (`PROVIDER_BUILDERS` /
 `register_provider_builder` / `make_provider` -- the hook the eventual T7
 HRM-v2 module registers into post-import) and the `train`/`eval` modes:
-`run_train` (per (arm, cell, seed) checkpoint + a crash-safe-enough
-load-merge-write manifest, resumable via a plain `Path.exists()` check --
-the same convention `continuous_prm_c9_transfer.run_adapt` uses) and
+`run_train` (per (arm, cell, seed) checkpoint written ATOMICALLY
+(tmp+`os.replace`) + a load-merge-write manifest, resumable via a
+`Path.exists()` check -- the convention `continuous_prm_c9_transfer.
+run_adapt` uses -- with a self-heal path for the crash window: a ckpt
+whose manifest entry is missing gets its entry rebuilt from the ckpt's own
+stored meta, and an unreadable ckpt is moved aside and retrained) and
 `run_eval` (reference arms `h_next`/`h_legsum`/`h_oracle` PLUS every
 manifest-registered learned arm, all run through the identical
 `C11P.astar_product` path on the SAME probe-native TEST bundles, budgets
 from `cfg.budgets_grid`, K=0 binding-budget calibration via
-`C11P.calibrate_binding_budget` stored in `binding_k0.json`). A thin CLI
-stub (`--mode train|eval`) rounds out the module; `write_json`/`write_csv`
-are `continuous_prm_common`'s existing atomic (tmp+`os.replace`) helpers,
-reused rather than reimplemented.
+`C11P.calibrate_binding_budget` stored in `binding_k0.json`). The registry
+carries the FULL per-arm contract -- `build(cfg)` construction AND
+`forward_batch(...)` inference -- so an externally-registered arm works
+end-to-end through `build_arm`/`make_provider`/`predict_field`/`run_eval`
+(T4-review Important 1). A thin CLI stub (`--mode train|eval`) rounds out
+the module; `write_json`/`write_csv` are `continuous_prm_common`'s
+existing atomic (tmp+`os.replace`) helpers, reused rather than
+reimplemented.
 
 See docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md
 (sections 3/4/6/7 are authoritative on the I/O contract, matched recipe,
@@ -58,6 +65,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -934,28 +942,68 @@ _ONLSTM_TRACE_HIDDEN = 256
 # `build_arm` itself can fall back to it -- see `build_arm`'s final branch).
 # ---------------------------------------------------------------------------
 #
-# `PROVIDER_BUILDERS` maps arm name -> a `builder(cfg) -> nn.Module`
-# constructor callable, letting a SECOND module (the eventual T7 HRM-v2 arm,
-# per the plan's Task 6/7) extend the set of buildable arm names post-import
-# via `register_provider_builder`, without this module needing to know about
-# it (no circular import, no edit-this-module-for-every-new-arm coupling).
-# `build_arm`'s 5 native if/elif branches are checked FIRST (unchanged, T3);
-# the registry is consulted only as a fallback for names `build_arm` doesn't
-# recognize natively -- so a registered name never shadows a native one, but
-# DOES become usable through both `build_arm` and `make_provider` uniformly.
+# `PROVIDER_BUILDERS` maps arm name -> `{"build", "forward_batch"}`:
+# EVERYTHING an externally-defined arm needs to participate end-to-end --
+# construction (`build(cfg) -> nn.Module`, consumed by `build_arm` and hence
+# `make_provider`) AND batch inference (`forward_batch(model, bundle,
+# states, cfg, device) -> (len(states),) tensor of yhat in
+# [0, cfg.residual_cap]`, consumed by `_forward_arm_batch`, hence
+# `predict_field`, hence the providers `make_provider` returns and
+# `run_eval` runs). Registering construction alone would be a trap:
+# `make_provider` would succeed and the returned provider would then crash
+# inside `predict_field` on its first bundle (the T4 review demonstrated
+# exactly this), so registration requires BOTH pieces up front. This is the
+# hook the T7 HRM-v2 module (`continuous_prm_c11_hrmv2_arm`) registers
+# `hrmv2_act` / `hrmv2_act_k{1,2,4,8}` through, post-import, without this
+# module knowing about it (no circular import, no edit-this-module-for-
+# every-new-arm coupling). Registered arms need only `make_provider` +
+# `predict_field`/eval to work (T7 brings its OWN trainer); `train_arm`
+# additionally works for free if the registered `forward_batch` is
+# differentiable, but that is a bonus, not part of the contract. NATIVE arm
+# names are REJECTED (ValueError): the 5 native constructors/forwards are
+# pinned by this module's own if/elif chains, and silently shadowing them
+# from outside would desync `build_arm` (native-first) from the registry --
+# one authority per name.
 
-PROVIDER_BUILDERS: Dict[str, Callable[[C11MissionConfig], nn.Module]] = {}
+PROVIDER_BUILDERS: Dict[str, Dict[str, Callable]] = {}
 
 
-def register_provider_builder(name: str, builder: Callable[[C11MissionConfig], nn.Module]) -> None:
-    """Register `builder` (a `cfg -> nn.Module` constructor) under `name` in
-    the module-level provider registry. Safe to call from a different module
-    after this one has been imported (e.g. `continuous_prm_c11_hrmv2_arm`
-    registering `hrmv2_act` and friends) -- `PROVIDER_BUILDERS` is a plain
-    module-level dict, so any import of `continuous_prm_c11_mission` sees
-    every registration made so far against it, regardless of which module
-    performed the registration."""
-    PROVIDER_BUILDERS[name] = builder
+def register_provider_builder(
+    name: str,
+    build: Callable[[C11MissionConfig], nn.Module],
+    forward_batch: Callable[..., torch.Tensor],
+) -> None:
+    """Register an external arm under `name` in the module-level provider
+    registry, carrying the FULL per-arm contract:
+
+      - `build(cfg) -> nn.Module`: construct the arm's model (fresh weights;
+        `make_provider` loads a state_dict into it afterwards).
+      - `forward_batch(model, bundle, states, cfg, device) -> torch.Tensor`:
+        batch inference over `states` (a sequence of (i, s) pairs) on
+        `bundle`, returning a `(len(states),)` tensor of residual
+        predictions ALREADY in `[0, cfg.residual_cap]` (the registered arm
+        owns its own output-clamp convention, exactly like the 5 native
+        arms own theirs) -- the same signature as this module's private
+        per-arm forward helpers (`_forward_mlp_or_trace` etc.), so the
+        registered arm plugs into `_forward_arm_batch`'s dispatch and from
+        there into `predict_field`/`make_provider`/`run_eval` end-to-end.
+
+    Both pieces are REQUIRED (a build-only registration would crash at
+    provider call time, not registration time -- the failure the T4 review
+    flagged). Registering a native arm name raises ValueError.
+
+    Safe to call from a different module after this one has been imported
+    (e.g. `continuous_prm_c11_hrmv2_arm` registering `hrmv2_act` and
+    friends) -- `PROVIDER_BUILDERS` is a plain module-level dict, so any
+    import of `continuous_prm_c11_mission` sees every registration made so
+    far against it, regardless of which module performed the registration."""
+    if name in ARM_NAMES:
+        raise ValueError(
+            f"cannot register a provider builder under native arm name {name!r}; "
+            f"the native arms {ARM_NAMES} are constructed by build_arm's own chain "
+            f"(silent shadowing is not allowed -- pick a distinct name)"
+        )
+    PROVIDER_BUILDERS[name] = {"build": build, "forward_batch": forward_batch}
 
 
 def build_arm(name: str, cfg: C11MissionConfig) -> nn.Module:
@@ -984,9 +1032,9 @@ def build_arm(name: str, cfg: C11MissionConfig) -> nn.Module:
             num_layers=2, chunk_size=8, head_hidden=256,
         )
         return C.ContinuousHeuristicModel(backbone_cfg, token_dim=cfg.token_dim, max_norm_residual=cfg.residual_cap)
-    builder = PROVIDER_BUILDERS.get(name)
-    if builder is not None:
-        return builder(cfg)
+    entry = PROVIDER_BUILDERS.get(name)
+    if entry is not None:
+        return entry["build"](cfg)
     raise ValueError(f"unknown arm name {name!r}; expected one of {ARM_NAMES} or a registered provider builder")
 
 
@@ -1128,7 +1176,14 @@ def _forward_arm_batch(arm_name: str, model: nn.Module, bundle: WorldBundle,
     gathered output is clamped here, the ONE place the clamp is applied for
     that arm -- never inside `UNetFiLMField.forward` itself, which would
     double-apply it if `predict_field` ever gathered from an already-clamped
-    surface)."""
+    surface).
+
+    Externally-registered arms dispatch to their registered `forward_batch`
+    (same signature minus `arm_name`; the registered arm owns its own clamp
+    convention, per `register_provider_builder`'s contract) -- this is the
+    branch that makes the registry contract hold END-TO-END: without it,
+    `make_provider`'s reconstruction succeeds but the returned provider
+    crashes here on its first bundle (T4-review Important 1)."""
     if arm_name in ("mlp", "hrm_trace", "onlstm_trace"):
         return _forward_mlp_or_trace(arm_name, model, bundle, states, cfg, device)
     if arm_name == "unet_film":
@@ -1136,7 +1191,10 @@ def _forward_arm_batch(arm_name: str, model: nn.Module, bundle: WorldBundle,
         return _softplus_clamp(raw, cap=cfg.residual_cap)
     if arm_name == "gnn":
         return _forward_gnn(model, bundle, states, cfg, device)
-    raise ValueError(f"unknown arm name {arm_name!r}; expected one of {ARM_NAMES}")
+    entry = PROVIDER_BUILDERS.get(arm_name)
+    if entry is not None:
+        return entry["forward_batch"](model, bundle, states, cfg, device)
+    raise ValueError(f"unknown arm name {arm_name!r}; expected one of {ARM_NAMES} or a registered provider builder")
 
 
 # ---------------------------------------------------------------------------
@@ -1327,7 +1385,9 @@ def make_provider(arm_name: str, state_dict: Dict[str, torch.Tensor],
     built from the same state_dict), and `predict_field` runs under
     `torch.no_grad()` with no dropout/batchnorm in any of the 5 native arms,
     so two calls on the same bundle -- from the same OR a freshly-built
-    provider -- produce byte-identical output."""
+    provider -- produce byte-identical output. (Externally-registered arms
+    flow through the same path; THEIR determinism is the registered
+    `forward_batch`'s own responsibility, per `register_provider_builder`.)"""
     cfg = cfg or C11MissionConfig()
     model = build_arm(arm_name, cfg)
     model.load_state_dict(state_dict, strict=True)
@@ -1369,14 +1429,29 @@ def _save_manifest_entry(out_dir: Path, key: str, entry: dict) -> None:
     """Load-merge-write: reads the CURRENT manifest.json (if any), sets
     `manifest[key] = entry`, and writes the whole thing back atomically via
     `C.write_json` (tmp file + `os.replace`). Not safe against concurrent
-    writers, but `run_train` is a single in-process loop (crash-safe enough,
-    per plan section 2: a crash mid-run leaves the manifest missing only the
-    in-flight entry, and the next `run_train` call's resume check re-derives
-    it from the checkpoint files that DID finish writing)."""
+    writers, but `run_train` is a single in-process loop. Crash story: the
+    ckpt is written (atomically) BEFORE this manifest update, so a crash in
+    between leaves a ckpt with no manifest entry -- `run_train`'s resume
+    path detects exactly that state and rebuilds the entry from the ckpt's
+    own stored `meta` payload (see the self-heal branch there), so the
+    window costs nothing on the next run."""
     path = out_dir / "manifest.json"
     manifest = _load_manifest(out_dir)
     manifest[key] = entry
     C.write_json(path, manifest)
+
+
+def _atomic_torch_save(payload: dict, path: Path) -> None:
+    """`torch.save` via tmp file + `os.replace` (the same atomicity
+    convention as `C.write_json`/`C.write_csv`): a crash mid-save can leave
+    only a stray `.tmp.{pid}` file, never a truncated file at the REAL ckpt
+    path -- so `run_train`'s exists()-based resume check can trust that an
+    existing ckpt file is a complete one (T4-review Important 2a). The
+    unreadable-ckpt heal branch in `run_train` still guards against
+    pre-atomicity partials and disk-level corruption."""
+    tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+    torch.save(payload, tmp)
+    os.replace(tmp, path)
 
 
 # ---------------------------------------------------------------------------
@@ -1395,21 +1470,37 @@ def run_train(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: S
     `train_arm`, per plan Task 4's "collect once, reuse" instruction), NOT
     re-collected per arm.
 
-    Writes `{out_dir}/ckpt/{arm}__{config_label}{K}__s{seed}.pt` (a plain
-    `torch.save({"state_dict": ..., "meta": ...}, path)`, CPU tensors) and a
-    load-merge-write `{out_dir}/manifest.json` entry per completed run,
-    keyed `{arm}__{config_label}{K}__s{seed}` (see `_ckpt_key`), carrying
-    `train_arm`'s own `meta` dict PLUS `ckpt` (the checkpoint's path RELATIVE
-    to `out_dir`, so the manifest is portable if `out_dir` itself moves).
+    Writes `{out_dir}/ckpt/{arm}__{config_label}{K}__s{seed}.pt`
+    (`torch.save({"state_dict": ..., "meta": ...})`, CPU tensors, ATOMIC via
+    `_atomic_torch_save`) and a load-merge-write `{out_dir}/manifest.json`
+    entry per completed run, keyed `{arm}__{config_label}{K}__s{seed}` (see
+    `_ckpt_key`), carrying `train_arm`'s own `meta` dict PLUS `ckpt` (the
+    checkpoint's path RELATIVE to `out_dir`, so the manifest is portable if
+    `out_dir` itself moves).
+
+    Resume semantics (T4-review Important 2): a run is skipped iff its ckpt
+    file exists AND is trusted --
+      - ckpt exists + manifest entry exists: plain skip.
+      - ckpt exists + manifest entry MISSING (the crash window between the
+        ckpt write and the manifest update): the entry is rebuilt from the
+        ckpt's own stored `meta` and the run is then skipped -- no retrain,
+        and `run_eval` (which discovers learned arms through the manifest)
+        sees the arm again.
+      - ckpt exists but UNREADABLE (pre-atomicity partial write, disk
+        corruption): moved aside to `{name}.pt.corrupt` (kept for
+        postmortem, `os.replace` so a stale .corrupt is overwritten) and
+        the run RETRAINS -- an unreadable ckpt must never be skipped
+        forever.
 
     Prints one line per completed run (arm/cell/seed, final_loss, wall
-    time); SKIPPED (already-checkpointed) runs are silent (the resume path
-    is meant to be fast and quiet on a mostly-done grid)."""
+    time) AND one line per skipped/healed key (auditable resumed grids,
+    T4-review Minor 1)."""
     cfg = cfg or C11MissionConfig()
     n_worlds = int(n_train_worlds) if n_train_worlds is not None else int(cfg.n_train_worlds)
     out_path = Path(out_dir)
     C.ensure_dir(out_path / "ckpt")
 
+    manifest = _load_manifest(out_path)
     bundle_cache: Dict[Tuple[str, int], List[WorldBundle]] = {}
 
     def _cell_key(cell: dict) -> Tuple[str, int]:
@@ -1418,9 +1509,41 @@ def run_train(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: S
     for cell in cells:
         for arm_name in arms:
             for seed in seeds:
+                key = _ckpt_key(arm_name, cell, seed)
                 ckpt_path = _ckpt_path(out_path, arm_name, cell, seed)
                 if ckpt_path.exists():
-                    continue
+                    if key in manifest:
+                        print(f"[c11-mission train] skip {key} (checkpoint exists)", flush=True)
+                        continue
+                    # Crash window: ckpt landed but the manifest update never
+                    # ran. Rebuild the entry from the ckpt's own stored meta;
+                    # if the ckpt itself won't load (pre-atomicity partial /
+                    # corruption -- torch.load can raise RuntimeError,
+                    # EOFError, UnpicklingError, BadZipFile, KeyError on a
+                    # foreign payload...), treat it as absent: move it aside
+                    # and fall through to retraining.
+                    try:
+                        payload = torch.load(ckpt_path, map_location="cpu")
+                        healed_meta = dict(payload["meta"])
+                    except Exception as exc:  # noqa: BLE001 -- any load failure means "not a usable ckpt"
+                        corrupt_path = ckpt_path.with_suffix(ckpt_path.suffix + ".corrupt")
+                        os.replace(ckpt_path, corrupt_path)
+                        print(
+                            f"[c11-mission train] {key}: unreadable checkpoint "
+                            f"({type(exc).__name__}) moved to {corrupt_path.name}; retraining",
+                            flush=True,
+                        )
+                    else:
+                        entry = healed_meta
+                        entry["ckpt"] = str(ckpt_path.relative_to(out_path))
+                        _save_manifest_entry(out_path, key, entry)
+                        manifest[key] = entry
+                        print(
+                            f"[c11-mission train] skip {key} (checkpoint exists; "
+                            f"manifest entry rebuilt from ckpt meta)",
+                            flush=True,
+                        )
+                        continue
 
                 ck = _cell_key(cell)
                 if ck not in bundle_cache:
@@ -1430,11 +1553,12 @@ def run_train(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: S
                 state_dict, meta = train_arm(arm_name, cell, bundles, seed, cfg=cfg, epochs=epochs)
 
                 C.ensure_dir(ckpt_path.parent)
-                torch.save({"state_dict": state_dict, "meta": meta}, ckpt_path)
+                _atomic_torch_save({"state_dict": state_dict, "meta": meta}, ckpt_path)
 
                 entry = dict(meta)
                 entry["ckpt"] = str(ckpt_path.relative_to(out_path))
-                _save_manifest_entry(out_path, _ckpt_key(arm_name, cell, seed), entry)
+                _save_manifest_entry(out_path, key, entry)
+                manifest[key] = entry
 
                 print(
                     f"[c11-mission train] {arm_name} {cell['config_label']}{cell['K']} s{seed}: "
@@ -1487,14 +1611,17 @@ def _eval_bundle_arm_budget(bundle: WorldBundle, arm_name: str, h_arr: np.ndarra
     opt_cost = float(bundle.oracle[0, 0])
     res = C11P.astar_product(bundle.rm.adj, bundle.wp, h_arr, budget, adj_valid=bundle.adj_valid)
 
+    # Explicit raises, not bare `assert`s: these are data-integrity guards
+    # that must survive `python -O` (same convention as this module's
+    # `collect_world_bundle`/`_residual_targets` guards).
     if res["found"]:
-        if is_reference:
-            assert abs(res["cost"] - opt_cost) <= 1e-6, (
+        if is_reference and abs(res["cost"] - opt_cost) > 1e-6:
+            raise AssertionError(
                 f"reference arm {arm_name!r} found cost {res['cost']} != opt_cost {opt_cost} "
                 f"(admissible heuristics must recover the optimum)"
             )
-        else:
-            assert res["cost"] >= opt_cost - 1e-6, (
+        if not is_reference and res["cost"] < opt_cost - 1e-6:
+            raise AssertionError(
                 f"learned arm {arm_name!r} found cost {res['cost']} < opt_cost {opt_cost} - 1e-6 "
                 f"(A* cost can never beat the true optimum, admissible heuristic or not)"
             )

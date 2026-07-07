@@ -1043,40 +1043,83 @@ def test_registry_provider_handles_k0_and_config_c():
 
 
 def test_register_provider_builder_external_hook():
-    """`register_provider_builder` lets a second module (the eventual T7
-    HRM-v2 module) register a builder post-import; `make_provider` routes to
-    it by name, proving the registry is genuinely extensible rather than a
-    closed if/elif chain."""
+    """The registry contract must hold END-TO-END (T4 review, Important 1):
+    an externally-registered arm (the T7 HRM-v2 module is the intended
+    consumer) must survive `build_arm` AND `make_provider` AND the returned
+    provider's ACTUAL bundle call -- the pre-fix registry carried only
+    construction, so `provider(bundle)` crashed inside `_forward_arm_batch`'s
+    native-only dispatch (ValueError: unknown arm name). Registration now
+    carries both `build(cfg)` and `forward_batch(model, bundle, states, cfg,
+    device)`, and this test exercises the full path including the h_hat
+    contract on a real bundle."""
     cfg = M.C11MissionConfig()
-    calls = {"n": 0}
+    cell = _cell("A", 2)
+    bundle = _find_first_valid_test_bundle(cell)
+    K = cell["K"]
+    N = bundle.rm.points.shape[0]
+
+    build_calls = {"n": 0}
+    forward_calls = {"n": 0}
 
     class _DummyArm(torch.nn.Module):
         def __init__(self):
             super().__init__()
-            self.scale = torch.nn.Parameter(torch.zeros(1))
+            self.bias = torch.nn.Parameter(torch.tensor(0.25))
 
-        def forward(self, bundle_unused):
-            return None
-
-    def _dummy_builder(cfg_arg):
-        calls["n"] += 1
+    def _dummy_build(cfg_arg):
+        build_calls["n"] += 1
         return _DummyArm()
 
-    M.register_provider_builder("dummy", _dummy_builder)
+    def _dummy_forward_batch(model, bundle_arg, states, cfg_arg, device):
+        forward_calls["n"] += 1
+        val = torch.clamp(model.bias, 0.0, float(cfg_arg.residual_cap))
+        return val.expand(len(states)).contiguous()
+
+    M.register_provider_builder("dummy", _dummy_build, _dummy_forward_batch)
     try:
         model = M.build_arm("dummy", cfg)
         assert isinstance(model, _DummyArm)
-        assert calls["n"] == 1
+        assert build_calls["n"] == 1
 
-        # make_provider also routes "dummy" through the registered builder
-        # (not through the mlp/unet_film/gnn/hrm_trace/onlstm_trace chain).
+        # Prove the LOADED weights (not the fresh 0.25 init) drive the
+        # provider: mutate the parameter BEFORE capturing the state_dict.
+        model.bias.data.fill_(1.5)
         state_dict = model.state_dict()
+
         provider = M.make_provider("dummy", state_dict, cfg)
-        assert callable(provider)
-        assert calls["n"] == 2  # make_provider reconstructs via the builder too
+        assert build_calls["n"] == 2  # make_provider reconstructs via the builder
+
+        h_hat = provider(bundle)  # END-TO-END: crashed pre-fix
+        assert forward_calls["n"] >= 1, "the REGISTERED forward_batch never ran"
+        assert h_hat.shape == (K + 1, N)
+        assert h_hat.dtype == np.float64
+
+        # h_hat == hl + side * clamp(1.5, 0, 4) == hl + side*1.5 everywhere
+        # (proves the loaded state_dict, not the fresh init, is what runs);
+        # and the generic contract h_hat >= hl - 1e-9 holds.
+        side = float(bundle.world.side_len)
+        rng = np.random.RandomState(1)
+        for i, s in zip(rng.randint(0, N, size=20), rng.randint(0, K + 1, size=20)):
+            i, s = int(i), int(s)
+            assert h_hat[s, i] == pytest.approx(bundle.hl(i, s) + side * 1.5, rel=1e-6)
+            assert h_hat[s, i] >= bundle.hl(i, s) - 1e-9
+
+        # Deterministic across two calls.
+        h_hat2 = provider(bundle)
+        assert np.array_equal(h_hat, h_hat2)
     finally:
         # Don't leak the dummy registration into other tests.
         M.PROVIDER_BUILDERS.pop("dummy", None)
+
+
+def test_register_provider_builder_native_name_raises():
+    """Registering a NATIVE arm name must raise ValueError (T4 review,
+    Minor 2): the 5 native constructors/forwards are pinned by build_arm's
+    own chain, and silent shadowing from outside would be a trap."""
+    for native in ARM_NAMES:
+        with pytest.raises(ValueError):
+            M.register_provider_builder(native, lambda cfg: None, lambda *a: None)
+        assert native not in M.PROVIDER_BUILDERS
 
 
 # ---------------------------------------------------------------------------
@@ -1134,7 +1177,7 @@ def test_eval_cell_learned_records(tmp_path):
         assert budgets_seen == sorted(budgets_seen), f"budgets not ascending for {key}: {budgets_seen}"
 
 
-def test_run_train_manifest_and_resume(tmp_path):
+def test_run_train_manifest_and_resume(tmp_path, capsys):
     out_dir = tmp_path / "run2"
     cfg = M.C11MissionConfig()
     cell = _cell("A", 2)
@@ -1168,6 +1211,7 @@ def test_run_train_manifest_and_resume(tmp_path):
         return orig_train_arm(*args, **kwargs)
 
     import unittest.mock
+    capsys.readouterr()  # drain output from the first (training) run
     with unittest.mock.patch.object(M, "train_arm", counting_train_arm):
         M.run_train(str(out_dir), arms=("mlp",), cells=[cell], seeds=(0,), cfg=cfg,
                     n_train_worlds=2, epochs=1)
@@ -1175,6 +1219,81 @@ def test_run_train_manifest_and_resume(tmp_path):
     assert calls["n"] == 0, "run_train re-trained an existing checkpoint instead of skipping it"
     mtime_after = ckpt_path.stat().st_mtime_ns
     assert mtime_after == mtime_before
+
+    # Minor 1 (T4 review): each skipped key prints one auditable line.
+    out = capsys.readouterr().out
+    assert "skip" in out and key in out, f"no skip line for {key} in run_train output: {out!r}"
+
+
+def test_run_train_manifest_self_heal(tmp_path):
+    """T4 review, Important 2: the crash window between the (atomic) ckpt
+    write and the manifest update must self-heal on resume -- ckpt present
+    but manifest entry missing => NO retrain, entry rebuilt from the ckpt's
+    own stored meta. And an UNREADABLE ckpt (crash mid-write pre-atomicity,
+    disk corruption) must be treated as absent: moved aside and retrained,
+    never permanently skipped."""
+    out_dir = tmp_path / "run4"
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+    key = "mlp__A2__s0"
+
+    M.run_train(str(out_dir), arms=("mlp",), cells=[cell], seeds=(0,), cfg=cfg,
+                n_train_worlds=2, epochs=1)
+
+    manifest_path = out_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    assert key in manifest
+    original_entry = manifest[key]
+    ckpt_path = out_dir / "ckpt" / f"{key}.pt"
+    mtime_before = ckpt_path.stat().st_mtime_ns
+
+    # Simulate the crash window: ckpt landed, manifest entry lost.
+    del manifest[key]
+    manifest_path.write_text(json.dumps(manifest))
+
+    calls = {"n": 0}
+    orig_train_arm = M.train_arm
+
+    def counting_train_arm(*args, **kwargs):
+        calls["n"] += 1
+        return orig_train_arm(*args, **kwargs)
+
+    import unittest.mock
+    with unittest.mock.patch.object(M, "train_arm", counting_train_arm):
+        M.run_train(str(out_dir), arms=("mlp",), cells=[cell], seeds=(0,), cfg=cfg,
+                    n_train_worlds=2, epochs=1)
+
+    assert calls["n"] == 0, "self-heal must rebuild the manifest entry WITHOUT retraining"
+    assert ckpt_path.stat().st_mtime_ns == mtime_before  # ckpt untouched
+    healed = json.loads(manifest_path.read_text())
+    assert key in healed, "manifest entry was not rebuilt from the ckpt's stored meta"
+    assert healed[key]["param_count"] == original_entry["param_count"]
+    assert healed[key]["arm"] == "mlp"
+    assert healed[key]["ckpt"] == original_entry["ckpt"]
+    assert healed[key]["final_loss"] == original_entry["final_loss"]
+
+    # Unreadable ckpt + missing manifest entry => moved aside + retrained.
+    ckpt_path.write_bytes(b"not a torch checkpoint")
+    manifest = json.loads(manifest_path.read_text())
+    del manifest[key]
+    manifest_path.write_text(json.dumps(manifest))
+
+    with unittest.mock.patch.object(M, "train_arm", counting_train_arm):
+        M.run_train(str(out_dir), arms=("mlp",), cells=[cell], seeds=(0,), cfg=cfg,
+                    n_train_worlds=2, epochs=1)
+
+    assert calls["n"] == 1, "an unreadable checkpoint must be retrained, not skipped forever"
+    assert ckpt_path.exists()
+    payload = torch.load(ckpt_path, map_location="cpu")  # fresh ckpt loads cleanly
+    assert "state_dict" in payload and "meta" in payload
+    corrupt_moved = list((out_dir / "ckpt").glob(f"{key}.pt.corrupt*"))
+    assert corrupt_moved, "the unreadable checkpoint should be moved aside, not deleted silently"
+    healed2 = json.loads(manifest_path.read_text())
+    assert key in healed2
+    assert healed2[key]["param_count"] > 0
+
+    # Atomic-write hygiene: no stray tmp files left behind by torch.save.
+    assert not list((out_dir / "ckpt").glob("*.tmp.*")), "stray ckpt tmp files left behind"
 
 
 # ---------------------------------------------------------------------------
