@@ -393,13 +393,21 @@ def test_doors_block_at_least_three_edges_and_open_at_later_stage():
     for d in range(2):
         assert len(placement.blocked[d]) >= 3
 
-    # Pick a specific edge blocked by door 0 and check it is invalid at s=0
-    # (s <= d=0 -> blocked) and valid again at s=2 (s=K=2 > 1 >= both d's ->
-    # both doors open).
-    i, j = next(iter(placement.blocked[0]))
-    assert placement.adj_valid(i, j, 0) is False
-    K = len(wp)
-    assert placement.adj_valid(i, j, K) is True
+    # Discriminate the stage rule (blocked iff s <= d) per door, using edges
+    # blocked by exactly one door. Checking s=1 on both difference sets kills
+    # both the flipped rule (s < d) and the off-by-one mask (s <= d+1), which
+    # a single door-0 edge probed only at s=0 and s=K would not.
+    only_d0 = placement.blocked[0] - placement.blocked[1]
+    only_d1 = placement.blocked[1] - placement.blocked[0]
+    assert only_d0 and only_d1, "fixture must have per-door-distinct blocked edges"
+    for i, j in list(only_d0)[:3]:
+        assert placement.adj_valid(i, j, 0) is False  # door 0 shut at s=0
+        assert placement.adj_valid(i, j, 1) is True   # door 0 open at s=1 (s > d=0)
+        assert placement.adj_valid(i, j, 2) is True
+    for i, j in list(only_d1)[:3]:
+        assert placement.adj_valid(i, j, 0) is False  # door 1 shut at s=0
+        assert placement.adj_valid(i, j, 1) is False  # door 1 still shut at s=1 (s <= d=1)
+        assert placement.adj_valid(i, j, 2) is True   # open at s=2
 
 
 def test_oracle_with_doors_is_finite_and_elementwise_geq_plain_oracle():
@@ -414,16 +422,16 @@ def test_oracle_with_doors_is_finite_and_elementwise_geq_plain_oracle():
     assert finite_mask.any()
     assert np.all(oracle_doors[finite_mask] >= oracle_plain[finite_mask] - 1e-9)
 
-    # Lenient: if any blocked edge lies on a plain-optimal shortest path
-    # somewhere in the product graph, doors should strictly raise the cost
-    # to go at least at one reachable state. Not forced if it doesn't hold
-    # naturally on this fixture.
-    strictly_worse = (oracle_doors[finite_mask] > oracle_plain[finite_mask] + 1e-12).any()
-    if not strictly_worse:
-        print(
-            "note: doors did not strictly raise h* anywhere on this fixture "
-            "(no blocked edge fell on a plain-optimal path) -- allowed, not forced."
-        )
+    # Hard assertion: doors must strictly raise h* somewhere. An inert
+    # adj_valid (or product_oracle silently dropping its adj_valid gate)
+    # yields oracle_doors == oracle_plain, which satisfies the elementwise
+    # >= check trivially -- this is the only assertion in the suite that
+    # catches that regression class directly. Empirically held on 40/40
+    # fixtures across both specs and K in {2,4} (T3 reviews), so it is safe
+    # to demand rather than merely note.
+    assert (oracle_doors[finite_mask] > oracle_plain[finite_mask] + 1e-12).any(), (
+        "doors did not raise h* anywhere -- adj_valid gate inert?"
+    )
 
 
 def test_admissibility_preserved_with_doors_on_sampled_states():
@@ -495,6 +503,18 @@ def test_door_validator_rejects_bad_placements():
     assert len(blocked_empty) < cfg.door_min_blocked_edges
 
 
+def test_place_doors_exhausts_attempts_and_raises():
+    # Drive the real reject-and-resample loop (not just the predicates): an
+    # unsatisfiable min-blocked-edges threshold fails validation on every
+    # attempt, so place_doors must exhaust its budget and raise the
+    # world-skip RuntimeError. Cheap: the edge-count predicate is checked
+    # before any oracle computation.
+    world, rm, wp, seed, _ = _doors_fixture(K=2)
+    impossible = C11.C11ProbeConfig(door_min_blocked_edges=10**6)
+    with pytest.raises(RuntimeError):
+        C11.place_doors(rm, world, wp, seed, cfg=impossible)
+
+
 def test_place_doors_is_deterministic():
     world, rm, wp, seed, placement1 = _doors_fixture(K=2)
     placement2 = C11.place_doors(rm, world, wp, seed)
@@ -522,9 +542,7 @@ def test_door_adj_valid_factory_matches_place_doors_and_plugs_into_eval_cell():
             for s in range(K + 1):
                 assert factory_adj_valid(i, j, s) == placement.adj_valid(i, j, s)
 
-    # Full integration: config C runs end-to-end through eval_cell, and a
-    # RuntimeError from the factory (placement exhausted its resample
-    # attempts) surfaces as a world-skip rather than propagating.
+    # Full integration: config C runs end-to-end through eval_cell.
     records = C11.eval_cell(
         "C_hard_maze", config_idx=DOORS_CONFIG_IDX, K=2, n_worlds=2,
         budgets=(400, 3200), adj_valid_factory=C11.door_adj_valid_factory,
@@ -537,3 +555,29 @@ def test_door_adj_valid_factory_matches_place_doors_and_plugs_into_eval_cell():
         if r["found"]:
             assert r["cost"] == pytest.approx(r["opt_cost"], abs=1e-6)
     assert len(seen_worlds) == 2
+
+
+def test_factory_runtime_error_surfaces_as_world_skip():
+    # Exercise eval_cell's except-RuntimeError branch for the factory: the
+    # first world that reaches the factory is rejected, so its seed must not
+    # appear in the records; the cell still fills to n_worlds with the next
+    # valid world, keeping world_idx as the valid-world ordinal.
+    state = {"raised": False}
+    seen_seeds = []
+
+    def raise_once_factory(rm, world, wp, seed):
+        seen_seeds.append(seed)
+        if not state["raised"]:
+            state["raised"] = True
+            raise RuntimeError("synthetic placement failure (test shim)")
+        return C11.door_adj_valid_factory(rm, world, wp, seed)
+
+    records = C11.eval_cell(
+        "C_hard_maze", config_idx=DOORS_CONFIG_IDX, K=2, n_worlds=1,
+        budgets=(400, 3200), adj_valid_factory=raise_once_factory,
+    )
+    assert state["raised"] and len(seen_seeds) >= 2
+    assert len(records) == 1 * 3 * 2
+    skipped_seed = seen_seeds[0]
+    assert all(r["seed"] != skipped_seed for r in records)
+    assert all(r["world_idx"] == 0 for r in records)  # ordinal, not attempt index
