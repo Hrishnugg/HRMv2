@@ -1,4 +1,6 @@
+import csv
 import dataclasses
+import json
 import math
 import sys
 from pathlib import Path
@@ -970,3 +972,242 @@ def test_unet_grid_cache_call_count(monkeypatch):
     )
     # Second batch on the same bundle must trigger ZERO new encodes.
     assert calls["n"] == first_batch_calls
+
+
+# ===========================================================================
+# Task 4: provider registry + train/eval modes.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Test 24: provider registry contract.
+# ---------------------------------------------------------------------------
+
+def test_registry_provider_contract():
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+    bundle = _find_first_valid_test_bundle(cell)
+    K = cell["K"]
+    N = bundle.rm.points.shape[0]
+
+    fresh_model = M.build_arm("mlp", cfg)
+    state_dict = fresh_model.state_dict()
+
+    provider = M.make_provider("mlp", state_dict, cfg)
+    h_hat = provider(bundle)
+
+    assert h_hat.shape == (K + 1, N)
+    assert h_hat.dtype == np.float64
+
+    # h_hat[s, i] >= hl(i, s) - 1e-9 on 50 sampled (i, s) states (residual
+    # y >= 0, so h_hat = hl + side*yhat can never fall below hl).
+    rng = np.random.RandomState(0)
+    sampled_i = rng.randint(0, N, size=50)
+    sampled_s = rng.randint(0, K + 1, size=50)
+    for i, s in zip(sampled_i, sampled_s):
+        i, s = int(i), int(s)
+        assert h_hat[s, i] >= bundle.hl(i, s) - 1e-9, (
+            f"h_hat[{s},{i}]={h_hat[s, i]} < hl({i},{s})={bundle.hl(i, s)}"
+        )
+
+    # Deterministic across two calls (same state_dict, same bundle).
+    h_hat2 = provider(bundle)
+    assert np.array_equal(h_hat, h_hat2)
+
+    # Second, independent construction from the SAME state_dict is also
+    # byte-identical (make_provider is a pure reconstruction, no hidden
+    # cross-call state).
+    provider2 = M.make_provider("mlp", state_dict, cfg)
+    h_hat3 = provider2(bundle)
+    assert np.array_equal(h_hat, h_hat3)
+
+
+def test_registry_provider_handles_k0_and_config_c():
+    """Providers must handle every cell's bundles (any K incl. 0, configs
+    A/B/C) -- construct once, run on a K=0 bundle and a config-C (doors)
+    bundle without error."""
+    cfg = M.C11MissionConfig()
+    fresh_model = M.build_arm("mlp", cfg)
+    provider = M.make_provider("mlp", fresh_model.state_dict(), cfg)
+
+    cell_k0 = _cell("A", 0)
+    bundle_k0 = _find_first_valid_test_bundle(cell_k0)
+    h_hat_k0 = provider(bundle_k0)
+    assert h_hat_k0.shape == (1, bundle_k0.rm.points.shape[0])
+    assert np.all(np.isfinite(h_hat_k0))
+
+    cell_c = _cell("C", 2)
+    bundle_c = _find_first_valid_test_bundle(cell_c, max_attempts=80)
+    h_hat_c = provider(bundle_c)
+    assert h_hat_c.shape == (3, bundle_c.rm.points.shape[0])
+    assert np.all(np.isfinite(h_hat_c))
+
+
+def test_register_provider_builder_external_hook():
+    """`register_provider_builder` lets a second module (the eventual T7
+    HRM-v2 module) register a builder post-import; `make_provider` routes to
+    it by name, proving the registry is genuinely extensible rather than a
+    closed if/elif chain."""
+    cfg = M.C11MissionConfig()
+    calls = {"n": 0}
+
+    class _DummyArm(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.scale = torch.nn.Parameter(torch.zeros(1))
+
+        def forward(self, bundle_unused):
+            return None
+
+    def _dummy_builder(cfg_arg):
+        calls["n"] += 1
+        return _DummyArm()
+
+    M.register_provider_builder("dummy", _dummy_builder)
+    try:
+        model = M.build_arm("dummy", cfg)
+        assert isinstance(model, _DummyArm)
+        assert calls["n"] == 1
+
+        # make_provider also routes "dummy" through the registered builder
+        # (not through the mlp/unet_film/gnn/hrm_trace/onlstm_trace chain).
+        state_dict = model.state_dict()
+        provider = M.make_provider("dummy", state_dict, cfg)
+        assert callable(provider)
+        assert calls["n"] == 2  # make_provider reconstructs via the builder too
+    finally:
+        # Don't leak the dummy registration into other tests.
+        M.PROVIDER_BUILDERS.pop("dummy", None)
+
+
+# ---------------------------------------------------------------------------
+# Test 25: run_train writes checkpoints + manifest; eval consumes them.
+# ---------------------------------------------------------------------------
+
+def test_eval_cell_learned_records(tmp_path):
+    out_dir = tmp_path / "run1"
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+
+    M.run_train(str(out_dir), arms=("mlp",), cells=[cell], seeds=(0,), cfg=cfg,
+                n_train_worlds=2, epochs=1)
+
+    ckpt_path = out_dir / "ckpt" / "mlp__A2__s0.pt"
+    assert ckpt_path.exists()
+
+    M.run_eval(str(out_dir), cells=[cell], cfg=cfg, n_test_worlds=2, budgets=(400, 3200))
+
+    csv_path = out_dir / "results" / "c11_eval_raw.csv"
+    assert csv_path.exists()
+
+    with open(csv_path, "r", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    # 2 worlds x (3 reference arms + 1 learned arm) x 2 budgets = 16 rows.
+    assert len(rows) == 16
+
+    arms_seen = {r["arm"] for r in rows}
+    assert arms_seen == {"h_next", "h_legsum", "h_oracle", "mlp"}
+
+    for r in rows:
+        found = r["found"] in ("True", "true", "1")
+        cost = float(r["cost"])
+        opt_cost = float(r["opt_cost"])
+        if r["arm"] in ("h_next", "h_legsum", "h_oracle"):
+            if found:
+                assert abs(cost - opt_cost) <= 1e-6, (
+                    f"reference arm {r['arm']} found cost {cost} != opt_cost {opt_cost}"
+                )
+            assert r["train_seed"] == ""
+        elif r["arm"] == "mlp":
+            if found:
+                assert cost >= opt_cost - 1e-6, (
+                    f"learned arm mlp found cost {cost} < opt_cost {opt_cost} - 1e-6"
+                )
+            assert r["train_seed"] == "0"
+
+    # Deterministic ordering: budgets ascending within a fixed (world, arm).
+    by_world_arm: dict = {}
+    for r in rows:
+        key = (r["world_idx"], r["arm"])
+        by_world_arm.setdefault(key, []).append(int(r["budget"]))
+    for key, budgets_seen in by_world_arm.items():
+        assert budgets_seen == sorted(budgets_seen), f"budgets not ascending for {key}: {budgets_seen}"
+
+
+def test_run_train_manifest_and_resume(tmp_path):
+    out_dir = tmp_path / "run2"
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+
+    M.run_train(str(out_dir), arms=("mlp",), cells=[cell], seeds=(0,), cfg=cfg,
+                n_train_worlds=2, epochs=1)
+
+    manifest_path = out_dir / "manifest.json"
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text())
+    key = "mlp__A2__s0"
+    assert key in manifest
+    entry = manifest[key]
+    assert entry["param_count"] > 0
+    assert entry["arm"] == "mlp"
+    assert entry["config_label"] == "A"
+    assert entry["K"] == 2
+    assert entry["seed"] == 0
+    assert "ckpt" in entry
+    assert "final_loss" in entry
+    assert "wall_s" in entry
+
+    ckpt_path = out_dir / "ckpt" / "mlp__A2__s0.pt"
+    mtime_before = ckpt_path.stat().st_mtime_ns
+
+    calls = {"n": 0}
+    orig_train_arm = M.train_arm
+
+    def counting_train_arm(*args, **kwargs):
+        calls["n"] += 1
+        return orig_train_arm(*args, **kwargs)
+
+    import unittest.mock
+    with unittest.mock.patch.object(M, "train_arm", counting_train_arm):
+        M.run_train(str(out_dir), arms=("mlp",), cells=[cell], seeds=(0,), cfg=cfg,
+                    n_train_worlds=2, epochs=1)
+
+    assert calls["n"] == 0, "run_train re-trained an existing checkpoint instead of skipping it"
+    mtime_after = ckpt_path.stat().st_mtime_ns
+    assert mtime_after == mtime_before
+
+
+# ---------------------------------------------------------------------------
+# Test 26: K=0 binding-budget calibration.
+# ---------------------------------------------------------------------------
+
+def test_k0_binding_calibration(tmp_path):
+    out_dir = tmp_path / "run3"
+    cfg = M.C11MissionConfig()
+    cell_k0 = _cell("A", 0)
+
+    M.run_eval(str(out_dir), cells=[cell_k0], cfg=cfg, n_test_worlds=2,
+               budgets=(100, 3200), arms=())
+
+    binding_path = out_dir / "binding_k0.json"
+    assert binding_path.exists()
+    binding = json.loads(binding_path.read_text())
+
+    # Some entry keyed by (config_label="A", K=0) -- keys are JSON strings,
+    # so accept any string key whose associated payload carries
+    # config_label "A" and K 0 (rather than assume a specific string
+    # encoding of the tuple).
+    matches = [v for v in binding.values() if v.get("config_label") == "A" and v.get("K") == 0]
+    assert len(matches) == 1
+    entry = matches[0]
+    assert "budget" in entry
+    assert entry["budget"] in (100, 3200)
+    assert "degenerate" in entry
+
+    # No learned arms were requested -- CSV still has reference-arm rows only.
+    csv_path = out_dir / "results" / "c11_eval_raw.csv"
+    with open(csv_path, "r", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    arms_seen = {r["arm"] for r in rows}
+    assert arms_seen == {"h_next", "h_legsum", "h_oracle"}
+    assert all(r["K"] == "0" for r in rows)

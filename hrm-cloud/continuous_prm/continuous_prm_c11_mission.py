@@ -34,15 +34,33 @@ deterministic, no_grad). Every arm's output goes through the SAME
 (the trace arms reuse that class directly, so they get the clamp for free;
 the other three apply it once, explicitly, in their `forward`).
 
+Task 4 adds the provider registry (`PROVIDER_BUILDERS` /
+`register_provider_builder` / `make_provider` -- the hook the eventual T7
+HRM-v2 module registers into post-import) and the `train`/`eval` modes:
+`run_train` (per (arm, cell, seed) checkpoint + a crash-safe-enough
+load-merge-write manifest, resumable via a plain `Path.exists()` check --
+the same convention `continuous_prm_c9_transfer.run_adapt` uses) and
+`run_eval` (reference arms `h_next`/`h_legsum`/`h_oracle` PLUS every
+manifest-registered learned arm, all run through the identical
+`C11P.astar_product` path on the SAME probe-native TEST bundles, budgets
+from `cfg.budgets_grid`, K=0 binding-budget calibration via
+`C11P.calibrate_binding_budget` stored in `binding_k0.json`). A thin CLI
+stub (`--mode train|eval`) rounds out the module; `write_json`/`write_csv`
+are `continuous_prm_common`'s existing atomic (tmp+`os.replace`) helpers,
+reused rather than reimplemented.
+
 See docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md
-(sections 3/4 are authoritative on the I/O contract + matched recipe) and
-docs/superpowers/plans/2026-07-07-c11-mission.md (Tasks 1-3).
+(sections 3/4/6/7 are authoritative on the I/O contract, matched recipe,
+and eval/stats conventions) and docs/superpowers/plans/2026-07-07-c11-mission.md
+(Tasks 1-4).
 """
 from __future__ import annotations
 
+import argparse
 import math
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -911,13 +929,43 @@ ARM_NAMES: Tuple[str, ...] = ("mlp", "unet_film", "gnn", "hrm_trace", "onlstm_tr
 _HRM_TRACE_HIDDEN = 224
 _ONLSTM_TRACE_HIDDEN = 256
 
+# ---------------------------------------------------------------------------
+# Task 4: provider registry (defined here, ahead of `build_arm`, so
+# `build_arm` itself can fall back to it -- see `build_arm`'s final branch).
+# ---------------------------------------------------------------------------
+#
+# `PROVIDER_BUILDERS` maps arm name -> a `builder(cfg) -> nn.Module`
+# constructor callable, letting a SECOND module (the eventual T7 HRM-v2 arm,
+# per the plan's Task 6/7) extend the set of buildable arm names post-import
+# via `register_provider_builder`, without this module needing to know about
+# it (no circular import, no edit-this-module-for-every-new-arm coupling).
+# `build_arm`'s 5 native if/elif branches are checked FIRST (unchanged, T3);
+# the registry is consulted only as a fallback for names `build_arm` doesn't
+# recognize natively -- so a registered name never shadows a native one, but
+# DOES become usable through both `build_arm` and `make_provider` uniformly.
+
+PROVIDER_BUILDERS: Dict[str, Callable[[C11MissionConfig], nn.Module]] = {}
+
+
+def register_provider_builder(name: str, builder: Callable[[C11MissionConfig], nn.Module]) -> None:
+    """Register `builder` (a `cfg -> nn.Module` constructor) under `name` in
+    the module-level provider registry. Safe to call from a different module
+    after this one has been imported (e.g. `continuous_prm_c11_hrmv2_arm`
+    registering `hrmv2_act` and friends) -- `PROVIDER_BUILDERS` is a plain
+    module-level dict, so any import of `continuous_prm_c11_mission` sees
+    every registration made so far against it, regardless of which module
+    performed the registration."""
+    PROVIDER_BUILDERS[name] = builder
+
 
 def build_arm(name: str, cfg: C11MissionConfig) -> nn.Module:
-    """Construct one of the 5 arm models by name. `hrm_trace`/`onlstm_trace`
-    are `C.ContinuousHeuristicModel` instances (the existing trace
-    backbones, `token_dim=12`, `max_norm_residual=cfg.residual_cap`) fed the
-    real mission trace (`encode_trace_padded`) rather than the legacy
-    24-token feature bag."""
+    """Construct one of the 5 native arm models by name, falling back to the
+    provider registry (`PROVIDER_BUILDERS`) for any externally-registered
+    name before raising. `hrm_trace`/`onlstm_trace` are
+    `C.ContinuousHeuristicModel` instances (the existing trace backbones,
+    `token_dim=12`, `max_norm_residual=cfg.residual_cap`) fed the real
+    mission trace (`encode_trace_padded`) rather than the legacy 24-token
+    feature bag."""
     if name == "mlp":
         return MLPArm(cfg)
     if name == "unet_film":
@@ -936,7 +984,10 @@ def build_arm(name: str, cfg: C11MissionConfig) -> nn.Module:
             num_layers=2, chunk_size=8, head_hidden=256,
         )
         return C.ContinuousHeuristicModel(backbone_cfg, token_dim=cfg.token_dim, max_norm_residual=cfg.residual_cap)
-    raise ValueError(f"unknown arm name {name!r}; expected one of {ARM_NAMES}")
+    builder = PROVIDER_BUILDERS.get(name)
+    if builder is not None:
+        return builder(cfg)
+    raise ValueError(f"unknown arm name {name!r}; expected one of {ARM_NAMES} or a registered provider builder")
 
 
 # ---------------------------------------------------------------------------
@@ -1243,3 +1294,400 @@ def train_arm(arm_name: str, cell: dict, bundles: Sequence[WorldBundle], seed: i
         "wall_s": wall_s,
     }
     return state_dict_cpu, meta
+
+
+# ---------------------------------------------------------------------------
+# Task 4: make_provider (the provider registry itself -- PROVIDER_BUILDERS /
+# register_provider_builder -- is defined earlier, just ahead of `build_arm`,
+# so `build_arm` can fall back to it too; see that block's comment).
+# ---------------------------------------------------------------------------
+
+def make_provider(arm_name: str, state_dict: Dict[str, torch.Tensor],
+                   cfg: Optional[C11MissionConfig] = None) -> Callable[[WorldBundle], np.ndarray]:
+    """Build a provider callable for `arm_name`: reconstructs the model via
+    `build_arm` (native chain, falling back to the `PROVIDER_BUILDERS`
+    registry for externally-registered names), loads `state_dict` (CPU,
+    `strict=True`), sets eval mode, and returns `provider(bundle) -> h_hat`
+    where `h_hat[s, i] = bundle.hl(i, s) + bundle.world.side_len *
+    yhat[s, i]` (`yhat = predict_field(arm_name, model, bundle, cfg)`, already
+    in `[0, cfg.residual_cap]` by the arm's own softplus-clamp convention).
+    By construction `h_hat >= hl` everywhere (`yhat >= 0`), so a learned
+    provider's output is never LESS admissible-looking than the leg-sum
+    floor it's built on top of (it need not be admissible itself -- these
+    arms are explicitly inadmissible, per spec section 6 -- but it can never
+    fall below hl).
+
+    Handles every cell's bundles (any K including 0, any of configs A/B/C):
+    `predict_field` batches over `range(K+1) x range(N)` directly from the
+    bundle's own `wp`/`rm`, so no arm-specific K/door branching is needed
+    here.
+
+    The returned callable is deterministic: `make_provider` reconstructs a
+    FRESH model from `state_dict` (no shared mutable state across providers
+    built from the same state_dict), and `predict_field` runs under
+    `torch.no_grad()` with no dropout/batchnorm in any of the 5 native arms,
+    so two calls on the same bundle -- from the same OR a freshly-built
+    provider -- produce byte-identical output."""
+    cfg = cfg or C11MissionConfig()
+    model = build_arm(arm_name, cfg)
+    model.load_state_dict(state_dict, strict=True)
+    model.eval()
+
+    def _provider(bundle: WorldBundle) -> np.ndarray:
+        yhat = predict_field(arm_name, model, bundle, cfg)  # (K+1, N) float64, in [0, cap]
+        K = len(bundle.wp)
+        N = bundle.rm.points.shape[0]
+        side = float(bundle.world.side_len)
+        hl_arr = np.array([[bundle.hl(i, s) for i in range(N)] for s in range(K + 1)], dtype=np.float64)
+        return hl_arr + side * yhat
+
+    return _provider
+
+
+# ---------------------------------------------------------------------------
+# Task 4: checkpoint path + manifest helpers.
+# ---------------------------------------------------------------------------
+
+def _ckpt_key(arm_name: str, cell: dict, seed: int) -> str:
+    """The manifest key / checkpoint stem for one (arm, cell, seed) run:
+    `{arm}__{config_label}{K}__s{seed}`, e.g. `mlp__A2__s0`."""
+    return f"{arm_name}__{cell['config_label']}{int(cell['K'])}__s{int(seed)}"
+
+
+def _ckpt_path(out_dir: Path, arm_name: str, cell: dict, seed: int) -> Path:
+    return out_dir / "ckpt" / f"{_ckpt_key(arm_name, cell, seed)}.pt"
+
+
+def _load_manifest(out_dir: Path) -> Dict[str, dict]:
+    path = out_dir / "manifest.json"
+    if not path.exists():
+        return {}
+    return dict(C.read_json(path))
+
+
+def _save_manifest_entry(out_dir: Path, key: str, entry: dict) -> None:
+    """Load-merge-write: reads the CURRENT manifest.json (if any), sets
+    `manifest[key] = entry`, and writes the whole thing back atomically via
+    `C.write_json` (tmp file + `os.replace`). Not safe against concurrent
+    writers, but `run_train` is a single in-process loop (crash-safe enough,
+    per plan section 2: a crash mid-run leaves the manifest missing only the
+    in-flight entry, and the next `run_train` call's resume check re-derives
+    it from the checkpoint files that DID finish writing)."""
+    path = out_dir / "manifest.json"
+    manifest = _load_manifest(out_dir)
+    manifest[key] = entry
+    C.write_json(path, manifest)
+
+
+# ---------------------------------------------------------------------------
+# Task 4: run_train.
+# ---------------------------------------------------------------------------
+
+def run_train(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: Sequence[int],
+              cfg: Optional[C11MissionConfig] = None, n_train_worlds: Optional[int] = None,
+              epochs: Optional[int] = None) -> None:
+    """Train every (arm, cell, seed) triple in `arms x cells x seeds`,
+    skipping any whose checkpoint already exists (resume support for the
+    full grid -- 132 native + 33 hrm-v2 + 12 scaled runs per the plan/spec's
+    run count). Each cell's TRAIN bundles are collected ONCE per cell and
+    cached across every (arm, seed) that touches that cell within this call
+    (bundles are arm-agnostic -- the same `WorldBundle`s feed every arm's
+    `train_arm`, per plan Task 4's "collect once, reuse" instruction), NOT
+    re-collected per arm.
+
+    Writes `{out_dir}/ckpt/{arm}__{config_label}{K}__s{seed}.pt` (a plain
+    `torch.save({"state_dict": ..., "meta": ...}, path)`, CPU tensors) and a
+    load-merge-write `{out_dir}/manifest.json` entry per completed run,
+    keyed `{arm}__{config_label}{K}__s{seed}` (see `_ckpt_key`), carrying
+    `train_arm`'s own `meta` dict PLUS `ckpt` (the checkpoint's path RELATIVE
+    to `out_dir`, so the manifest is portable if `out_dir` itself moves).
+
+    Prints one line per completed run (arm/cell/seed, final_loss, wall
+    time); SKIPPED (already-checkpointed) runs are silent (the resume path
+    is meant to be fast and quiet on a mostly-done grid)."""
+    cfg = cfg or C11MissionConfig()
+    n_worlds = int(n_train_worlds) if n_train_worlds is not None else int(cfg.n_train_worlds)
+    out_path = Path(out_dir)
+    C.ensure_dir(out_path / "ckpt")
+
+    bundle_cache: Dict[Tuple[str, int], List[WorldBundle]] = {}
+
+    def _cell_key(cell: dict) -> Tuple[str, int]:
+        return (cell["config_label"], int(cell["K"]))
+
+    for cell in cells:
+        for arm_name in arms:
+            for seed in seeds:
+                ckpt_path = _ckpt_path(out_path, arm_name, cell, seed)
+                if ckpt_path.exists():
+                    continue
+
+                ck = _cell_key(cell)
+                if ck not in bundle_cache:
+                    bundle_cache[ck] = collect_cell_dataset(cell, split="train", n_worlds=n_worlds, cfg=cfg)
+                bundles = bundle_cache[ck]
+
+                state_dict, meta = train_arm(arm_name, cell, bundles, seed, cfg=cfg, epochs=epochs)
+
+                C.ensure_dir(ckpt_path.parent)
+                torch.save({"state_dict": state_dict, "meta": meta}, ckpt_path)
+
+                entry = dict(meta)
+                entry["ckpt"] = str(ckpt_path.relative_to(out_path))
+                _save_manifest_entry(out_path, _ckpt_key(arm_name, cell, seed), entry)
+
+                print(
+                    f"[c11-mission train] {arm_name} {cell['config_label']}{cell['K']} s{seed}: "
+                    f"final_loss={meta['final_loss']:.4f} wall={meta['wall_s']:.1f}s",
+                    flush=True,
+                )
+
+
+# ---------------------------------------------------------------------------
+# Task 4: run_eval.
+# ---------------------------------------------------------------------------
+
+REFERENCE_ARMS: Tuple[str, ...] = ("h_next", "h_legsum", "h_oracle")
+
+EVAL_RAW_COLS: Tuple[str, ...] = (
+    "config", "config_label", "config_idx", "K", "world_idx", "seed", "arm", "train_seed",
+    "budget", "found", "cost", "expansions", "closed", "opt_cost",
+)
+
+
+def _reference_h_array(arm_name: str, bundle: WorldBundle) -> np.ndarray:
+    """Materialize `h_next`/`h_legsum`/`h_oracle` as a `(K+1, N)` ndarray for
+    `astar_product` (which indexes `h[s, i]`) -- `h_oracle` already IS such
+    an array (`bundle.oracle`); `h_next`/`h_legsum` are CALLABLES
+    (`C11P.h_next(rm, wp)` / `bundle.hl`) that must be densified first."""
+    K = len(bundle.wp)
+    N = bundle.rm.points.shape[0]
+    if arm_name == "h_oracle":
+        return bundle.oracle
+    if arm_name == "h_legsum":
+        fn = bundle.hl
+    elif arm_name == "h_next":
+        fn = C11P.h_next(bundle.rm, bundle.wp)
+    else:
+        raise ValueError(f"unknown reference arm {arm_name!r}")
+    return np.array([[fn(i, s) for i in range(N)] for s in range(K + 1)], dtype=np.float64)
+
+
+def _eval_bundle_arm_budget(bundle: WorldBundle, arm_name: str, h_arr: np.ndarray, budget: int,
+                             is_reference: bool) -> dict:
+    """Run `C11P.astar_product` for one (bundle, arm, budget) and assemble
+    the raw partial record dict (missing only the world/cell identity
+    columns, which the caller fills in). Integrity asserts: a reference
+    (admissible) arm's found cost must equal `opt_cost` within 1e-6 (the
+    SAME optimality guarantee `continuous_prm_c11_headroom.eval_cell`
+    already asserts for these three arms); a learned (inadmissible) arm's
+    found cost need only be >= `opt_cost` - 1e-6 (A* with an inadmissible
+    heuristic can still return the optimum, and often does when the
+    heuristic under-guides only slightly, but is never REQUIRED to)."""
+    opt_cost = float(bundle.oracle[0, 0])
+    res = C11P.astar_product(bundle.rm.adj, bundle.wp, h_arr, budget, adj_valid=bundle.adj_valid)
+
+    if res["found"]:
+        if is_reference:
+            assert abs(res["cost"] - opt_cost) <= 1e-6, (
+                f"reference arm {arm_name!r} found cost {res['cost']} != opt_cost {opt_cost} "
+                f"(admissible heuristics must recover the optimum)"
+            )
+        else:
+            assert res["cost"] >= opt_cost - 1e-6, (
+                f"learned arm {arm_name!r} found cost {res['cost']} < opt_cost {opt_cost} - 1e-6 "
+                f"(A* cost can never beat the true optimum, admissible heuristic or not)"
+            )
+
+    return {
+        "arm": arm_name,
+        "budget": int(budget),
+        "found": bool(res["found"]),
+        "cost": float(res["cost"]),
+        "expansions": int(res["expansions"]),
+        "closed": int(res["closed"]),
+        "opt_cost": opt_cost,
+    }
+
+
+def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig] = None,
+             n_test_worlds: Optional[int] = None, budgets: Optional[Sequence[int]] = None,
+             arms: Optional[Sequence[str]] = None) -> None:
+    """Per cell: collect TEST bundles ONCE (probe-native seeds/skip
+    semantics via `collect_cell_dataset(cell, split="test", ...)`). Reference
+    arms (`h_next`, `h_legsum`, `h_oracle`) run on EVERY bundle x budget.
+    Learned arms: every `{out_dir}/manifest.json` entry whose `config_label`/
+    `K` match the cell (filtered to `arms` if given) is loaded via
+    `make_provider` and run on every bundle x budget too. Every arm --
+    reference or learned -- goes through the SAME `C11P.astar_product(
+    bundle.rm.adj, bundle.wp, h_array, budget, adj_valid=bundle.adj_valid)`
+    call (single astar path, per plan Task 4's self-review question).
+
+    `budgets` defaults to `cfg.budgets_grid` (the full grid for every arm --
+    A* is ms-fast, so this is cheap and gives dose-response curves for free,
+    per plan Task 4 spec). `arms=None` means "every learned arm present in
+    the manifest for this cell"; `arms=()` (the empty tuple, NOT None) means
+    "no learned arms at all" -- used by the K=0 binding-calibration path,
+    which only needs the reference arms' records.
+
+    K=0 cells: after that cell's `h_legsum` records exist, calibrates the
+    binding budget via `C11P.calibrate_binding_budget(legsum_records,
+    cfg.budgets_grid)` and merges `{config_label}_K0 -> {"config_label",
+    "K", "budget", "degenerate"}` into `{out_dir}/binding_k0.json` (load-
+    merge-write, same convention as the training manifest). K in {2,4,8}
+    cells are NOT touched here -- their budgets are the pre-registered
+    `cfg.binding_budgets`, already fixed at config-time.
+
+    Writes every record (one dict per bundle x arm x budget) to
+    `{out_dir}/results/c11_eval_raw.csv` via `C.write_csv` (csv.DictWriter
+    under the hood). Deterministic ordering: cells in the given `cells`
+    order, worlds ascending (bundle collection order == world_idx order,
+    per `collect_cell_dataset`), arms sorted (reference arms first in a
+    fixed tuple order, then learned arms sorted by name), budgets
+    ascending."""
+    cfg = cfg or C11MissionConfig()
+    n_worlds = int(n_test_worlds) if n_test_worlds is not None else int(cfg.n_test_worlds)
+    eval_budgets = tuple(sorted(int(b) for b in (budgets if budgets is not None else cfg.budgets_grid)))
+    out_path = Path(out_dir)
+
+    manifest = _load_manifest(out_path)
+
+    all_records: List[dict] = []
+    binding_k0_updates: Dict[str, dict] = {}
+
+    for cell in cells:
+        config_label = cell["config_label"]
+        config_idx = int(cell["config_idx"])
+        K = int(cell["K"])
+        spec_name = cell["spec_name"]
+
+        bundles = collect_cell_dataset(cell, split="test", n_worlds=n_worlds, cfg=cfg)
+
+        # Learned-arm providers for this cell: every manifest entry whose
+        # config_label/K match, optionally filtered to `arms`.
+        cell_entries = [
+            (key, entry) for key, entry in manifest.items()
+            if entry.get("config_label") == config_label and int(entry.get("K", -1)) == K
+        ]
+        if arms is not None:
+            allowed = set(arms)
+            cell_entries = [(key, entry) for key, entry in cell_entries if entry.get("arm") in allowed]
+        cell_entries.sort(key=lambda ke: ke[0])
+
+        providers: List[Tuple[str, Callable[[WorldBundle], np.ndarray], int]] = []
+        for key, entry in cell_entries:
+            ckpt_path = out_path / entry["ckpt"]
+            payload = torch.load(ckpt_path, map_location="cpu")
+            arm_name = entry["arm"]
+            provider = make_provider(arm_name, payload["state_dict"], cfg)
+            providers.append((arm_name, provider, int(entry["seed"])))
+
+        legsum_records_for_calib: List[dict] = []
+
+        for world_idx, bundle in enumerate(bundles):
+            arm_h_arrays: List[Tuple[str, np.ndarray, bool, str]] = []
+            for arm_name in REFERENCE_ARMS:
+                h_arr = _reference_h_array(arm_name, bundle)
+                arm_h_arrays.append((arm_name, h_arr, True, ""))
+            for arm_name, provider, train_seed_val in providers:
+                h_arr = provider(bundle)
+                arm_h_arrays.append((arm_name, h_arr, False, str(train_seed_val)))
+
+            for arm_name, h_arr, is_reference, train_seed_str in arm_h_arrays:
+                for budget in eval_budgets:
+                    partial = _eval_bundle_arm_budget(bundle, arm_name, h_arr, budget, is_reference)
+                    record = {
+                        "config": spec_name,
+                        "config_label": config_label,
+                        "config_idx": config_idx,
+                        "K": K,
+                        "world_idx": world_idx,
+                        "seed": bundle.seed,
+                        "train_seed": train_seed_str,
+                        **partial,
+                    }
+                    all_records.append(record)
+                    if arm_name == "h_legsum":
+                        legsum_records_for_calib.append(record)
+
+        if K == 0:
+            budget_val, degenerate = C11P.calibrate_binding_budget(legsum_records_for_calib, cfg.budgets_grid)
+            binding_k0_updates[f"{config_label}_K0"] = {
+                "config_label": config_label,
+                "K": 0,
+                "budget": int(budget_val),
+                "degenerate": bool(degenerate),
+            }
+
+    # Column order: EVAL_RAW_COLS first (deterministic schema), any surplus
+    # keys (none expected today) appended by C.write_csv's own first-seen
+    # fallback.
+    ordered_records = [
+        {col: r[col] for col in EVAL_RAW_COLS} for r in all_records
+    ]
+    C.write_csv(out_path / "results" / "c11_eval_raw.csv", ordered_records)
+
+    if binding_k0_updates:
+        binding_path = out_path / "binding_k0.json"
+        existing = C.read_json(binding_path) if binding_path.exists() else {}
+        existing.update(binding_k0_updates)
+        C.write_json(binding_path, existing)
+
+
+# ---------------------------------------------------------------------------
+# Task 4: CLI stub.
+# ---------------------------------------------------------------------------
+#
+# `--mode train|eval` only (T8 adds `analyze`/`full` -- this parser's
+# `choices` and the cell-selection helper below are written so adding those
+# modes later is a pure extension: new `choices` entries + new branches in
+# `main`, no restructuring of what's here).
+
+def _parse_csv_arg(s: str) -> List[str]:
+    return [t.strip() for t in str(s).split(",") if t.strip()]
+
+
+def _select_cells(configs: Sequence[str], k_values: Sequence[int],
+                   cfg: Optional[C11MissionConfig] = None) -> List[dict]:
+    """`build_cell_grid()` filtered to `configs` (config_label) x
+    `k_values`. Cells whose (config, K) isn't in the grid at all (e.g.
+    config C at K=0, which is dropped by `build_cell_grid` itself) are
+    simply absent from the result -- not an error, since the CLI's own
+    defaults (`--configs A,B,C --k-values 0,2,4,8`) request that combination
+    and rely on this silently yielding no C/K0 cell."""
+    cfg = cfg or C11MissionConfig()
+    configs_set = set(configs)
+    k_set = set(int(k) for k in k_values)
+    return [c for c in build_cell_grid(cfg) if c["config_label"] in configs_set and c["K"] in k_set]
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="C11 compositional-mission PRM heuristics.")
+    parser.add_argument("--mode", choices=["train", "eval"], required=True)
+    parser.add_argument("--out-dir", default="runs/c11_local")
+    parser.add_argument("--arms", default=",".join(ARM_NAMES))
+    parser.add_argument("--configs", default="A,B,C")
+    parser.add_argument("--k-values", default="0,2,4,8")
+    parser.add_argument("--seeds", default="0,1,2")
+    parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--n-train-worlds", type=int, default=None)
+    parser.add_argument("--n-test-worlds", type=int, default=None)
+    args = parser.parse_args(argv)
+
+    cfg = C11MissionConfig()
+    arms = tuple(_parse_csv_arg(args.arms))
+    configs = _parse_csv_arg(args.configs)
+    k_values = [int(k) for k in _parse_csv_arg(args.k_values)]
+    seeds = tuple(int(s) for s in _parse_csv_arg(args.seeds))
+    cells = _select_cells(configs, k_values, cfg)
+
+    if args.mode == "train":
+        run_train(args.out_dir, arms=arms, cells=cells, seeds=seeds, cfg=cfg,
+                   n_train_worlds=args.n_train_worlds, epochs=args.epochs)
+    elif args.mode == "eval":
+        run_eval(args.out_dir, cells=cells, cfg=cfg, n_test_worlds=args.n_test_worlds,
+                  arms=arms)
+
+
+if __name__ == "__main__":
+    main()
