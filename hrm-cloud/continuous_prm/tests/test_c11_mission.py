@@ -1857,14 +1857,20 @@ def _mae_row(config_label, K, world_idx, seed, train_seed, arm, state_mae):
     }
 
 
-def _halt_row(config_label, K, world_idx, seed, train_seed, mean_halt_steps, n_queried):
-    """One synthetic `c11_halt_steps.csv`-style row."""
+def _halt_row(config_label, K, world_idx, seed, train_seed, mean_halt_steps, n_queried,
+              arm="hrmv2_act"):
+    """One synthetic `c11_halt_steps.csv`-style row. `arm` defaults to
+    "hrmv2_act" (the T8-review-minor-1 attribution column; `g2b_analysis`
+    filters to exactly this arm, so the default keeps every fixture row in
+    scope unless a test deliberately passes a foreign arm to exercise the
+    filter)."""
     return {
         "config_label": config_label,
         "K": str(K),
         "world_idx": str(world_idx),
         "seed": str(seed),
         "train_seed": str(train_seed),
+        "arm": str(arm),
         "mean_halt_steps": str(float(mean_halt_steps)),
         "n_queried": str(int(n_queried)),
     }
@@ -2004,6 +2010,18 @@ def test_g2b_spearman_permutation():
     rows_with_k0 = list(rows) + [_halt_row("A", 0, w, "0", "0", 99.0, 192) for w in range(5)]
     result_with_k0 = M.g2b_analysis(rows_with_k0)
     assert result_with_k0["pooled"]["rho"] == pytest.approx(result["pooled"]["rho"])
+
+    # Foreign-arm rows must be excluded too (T8-review minor 1: the dump
+    # trigger is arm-agnostic, so g2b filters to arm == "hrmv2_act"; a
+    # hypothetical second ACT-live provider's rows -- here with an absurd
+    # anti-correlated value -- must not perturb the pooled correlation).
+    rows_with_foreign = list(rows) + [
+        _halt_row("A", K, w, "0", "0", 99.0 - float(K), 192, arm="other_act_arm")
+        for K in (2, 4, 8) for w in range(5)
+    ]
+    result_with_foreign = M.g2b_analysis(rows_with_foreign)
+    assert result_with_foreign["pooled"]["rho"] == pytest.approx(result["pooled"]["rho"])
+    assert result_with_foreign["pooled"]["n"] == result["pooled"]["n"]
 
     # -- Shuffled / no-trend case: halt steps uncorrelated with K -> not
     # positive (either p >= 0.05 or rho <= 0).
@@ -2183,6 +2201,10 @@ def test_halt_and_mae_dumping(tmp_path):
             assert float(r["mean_halt_steps"]) == pytest.approx(2.0)
             assert r["config_label"] == "A"
             assert int(r["K"]) == 2
+            # T8-review minor 1: the halt row is attributed to the arm
+            # whose provider call produced it (the dump trigger itself is
+            # arm-agnostic, so attribution is the column's whole job).
+            assert r["arm"] == "dummy_halt_mae"
             assert "world_idx" in r and "seed" in r and "train_seed" in r and "n_queried" in r
 
         mae_csv = out_dir / "results" / "c11_state_mae.csv"
@@ -2214,8 +2236,10 @@ def test_halt_and_mae_dumping(tmp_path):
         assert world0_rows, "no mae row found for world_idx=0, train_seed=0"
         assert float(world0_rows[0]["state_mae"]) == pytest.approx(expected_mae, rel=1e-5)
 
-        # Reference arms never appear in either dump.
-        halt_arms_would_be = set()  # halt csv carries no `arm` column by spec -- nothing to check per-row
+        # Reference arms never appear in either dump (the halt CSV's arm
+        # column was asserted per-row above; check the mae CSV's here).
+        halt_arm_names = {r["arm"] for r in halt_rows}
+        assert not (halt_arm_names & {"h_next", "h_legsum", "h_oracle"})
         mae_arm_names = {r["arm"] for r in mae_rows}
         assert not (mae_arm_names & {"h_next", "h_legsum", "h_oracle"})
 
@@ -2243,7 +2267,29 @@ _G3_GATE_TEXT_FRAGMENT = "honest closure"
 def _synthetic_g1_analysis_and_verdict(positive: bool):
     """Build a tiny, internally-consistent (analysis, k0, g1, g2, g2b, meta)
     tuple for `write_results_doc`, without touching any world/PRM/A*
-    machinery -- everything hand-built exactly like the Task-5 g1 tests."""
+    machinery -- everything hand-built exactly like the Task-5 g1 tests.
+
+    The two branches render two genuinely DIFFERENT G3 closure paragraphs:
+      - positive=False: g1 negative (all ties) AND g2a negative (flat
+        forced-k curves) AND g2b negative (constant halt channel) -> the
+        all-negative architecture-agnostic branch.
+      - positive=True: g1 positive (gnn dose-response) + g2b positive
+        (halt steps increasing with K) but g2a still negative -> the MIXED
+        branch (not the all-positive one -- only two of the three gates
+        fire, deliberately, since the writer test exercises exactly two
+        branches per the pre-registered TDD list).
+    (An earlier version of this fixture had halt rows increasing with K in
+    BOTH branches, making g2b positive everywhere -- so the "negative"
+    branch actually rendered the mixed text and the branch assertion
+    passed only because that text happens to contain the asserted
+    substring. Fixed alongside the T8-review act-live column work.)
+
+    G2 records are a SUPERSET of the g1 records (hrmv2_act + forced-k rows
+    at K=8 added for `g2_analysis` only) -- mirroring `run_analyze`'s own
+    split, where `analyze` gets the forced-k-filtered records and
+    `g2_analysis` gets the full set; keeping the extra arms out of the g1
+    records also keeps this fixture's carefully-engineered G1 BH family
+    (gnn vs mlp alone) undisturbed."""
     binding = {("A", 2): 200, ("A", 4): 400, ("A", 8): 1600, ("A", 0): 100}
     records = [
         _rec("A", 0, 0, "", "h_legsum", "", 100, True, 10.0, 50, 60, 10.0),
@@ -2269,18 +2315,33 @@ def _synthetic_g1_analysis_and_verdict(positive: bool):
     k0 = M.k0_continuity(analysis)
     g1 = M.g1_verdict(analysis)
 
+    # -- G2 superset: forced-k arms with FLAT equal ratios (identical
+    # expansions across k -> identical bootstrap CIs -> not disjoint -> the
+    # ratio criterion can never fire) plus the ACT-live reference arm, all
+    # at K=8 / budget 1600, both-found against the K=8 legsum rows above.
+    g2_records = list(records)
+    for k_val in (1, 2, 4, 8):
+        arm = f"hrmv2_act_k{k_val}"
+        for w in range(4):
+            g2_records.append(_rec("A", 8, w, "0", arm, "0", 1600, True, 8.0, 80, 90, 8.0))
+    for w in range(4):
+        g2_records.append(_rec("A", 8, w, "0", "hrmv2_act", "0", 1600, True, 8.0, 90, 100, 8.0))
+
     mae_rows = []
     halt_rows = []
-    for K in (1, 2, 4, 8):
-        arm = f"hrmv2_act_k{K}"
+    for k_val in (1, 2, 4, 8):
+        arm = f"hrmv2_act_k{k_val}"
         for w in range(3):
-            mae_rows.append(_mae_row("A", 8, w, "0", "0", arm, 0.3))
+            mae_rows.append(_mae_row("A", 8, w, "0", "0", arm, 0.3))  # flat -> mae criterion never fires
+    for w in range(3):
+        mae_rows.append(_mae_row("A", 8, w, "0", "0", "hrmv2_act", 0.25))
     for K in (2, 4, 8):
         for w in range(4):
-            halt_rows.append(_halt_row("A", K, w, "0", "0", float(K) / 2.0, 100))
+            halt_val = float(K) / 2.0 if positive else 1.0
+            halt_rows.append(_halt_row("A", K, w, "0", "0", halt_val, 100))
 
     g2_binding = {("A", 8): 1600}
-    g2 = M.g2_analysis(records, mae_rows, g2_binding)
+    g2 = M.g2_analysis(g2_records, mae_rows, g2_binding)
     g2b = M.g2b_analysis(halt_rows)
 
     meta = {
@@ -2297,8 +2358,11 @@ def test_results_doc_writer(tmp_path):
     """The three pre-registered gate texts (verbatim, spec section 1) must
     appear; the three verdict lines must appear; G3's closure paragraph
     must be generated CONDITIONALLY from the computed booleans -- tested
-    on both branches (all-negative -> architecture-agnostic text present,
-    dose-response-positive text ABSENT; one-positive -> reversed)."""
+    on both fixture branches (all-negative -> the architecture-agnostic
+    closure text, and ONLY it; g1+g2b-positive/g2a-negative -> the mixed
+    text, and ONLY it -- see `_synthetic_g1_analysis_and_verdict`'s own
+    docstring for the engineered gate booleans per branch). Also asserts
+    the G2a table's ACT-live reference columns (T8-review minor 2)."""
     for positive in (False, True):
         analysis, k0, g1, g2, g2b, meta = _synthetic_g1_analysis_and_verdict(positive)
         path = tmp_path / f"results_{positive}" / "C11_RESULTS.md"
@@ -2320,14 +2384,29 @@ def test_results_doc_writer(tmp_path):
         assert "door_open_at_s" in text
         assert "oracle" in text.lower()
 
-        # Conditional G3 prose: architecture-agnostic text only in the
-        # all-negative branch; a distinct dose-response-positive text only
-        # in the positive branch. No hardcoded glosses that contradict the
-        # computed booleans (the probe's conditional-prose lesson).
+        # T8-review minor 2: the G2a table renders the ACT-live reference
+        # columns (ratio [CI] + mae) alongside the four forced-k columns --
+        # the fixture's g2 records include hrmv2_act at K=8, so the table
+        # is populated, not "Not run".
+        assert "act-live ratio [CI]" in text
+        assert "act-live mae" in text
+
+        # Conditional G3 prose: each branch must render ITS OWN closure
+        # paragraph, discriminated by phrases unique to a single branch
+        # (the fixture engineers the booleans: all-negative vs mixed --
+        # g1+g2b positive, g2a negative). No hardcoded glosses that
+        # contradict the computed booleans (the probe's conditional-prose
+        # lesson).
         architecture_agnostic_phrase = "architecture-agnostic"
+        all_negative_unique = "not an I/O-starvation or headroom-absence artifact"
+        mixed_unique = "Mixed result:"
         if positive:
+            assert mixed_unique in text
+            assert all_negative_unique not in text
             assert architecture_agnostic_phrase not in text or "NOT" in text.upper()
         else:
+            assert all_negative_unique in text
+            assert mixed_unique not in text
             assert architecture_agnostic_phrase in text.lower() or "architecture-agnostic" in text
 
 

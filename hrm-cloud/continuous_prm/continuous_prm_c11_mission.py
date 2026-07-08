@@ -1783,9 +1783,11 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
         `_stash_halt_steps`, so keying off its presence rather than the
         literal name "hrmv2_act" also picks up any other ACT-live-style
         provider without a hardcoded name check): buffers one row
-        `(config_label, K, world_idx, seed, train_seed, mean_halt_steps,
-        n_queried)` -- mean over the non-NaN entries of the `(K+1, N)`
-        array -- then `del bundle.hrmv2_halt_steps` immediately (per the
+        `(config_label, K, world_idx, seed, train_seed, arm,
+        mean_halt_steps, n_queried)` -- mean over the non-NaN entries of
+        the `(K+1, N)` array; `arm` attributes the row to the provider
+        that produced it (T8-review minor 1), since the trigger itself is
+        arm-agnostic -- then `del bundle.hrmv2_halt_steps` immediately (per the
         task prompt's explicit choice of "del" over an overwrite-tolerant
         read: the attribute is "last writer per cell" per its own
         docstring, so leaving it would let a LATER, unrelated provider's
@@ -1914,6 +1916,13 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
                         "world_idx": world_idx,
                         "seed": bundle.seed,
                         "train_seed": str(train_seed_val),
+                        # T8-review minor 1: attribute the row to the arm
+                        # whose provider call produced it -- the dump
+                        # TRIGGER is deliberately arm-agnostic (hasattr),
+                        # so without this column a future SECOND ACT-live
+                        # provider's rows would pool indistinguishably
+                        # into G2b's hrmv2_act correlation.
+                        "arm": arm_name,
                         "mean_halt_steps": mean_halt,
                         "n_queried": int(finite_halt.size),
                     })
@@ -2638,7 +2647,13 @@ def g2a_verdict(g2: dict) -> dict:
             )
             ratio_fires = bool(monotone and disjoint)
 
-        # -- mae criterion.
+        # -- mae criterion. Known edge (T8-review minor 4, accepted as-is):
+        # a NaN mean_state_mae would count as "usable" here (it is not
+        # None) and then fail every comparison below (NaN compares False),
+        # rendering the cell "negative" rather than "insufficient" --
+        # practically unreachable, since a NaN state_mae requires a bundle
+        # with zero finite-oracle states, which `mission_reachable` already
+        # excludes at collect time.
         usable_mae_ks = sorted(k for k in mae_by_k if mae_by_k[k] is not None)
         mae_fires = False
         if len(usable_mae_ks) >= 2:
@@ -2695,6 +2710,16 @@ def g2b_analysis(halt_rows: Sequence[dict]) -> dict:
     by the K=0 continuity control -- documented per the task spec's
     instruction), plus a per-config_label breakdown of the same statistic.
 
+    Arm scoping (T8-review minor 1): rows are additionally filtered to
+    `arm == "hrmv2_act"` -- the halt-dump trigger in `run_eval` is
+    arm-agnostic (any provider that sets the side channel produces rows),
+    so a future second ACT-live provider's rows must not silently pool
+    into THIS arm's depth-sensitivity correlation. Rows WITHOUT an `arm`
+    column (legacy CSVs written before the column existed, or minimal
+    synthetic fixtures) default to "hrmv2_act" -- every such row was
+    necessarily produced by the one ACT-live provider that existed then,
+    so the default is exact, not a guess.
+
     Permutation test: 2000 permutations of the K labels (values shuffled
     against the fixed halt-step values), seeded `np.random.default_rng(24680)`,
     two-sided p = (count of |rho_perm| >= |rho_obs|, add-one-smoothed) /
@@ -2722,11 +2747,15 @@ def g2b_analysis(halt_rows: Sequence[dict]) -> dict:
             "world_idx": int(row["world_idx"]),
             "seed": str(row["seed"]),
             "train_seed": str(row["train_seed"]),
+            # Missing-column default is "hrmv2_act", NOT a sentinel -- see
+            # the arm-scoping paragraph in this function's docstring.
+            "arm": str(row.get("arm", "hrmv2_act")),
             "mean_halt_steps": float(row["mean_halt_steps"]),
             "n_queried": int(row["n_queried"]),
         }
 
-    coerced = [_coerce_halt_row(r) for r in halt_rows if int(r["K"]) in (2, 4, 8)]
+    coerced_all = [_coerce_halt_row(r) for r in halt_rows]
+    coerced = [r for r in coerced_all if r["K"] in (2, 4, 8) and r["arm"] == "hrmv2_act"]
 
     def _spearman_with_permutation(rows: Sequence[dict]) -> dict:
         if not rows:
@@ -2979,9 +3008,14 @@ def write_results_doc(g1_analysis: dict, k0: dict, g1: dict, g2: dict, g2b: dict
         lines.append("**Not run** -- no forced-k / hrmv2_act records present at K=8.")
         lines.append("")
     else:
-        header = "| Config | k=1 ratio | k=2 ratio | k=4 ratio | k=8 ratio | k=1 mae | k=2 mae | k=4 mae | k=8 mae |"
+        # T8-review minor 2: the ACT-live (`hrmv2_act`) reference columns
+        # make the free-running-vs-forced-k8 comparison visible in the
+        # phase deliverable itself -- `g2_analysis` was already computing
+        # these stats per cell; only the rendering was missing.
+        header = ("| Config | k=1 ratio | k=2 ratio | k=4 ratio | k=8 ratio | act-live ratio [CI] | "
+                  "k=1 mae | k=2 mae | k=4 mae | k=8 mae | act-live mae |")
         lines.append(header)
-        lines.append("|---|---|---|---|---|---|---|---|---|")
+        lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
         for cell_key, cell in sorted(g2.get("cells", {}).items()):
             config_label, K = cell_key
             if K != 8:
@@ -2994,8 +3028,18 @@ def write_results_doc(g1_analysis: dict, k0: dict, g1: dict, g2: dict, g2b: dict
                 stats = arms.get(arm_name)
                 ratio_cols.append(_fmt_g(stats["ratio_median"]) if stats else "n/a")
                 mae_cols.append(_fmt_g(stats["mean_state_mae"]) if stats else "n/a")
+            act_stats = arms.get("hrmv2_act")
+            if act_stats is not None and act_stats["n_pairs"] > 0:
+                act_ratio = (
+                    f"{_fmt_g(act_stats['ratio_median'])} "
+                    f"[{_fmt_g(act_stats['ci_lo'])}, {_fmt_g(act_stats['ci_hi'])}]"
+                )
+            else:
+                act_ratio = "n/a"
+            act_mae = _fmt_g(act_stats["mean_state_mae"]) if act_stats is not None else "n/a"
             lines.append(
-                f"| {config_label} | " + " | ".join(ratio_cols) + " | " + " | ".join(mae_cols) + " |"
+                f"| {config_label} | " + " | ".join(ratio_cols) + f" | {act_ratio} | "
+                + " | ".join(mae_cols) + f" | {act_mae} |"
             )
         lines.append("")
     g2a_positive = bool(g2a.get("positive"))
@@ -3511,6 +3555,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     raw_argv = list(argv) if argv is not None else sys.argv[1:]
 
     def _explicit(flag: str) -> bool:
+        # Known edge (T8-review minor 3, accepted as-is): argparse's prefix
+        # abbreviation (e.g. `--epoch` for `--epochs`) is exact-match-missed
+        # here, so an ABBREVIATED explicit flag would lose to the preset.
         return any(a == flag or a.startswith(flag + "=") for a in raw_argv)
 
     if preset is not None:
