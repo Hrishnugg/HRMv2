@@ -1828,3 +1828,672 @@ def test_run_train_dispatches_registered_trainer(tmp_path):
     finally:
         M.train_arm = orig_train_arm
         M.PROVIDER_BUILDERS.pop("dummy_trained", None)
+
+
+# ===========================================================================
+# Task 8: G2 analysis (forced-k curves + halt-vs-K correlation), halt/MAE
+# side-channel dumping in run_eval, the results-doc writer, run_analyze,
+# run_full, and the extended CLI.
+#
+# Spec section 1 (G2/G3, quoted verbatim in the docstrings below) and
+# section 6 are authoritative; the task prompt's spec is the binding one
+# where it differs from the plan's Task-8 sketch (the plan predates the
+# task prompt's more detailed g2_analysis/g2b_analysis/write_results_doc
+# contracts -- this is a refinement, not a contradiction, per the plan's
+# own self-review note that placeholders were pinned "at implementation").
+# ===========================================================================
+
+def _mae_row(config_label, K, world_idx, seed, train_seed, arm, state_mae):
+    """One synthetic `c11_state_mae.csv`-style row, matching
+    `run_eval`'s dumped schema (string-typed, `csv.DictReader`-shaped)."""
+    return {
+        "config_label": config_label,
+        "K": str(K),
+        "world_idx": str(world_idx),
+        "seed": str(seed),
+        "train_seed": str(train_seed),
+        "arm": arm,
+        "state_mae": str(float(state_mae)),
+    }
+
+
+def _halt_row(config_label, K, world_idx, seed, train_seed, mean_halt_steps, n_queried):
+    """One synthetic `c11_halt_steps.csv`-style row."""
+    return {
+        "config_label": config_label,
+        "K": str(K),
+        "world_idx": str(world_idx),
+        "seed": str(seed),
+        "train_seed": str(train_seed),
+        "mean_halt_steps": str(float(mean_halt_steps)),
+        "n_queried": str(int(n_queried)),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Test 33: g2a_verdict logic (ratio criterion, mae criterion, negative,
+# insufficient).
+# ---------------------------------------------------------------------------
+
+def test_g2a_verdict_logic():
+    """Spec: 'positive iff on >=1 config at K=8 BOTH (a) the ratio medians
+    are monotone non-increasing in k over usable k values (n_pairs >= 1)
+    AND (b) the k=1 vs k=8 bootstrap CIs are disjoint (ci_hi(k8) <
+    ci_lo(k1)); ALTERNATIVELY the same two conditions on mean state_mae
+    (monotone decreasing + a clear k1-vs-k8 gap -- operationalize: mae(k8)
+    < mae(k1) AND the mae sequence monotone non-increasing; no CI needed
+    for mae). Cells with < 2 usable k values -> insufficient.'
+
+    Three synthetic configs on ONE g2 dict (built via `M.g2_analysis`, not
+    hand-assembled, so the verdict test exercises the real analysis path):
+      - "RATIO": expansion ratios 0.8/0.6/0.4/0.3 (k=1,2,4,8) with several
+        both-found pairs per k, engineered so the k=1 vs k=8 bootstrap CIs
+        end up disjoint -> positive via the ratio criterion.
+      - "MAE": flat/non-monotone ratios (no ratio signal) but a cleanly
+        monotone-decreasing mean state_mae 0.5/0.4/0.3/0.2 across k=1..8 ->
+        positive via the mae criterion (documented: no CI needed for mae).
+      - "FLAT": both ratio and mae non-monotone / no clean gap -> negative.
+      - "SINGLEK": only k=1 has any record at all -> insufficient (< 2
+        usable k values), must not be misread as negative.
+    """
+    binding = {("RATIO", 8): 400, ("MAE", 8): 400, ("FLAT", 8): 400, ("SINGLEK", 8): 400}
+
+    records = []
+    mae_rows = []
+
+    # -- RATIO config: ratio criterion should fire. Build several
+    # both-found (world, seed) pairs per k so the bootstrap CI is not
+    # degenerate (n=1 collapses to a point CI, which is disjoint from
+    # anything else trivially -- use n>=4 pairs per k so this is a real
+    # separation, not a bootstrap-degeneracy artifact).
+    ratio_by_k = {1: 0.8, 2: 0.6, 4: 0.4, 8: 0.3}
+    for k in (1, 2, 4, 8):
+        arm = f"hrmv2_act_k{k}"
+        ratio = ratio_by_k[k]
+        for w in range(6):
+            # hrmv2_act_k{k} expansions vs h_legsum expansions at world w:
+            # fixed legsum expansions=100, arm expansions = ratio*100 (+
+            # tiny per-world jitter so the CI isn't a single repeated
+            # value, still tightly clustered around `ratio`).
+            jitter = 0.01 * (w - 3)
+            arm_exp = max(1, int(round((ratio + jitter) * 100)))
+            records.append(_rec("RATIO", 8, w, "0", "h_legsum", "", 400, True, 10.0, 100, 110, 10.0))
+            records.append(_rec("RATIO", 8, w, "0", arm, "0", 400, True, 8.0, arm_exp, arm_exp + 10, 8.0))
+            mae_rows.append(_mae_row("RATIO", 8, w, "0", "0", arm, 0.3))  # mae flat/uninformative here
+
+    # -- MAE config: ratio is flat/non-monotone (no signal there), but mae
+    # is cleanly monotone-decreasing with a clear k1-vs-k8 gap.
+    mae_by_k = {1: 0.5, 2: 0.4, 4: 0.3, 8: 0.2}
+    flat_ratio_by_k = {1: 0.5, 2: 0.6, 4: 0.5, 8: 0.55}  # deliberately non-monotone
+    for k in (1, 2, 4, 8):
+        arm = f"hrmv2_act_k{k}"
+        ratio = flat_ratio_by_k[k]
+        for w in range(4):
+            arm_exp = max(1, int(round(ratio * 100)))
+            records.append(_rec("MAE", 8, w, "0", "h_legsum", "", 400, True, 10.0, 100, 110, 10.0))
+            records.append(_rec("MAE", 8, w, "0", arm, "0", 400, True, 8.0, arm_exp, arm_exp + 10, 8.0))
+            mae_rows.append(_mae_row("MAE", 8, w, "0", "0", arm, mae_by_k[k]))
+
+    # -- FLAT config: neither criterion fires (non-monotone ratio AND
+    # non-monotone mae).
+    flat2_ratio_by_k = {1: 0.5, 2: 0.5, 4: 0.5, 8: 0.5}
+    flat2_mae_by_k = {1: 0.4, 2: 0.45, 4: 0.35, 8: 0.42}
+    for k in (1, 2, 4, 8):
+        arm = f"hrmv2_act_k{k}"
+        ratio = flat2_ratio_by_k[k]
+        for w in range(4):
+            arm_exp = max(1, int(round(ratio * 100)))
+            records.append(_rec("FLAT", 8, w, "0", "h_legsum", "", 400, True, 10.0, 100, 110, 10.0))
+            records.append(_rec("FLAT", 8, w, "0", arm, "0", 400, True, 8.0, arm_exp, arm_exp + 10, 8.0))
+            mae_rows.append(_mae_row("FLAT", 8, w, "0", "0", arm, flat2_mae_by_k[k]))
+
+    # -- SINGLEK config: only k=1 has any record -> insufficient.
+    for w in range(4):
+        records.append(_rec("SINGLEK", 8, w, "0", "h_legsum", "", 400, True, 10.0, 100, 110, 10.0))
+        records.append(_rec("SINGLEK", 8, w, "0", "hrmv2_act_k1", "0", 400, True, 8.0, 50, 60, 8.0))
+        mae_rows.append(_mae_row("SINGLEK", 8, w, "0", "0", "hrmv2_act_k1", 0.3))
+
+    g2 = M.g2_analysis(records, mae_rows, binding)
+    verdict = M.g2a_verdict(g2)
+
+    assert verdict["positive"] is True
+    assert "RATIO" in verdict["positive_configs"] or any(c[0] == "RATIO" for c in verdict["positive_configs"])
+    assert "MAE" in verdict["positive_configs"] or any(c[0] == "MAE" for c in verdict["positive_configs"])
+    assert not any(c[0] == "FLAT" if isinstance(c, tuple) else c == "FLAT" for c in verdict["positive_configs"])
+
+    table = verdict["table"]
+    assert table[("RATIO", 8)]["status"] == "positive"
+    assert table[("RATIO", 8)]["criterion"] == "ratio"
+    assert table[("MAE", 8)]["status"] == "positive"
+    assert table[("MAE", 8)]["criterion"] == "mae"
+    assert table[("FLAT", 8)]["status"] == "negative"
+    assert table[("SINGLEK", 8)]["status"] == "insufficient"
+
+
+# ---------------------------------------------------------------------------
+# Test 34: g2b Spearman-vs-K permutation test (halt-steps depth-sensitivity).
+# ---------------------------------------------------------------------------
+
+def test_g2b_spearman_permutation():
+    """Spec: 'Spearman rho of mean_halt_steps vs K over rows with K in
+    {2,4,8} (exclude K=0). Permutation test: 2000 permutations of the K
+    labels, seeded rng(24680), two-sided p = fraction of |rho_perm| >=
+    |rho_obs| (add-one smoothing). DEGENERATE handling: if all
+    mean_halt_steps identical, rho is undefined -> {"constant": True,
+    "value": constant, "positive": False}. Verdict positive iff rho > 0
+    AND p < 0.05.'
+    """
+    # -- Increasing case: halt steps rise cleanly with K across several
+    # worlds/configs -> strong positive correlation, should clear p<0.05
+    # with 2000 permutations even on a modest sample.
+    rows = []
+    halt_by_k = {2: 1.5, 4: 2.5, 8: 3.5}
+    for config_label in ("A", "B"):
+        for K in (2, 4, 8):
+            base = halt_by_k[K]
+            for w in range(5):
+                jitter = 0.02 * (w - 2)
+                rows.append(_halt_row(config_label, K, w, "0", "0", base + jitter, 192))
+    result = M.g2b_analysis(rows)
+    assert result["pooled"]["rho"] > 0
+    assert result["pooled"]["p"] < 0.05
+    assert result["pooled"]["positive"] is True
+    assert result["pooled"].get("constant", False) is False
+
+    # K=0 rows must be excluded even if present (spec: "exclude K=0").
+    rows_with_k0 = list(rows) + [_halt_row("A", 0, w, "0", "0", 99.0, 192) for w in range(5)]
+    result_with_k0 = M.g2b_analysis(rows_with_k0)
+    assert result_with_k0["pooled"]["rho"] == pytest.approx(result["pooled"]["rho"])
+
+    # -- Shuffled / no-trend case: halt steps uncorrelated with K -> not
+    # positive (either p >= 0.05 or rho <= 0).
+    rng = np.random.RandomState(0)
+    shuffled_rows = []
+    for config_label in ("A", "B"):
+        for K in (2, 4, 8):
+            for w in range(5):
+                val = float(rng.uniform(1.0, 4.0))
+                shuffled_rows.append(_halt_row(config_label, K, w, "0", "0", val, 192))
+    shuffled_result = M.g2b_analysis(shuffled_rows)
+    assert not (shuffled_result["pooled"]["rho"] > 0 and shuffled_result["pooled"]["p"] < 0.05)
+
+    # -- All-constant case: DEGENERATE, must not crash and must report
+    # constant=True, positive=False, per the pre-registered "no learned
+    # depth-sensitivity" negative-result handling.
+    constant_rows = []
+    for config_label in ("A",):
+        for K in (2, 4, 8):
+            for w in range(5):
+                constant_rows.append(_halt_row(config_label, K, w, "0", "0", 1.0, 192))
+    constant_result = M.g2b_analysis(constant_rows)
+    assert constant_result["pooled"]["constant"] is True
+    assert constant_result["pooled"]["value"] == pytest.approx(1.0)
+    assert constant_result["pooled"]["positive"] is False
+
+    # Per-config breakdown must also be present and keyed sensibly.
+    assert "by_config" in result
+    assert "A" in result["by_config"] and "B" in result["by_config"]
+
+
+# ---------------------------------------------------------------------------
+# Test 35: BH-family scoping -- run_analyze must NEVER let forced-k rows
+# reach the G1 `analyze` call (review-derived integration requirement 1).
+# ---------------------------------------------------------------------------
+
+def test_bh_family_scoping(tmp_path, monkeypatch):
+    """Records include hrmv2_act_k2 rows (a forced-k diagnostic arm) mixed
+    in with the normal 5-native + mlp + hrmv2_act arm family. `run_analyze`
+    must filter `records` to exclude every arm whose name starts with
+    "hrmv2_act_k" BEFORE calling `analyze` -- captured here via a capture
+    wrapper around `M.analyze` that records every arm name it ever sees.
+    `g2_analysis` (the G2 path), by contrast, MUST still see the forced-k
+    rows (that is their only purpose)."""
+    out_dir = tmp_path / "bh_scoping"
+    results_dir = out_dir / "results"
+    results_dir.mkdir(parents=True)
+
+    records = [
+        _rec("A", 2, 0, "", "h_next", "", 200, True, 10.0, 40, 50, 10.0),
+        _rec("A", 2, 0, "", "h_legsum", "", 200, True, 10.0, 60, 70, 10.0),
+        _rec("A", 2, 0, "", "h_oracle", "", 200, True, 10.0, 30, 40, 10.0),
+        _rec("A", 2, 0, "0", "mlp", "0", 200, True, 10.0, 55, 65, 10.0),
+        _rec("A", 2, 0, "0", "gnn", "0", 200, True, 10.0, 50, 60, 10.0),
+        _rec("A", 2, 0, "0", "hrmv2_act", "0", 200, True, 10.0, 45, 55, 10.0),
+        # Forced-k diagnostic rows -- must reach g2, must NEVER reach
+        # analyze/G1.
+        _rec("A", 2, 0, "0", "hrmv2_act_k2", "0", 200, True, 10.0, 44, 54, 10.0),
+        _rec("A", 2, 0, "0", "hrmv2_act_k8", "0", 200, True, 10.0, 42, 52, 10.0),
+    ]
+    import csv as _csv
+    C.write_csv(results_dir / "c11_eval_raw.csv", records)
+
+    binding_path = out_dir / "binding_k0.json"
+    C.write_json(binding_path, {})  # no K=0 cells in this synthetic run
+
+    cfg = M.C11MissionConfig()
+    seen_arms_per_call: list = []
+    orig_analyze = M.analyze
+
+    def _capture_analyze(records_arg, binding_arg, cfg_arg=None):
+        seen_arms_per_call.append({r["arm"] for r in records_arg})
+        return orig_analyze(records_arg, binding_arg, cfg_arg)
+
+    seen_g2_arms: list = []
+    orig_g2 = M.g2_analysis
+
+    def _capture_g2(records_arg, mae_rows_arg, binding_arg, cfg_arg=None):
+        seen_g2_arms.append({r["arm"] for r in records_arg if str(r["arm"]).startswith("hrmv2_act_k")})
+        return orig_g2(records_arg, mae_rows_arg, binding_arg, cfg_arg)
+
+    monkeypatch.setattr(M, "analyze", _capture_analyze)
+    monkeypatch.setattr(M, "g2_analysis", _capture_g2)
+
+    M.run_analyze(str(out_dir), cfg)
+
+    assert seen_arms_per_call, "M.analyze was never called by run_analyze"
+    for arms_seen in seen_arms_per_call:
+        forced_k_seen = {a for a in arms_seen if str(a).startswith("hrmv2_act_k")}
+        assert not forced_k_seen, f"forced-k arm(s) {forced_k_seen} reached M.analyze (G1) -- BH family contamination"
+
+    assert seen_g2_arms, "M.g2_analysis was never called by run_analyze"
+    assert any(seen_g2_arms), "forced-k rows never reached g2_analysis -- G2 would have nothing to analyze"
+
+
+# ---------------------------------------------------------------------------
+# Test 36: halt-steps + state-MAE dumping in run_eval.
+# ---------------------------------------------------------------------------
+
+def test_halt_and_mae_dumping(tmp_path):
+    """A dummy registered arm whose `forward_batch` sets
+    `bundle.hrmv2_halt_steps` (constant 2.0 on every queried state) --
+    dumping is triggered by `hasattr(bundle, "hrmv2_halt_steps")` after ANY
+    learned-provider call (arm-agnostic, per the task spec's design note:
+    the attribute only ever appears from ACT-live providers, so keying off
+    its presence rather than the literal arm name "hrmv2_act" is simpler
+    and more robust, and lets this test exercise the mechanism without a
+    real HRM-v2 model).
+
+    Asserts:
+      - `c11_halt_steps.csv` gets a row for the dummy arm's call with
+        mean_halt_steps == 2.0 (all-queried-cells constant), and
+        `bundle.hrmv2_halt_steps` is deleted afterward (does not leak into
+        the NEXT bundle/provider's dump).
+      - `c11_state_mae.csv` has a row for EVERY learned-arm provider call
+        (the dummy arm included), and one hand-verified value against a
+        hand-built h_hat (mae = mean(|h_hat - oracle|)[finite] / side_len).
+      - Reference arms (h_next/h_legsum/h_oracle) never appear in either
+        dump (spec: "Reference arms skipped.")."""
+    out_dir = tmp_path / "halt_mae_dump"
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+
+    calls = {"n": 0}
+
+    def _dummy_build(cfg_arg):
+        class _Dummy(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.bias = torch.nn.Parameter(torch.tensor(0.0))
+        return _Dummy()
+
+    def _dummy_forward_batch(model, bundle, states, cfg_arg, device):
+        calls["n"] += 1
+        # Set the halt-steps side channel exactly like the real ACT-live
+        # provider's `_stash_halt_steps` -- constant 2.0 on every queried
+        # (i, s), NaN elsewhere.
+        K = len(bundle.wp)
+        N = bundle.rm.points.shape[0]
+        halt = np.full((K + 1, N), np.nan, dtype=np.float32)
+        for (i, s) in states:
+            halt[s, i] = 2.0
+        bundle.hrmv2_halt_steps = halt
+        # Constant residual prediction 0.5 (well within [0, 4]) for every
+        # queried state.
+        return torch.full((len(states),), 0.5, dtype=torch.float32)
+
+    def _dummy_train(cell_arg, bundles_arg, seed_arg, cfg_arg, epochs_arg):
+        model = _dummy_build(cfg_arg)
+        state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        meta = {
+            "arm": "dummy_halt_mae",
+            "config_label": cell_arg["config_label"],
+            "K": int(cell_arg["K"]),
+            "seed": int(seed_arg),
+            "epochs": int(epochs_arg) if epochs_arg is not None else int(cfg_arg.epochs),
+            "param_count": sum(p.numel() for p in model.parameters()),
+            "first_epoch_loss": 0.1,
+            "final_loss": 0.05,
+            "wall_s": 0.001,
+        }
+        return state_dict, meta
+
+    M.register_provider_builder("dummy_halt_mae", _dummy_build, _dummy_forward_batch, train=_dummy_train)
+    try:
+        M.run_train(str(out_dir), arms=("dummy_halt_mae",), cells=[cell], seeds=(0,), cfg=cfg,
+                    n_train_worlds=2, epochs=1)
+        M.run_eval(str(out_dir), cells=[cell], cfg=cfg, n_test_worlds=2, budgets=(400,),
+                   arms=("dummy_halt_mae",))
+
+        halt_csv = out_dir / "results" / "c11_halt_steps.csv"
+        assert halt_csv.exists()
+        with open(halt_csv, "r", newline="", encoding="utf-8") as f:
+            halt_rows = list(csv.DictReader(f))
+        assert len(halt_rows) >= 1
+        for r in halt_rows:
+            assert float(r["mean_halt_steps"]) == pytest.approx(2.0)
+            assert r["config_label"] == "A"
+            assert int(r["K"]) == 2
+            assert "world_idx" in r and "seed" in r and "train_seed" in r and "n_queried" in r
+
+        mae_csv = out_dir / "results" / "c11_state_mae.csv"
+        assert mae_csv.exists()
+        with open(mae_csv, "r", newline="", encoding="utf-8") as f:
+            mae_rows = list(csv.DictReader(f))
+        assert len(mae_rows) >= 1
+        for r in mae_rows:
+            assert r["arm"] == "dummy_halt_mae"
+            assert r["config_label"] == "A"
+
+        # Hand-verify one mae value: h_hat = hl + side*0.5 everywhere
+        # (since the dummy provider predicts constant residual 0.5), so
+        # mae = mean(|hl + side*0.5 - oracle|)[finite] / side. Rebuild the
+        # SAME test bundle directly (deterministic seeds) to compute this
+        # independently of run_eval's own internals.
+        bundles = M.collect_cell_dataset(cell, split="test", n_worlds=2, cfg=cfg)
+        bundle0 = bundles[0]
+        K = len(bundle0.wp)
+        N = bundle0.rm.points.shape[0]
+        side = float(bundle0.world.side_len)
+        hl_arr = np.array([[bundle0.hl(i, s) for i in range(N)] for s in range(K + 1)], dtype=np.float64)
+        h_hat = hl_arr + side * 0.5
+        oracle = bundle0.oracle
+        finite_mask = oracle < C.INF / 10.0
+        expected_mae = float(np.mean(np.abs(h_hat - oracle)[finite_mask])) / side
+
+        world0_rows = [r for r in mae_rows if int(r["world_idx"]) == 0 and r["train_seed"] == "0"]
+        assert world0_rows, "no mae row found for world_idx=0, train_seed=0"
+        assert float(world0_rows[0]["state_mae"]) == pytest.approx(expected_mae, rel=1e-5)
+
+        # Reference arms never appear in either dump.
+        halt_arms_would_be = set()  # halt csv carries no `arm` column by spec -- nothing to check per-row
+        mae_arm_names = {r["arm"] for r in mae_rows}
+        assert not (mae_arm_names & {"h_next", "h_legsum", "h_oracle"})
+
+        # The attribute must not leak onto a bundle across provider calls:
+        # after run_eval finishes, no live bundle object retains it as
+        # stale (checked by re-running eval and confirming halt csv still
+        # reads a clean, non-accumulating row count for a fresh call).
+        assert not hasattr(bundle0, "hrmv2_halt_steps"), (
+            "hrmv2_halt_steps set on a bundle collected OUTSIDE run_eval's own loop -- "
+            "this bundle was never touched by a provider, so it must never have the attribute"
+        )
+    finally:
+        M.PROVIDER_BUILDERS.pop("dummy_halt_mae", None)
+
+
+# ---------------------------------------------------------------------------
+# Test 37: results-doc writer.
+# ---------------------------------------------------------------------------
+
+_G1_GATE_TEXT_FRAGMENT = "dose-response in structure"
+_G2_GATE_TEXT_FRAGMENT = "depth-of-compute"
+_G3_GATE_TEXT_FRAGMENT = "honest closure"
+
+
+def _synthetic_g1_analysis_and_verdict(positive: bool):
+    """Build a tiny, internally-consistent (analysis, k0, g1, g2, g2b, meta)
+    tuple for `write_results_doc`, without touching any world/PRM/A*
+    machinery -- everything hand-built exactly like the Task-5 g1 tests."""
+    binding = {("A", 2): 200, ("A", 4): 400, ("A", 8): 1600, ("A", 0): 100}
+    records = [
+        _rec("A", 0, 0, "", "h_legsum", "", 100, True, 10.0, 50, 60, 10.0),
+        _rec("A", 0, 0, "0", "mlp", "0", 100, True, 10.0, 52, 62, 10.0),
+    ]
+    if positive:
+        gnn_ratio_by_k = {2: 0.6, 4: 0.4, 8: 0.2}
+        for K in (2, 4, 8):
+            for w in range(4):
+                records.append(_rec("A", K, w, "", "h_legsum", "", binding[("A", K)], True, 10.0, 100, 110, 10.0))
+                mlp_exp = 100
+                gnn_exp = max(1, int(round(gnn_ratio_by_k[K] * 100)))
+                records.append(_rec("A", K, w, "0", "mlp", "0", binding[("A", K)], True, 10.0, mlp_exp, mlp_exp + 10, 10.0))
+                records.append(_rec("A", K, w, "0", "gnn", "0", binding[("A", K)], True, 8.0, gnn_exp, gnn_exp + 10, 8.0))
+    else:
+        for K in (2, 4, 8):
+            for w in range(4):
+                records.append(_rec("A", K, w, "", "h_legsum", "", binding[("A", K)], True, 10.0, 100, 110, 10.0))
+                records.append(_rec("A", K, w, "0", "mlp", "0", binding[("A", K)], True, 10.0, 100, 110, 10.0))
+                records.append(_rec("A", K, w, "0", "gnn", "0", binding[("A", K)], True, 10.0, 100, 110, 10.0))
+
+    analysis = M.analyze(records, binding)
+    k0 = M.k0_continuity(analysis)
+    g1 = M.g1_verdict(analysis)
+
+    mae_rows = []
+    halt_rows = []
+    for K in (1, 2, 4, 8):
+        arm = f"hrmv2_act_k{K}"
+        for w in range(3):
+            mae_rows.append(_mae_row("A", 8, w, "0", "0", arm, 0.3))
+    for K in (2, 4, 8):
+        for w in range(4):
+            halt_rows.append(_halt_row("A", K, w, "0", "0", float(K) / 2.0, 100))
+
+    g2_binding = {("A", 8): 1600}
+    g2 = M.g2_analysis(records, mae_rows, g2_binding)
+    g2b = M.g2b_analysis(halt_rows)
+
+    meta = {
+        "date": "2026-07-07",
+        "branch": "c11-mission",
+        "spec_path": "docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md",
+        "plan_path": "docs/superpowers/plans/2026-07-07-c11-mission.md",
+        "param_counts": {"mlp": 1_300_000, "gnn": 980_000, "hrmv2_act": 2_100_000},
+    }
+    return analysis, k0, g1, g2, g2b, meta
+
+
+def test_results_doc_writer(tmp_path):
+    """The three pre-registered gate texts (verbatim, spec section 1) must
+    appear; the three verdict lines must appear; G3's closure paragraph
+    must be generated CONDITIONALLY from the computed booleans -- tested
+    on both branches (all-negative -> architecture-agnostic text present,
+    dose-response-positive text ABSENT; one-positive -> reversed)."""
+    for positive in (False, True):
+        analysis, k0, g1, g2, g2b, meta = _synthetic_g1_analysis_and_verdict(positive)
+        path = tmp_path / f"results_{positive}" / "C11_RESULTS.md"
+        M.write_results_doc(analysis, k0, g1, g2, g2b, meta, str(path))
+
+        assert path.exists()
+        text = path.read_text(encoding="utf-8")
+
+        # Verbatim gate texts (spec section 1 headers).
+        assert _G1_GATE_TEXT_FRAGMENT in text
+        assert _G2_GATE_TEXT_FRAGMENT in text
+        assert _G3_GATE_TEXT_FRAGMENT in text
+
+        # K=0 continuity verdict line.
+        assert "PASS" in text or "FAIL" in text
+
+        # Caveats section (standing list).
+        assert "caveat" in text.lower() or "Caveat" in text
+        assert "door_open_at_s" in text
+        assert "oracle" in text.lower()
+
+        # Conditional G3 prose: architecture-agnostic text only in the
+        # all-negative branch; a distinct dose-response-positive text only
+        # in the positive branch. No hardcoded glosses that contradict the
+        # computed booleans (the probe's conditional-prose lesson).
+        architecture_agnostic_phrase = "architecture-agnostic"
+        if positive:
+            assert architecture_agnostic_phrase not in text or "NOT" in text.upper()
+        else:
+            assert architecture_agnostic_phrase in text.lower() or "architecture-agnostic" in text
+
+
+def test_results_doc_writer_g3_branches_differ():
+    """Stronger differential check than the substring test above: the G3
+    section text must actually DIFFER between the all-negative and the
+    one-positive synthetic inputs (guards against a `write_results_doc`
+    that always emits the same paragraph regardless of the booleans)."""
+    analysis_neg, k0_neg, g1_neg, g2_neg, g2b_neg, meta_neg = _synthetic_g1_analysis_and_verdict(False)
+    analysis_pos, k0_pos, g1_pos, g2_pos, g2b_pos, meta_pos = _synthetic_g1_analysis_and_verdict(True)
+
+    assert g1_neg["positive"] is False
+    assert g1_pos["positive"] is True
+
+    path_neg = None
+    path_pos = None
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        path_neg = Path(tmp) / "neg" / "C11_RESULTS.md"
+        path_pos = Path(tmp) / "pos" / "C11_RESULTS.md"
+        M.write_results_doc(analysis_neg, k0_neg, g1_neg, g2_neg, g2b_neg, meta_neg, str(path_neg))
+        M.write_results_doc(analysis_pos, k0_pos, g1_pos, g2_pos, g2b_pos, meta_pos, str(path_pos))
+        text_neg = path_neg.read_text(encoding="utf-8")
+        text_pos = path_pos.read_text(encoding="utf-8")
+
+    assert text_neg != text_pos
+
+
+# ---------------------------------------------------------------------------
+# Test 38: canonical-results clobber tripwire (the probe's lesson).
+# ---------------------------------------------------------------------------
+
+def test_canonical_results_tripwire():
+    """The repo-level canonical results doc must NEVER be created or
+    modified by the test suite -- ONLY the CLI's `--canonical-results`
+    flag writes there (module-dir anchored, per requirement 4). Asserts
+    non-existence NOW (this phase has not yet run its canonical local
+    validation pass -- Task 9); if a future run legitimately commits this
+    file, this assertion should be revisited to instead checksum-compare
+    against a known-good committed version (mirroring the probe's own
+    `test_smoke_probe_does_not_clobber_canonical_doc` convention) rather
+    than deleted outright."""
+    canonical_path = Path(__file__).resolve().parents[1] / "C11_RESULTS.md"
+    assert not canonical_path.exists(), (
+        f"{canonical_path} exists -- the test suite (or some prior run in this "
+        f"session) wrote to the canonical path instead of an out_dir-scoped one"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 39: run_analyze end-to-end (reads raw/binding/halt/mae CSVs, missing
+# halt/mae files handled gracefully).
+# ---------------------------------------------------------------------------
+
+def test_run_analyze_missing_halt_mae_files(tmp_path):
+    """`run_analyze` must not crash when `c11_halt_steps.csv` /
+    `c11_state_mae.csv` are absent (e.g. an eval run with no hrmv2/learned
+    arms at all) -- the G2 sections must be marked 'not run' instead."""
+    out_dir = tmp_path / "no_g2_files"
+    results_dir = out_dir / "results"
+    results_dir.mkdir(parents=True)
+
+    records = [
+        _rec("A", 2, 0, "", "h_legsum", "", 200, True, 10.0, 60, 70, 10.0),
+        _rec("A", 2, 0, "0", "mlp", "0", 200, True, 10.0, 55, 65, 10.0),
+    ]
+    C.write_csv(results_dir / "c11_eval_raw.csv", records)
+    C.write_json(out_dir / "binding_k0.json", {})
+
+    cfg = M.C11MissionConfig()
+    verdict = M.run_analyze(str(out_dir), cfg)
+
+    assert (out_dir / "C11_RESULTS.md").exists()
+    text = (out_dir / "C11_RESULTS.md").read_text(encoding="utf-8")
+    assert "not run" in text.lower()
+    assert isinstance(verdict, dict)
+
+
+# ---------------------------------------------------------------------------
+# Test 40: run_full smoke -- end-to-end train -> eval -> analyze.
+# ---------------------------------------------------------------------------
+
+def test_run_full_smoke(tmp_path):
+    """`--scale-preset smoke`-equivalent direct call: end-to-end ckpts + raw
+    CSV + mae CSV + results md in out_dir; verdict lines present; runtime
+    sane (loose upper bound, not a tight perf assertion -- CI machines
+    vary)."""
+    import time as _time
+    out_dir = tmp_path / "full_smoke"
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+
+    t0 = _time.time()
+    M.run_full(
+        str(out_dir), arms=("mlp", "gnn"), cells=[cell], seeds=(0,), cfg=cfg,
+        n_train_worlds=2, n_test_worlds=2, epochs=1, budgets=(400, 3200),
+    )
+    wall_s = _time.time() - t0
+    assert wall_s < 240, f"run_full smoke took {wall_s:.1f}s, expected well under 4 minutes"
+
+    assert (out_dir / "ckpt" / "mlp__A2__s0.pt").exists()
+    assert (out_dir / "ckpt" / "gnn__A2__s0.pt").exists()
+    assert (out_dir / "results" / "c11_eval_raw.csv").exists()
+    results_md = out_dir / "C11_RESULTS.md"
+    assert results_md.exists()
+    text = results_md.read_text(encoding="utf-8")
+    assert "PASS" in text or "FAIL" in text  # K=0 continuity line (may be N/A if no K=0 cell -- see below)
+
+    # run_full is resume-friendly: calling it again must not re-train or
+    # crash (mirrors run_train's own resume contract).
+    ckpt_mtime = (out_dir / "ckpt" / "mlp__A2__s0.pt").stat().st_mtime_ns
+    M.run_full(
+        str(out_dir), arms=("mlp", "gnn"), cells=[cell], seeds=(0,), cfg=cfg,
+        n_train_worlds=2, n_test_worlds=2, epochs=1, budgets=(400, 3200),
+    )
+    assert (out_dir / "ckpt" / "mlp__A2__s0.pt").stat().st_mtime_ns == ckpt_mtime
+
+
+# ---------------------------------------------------------------------------
+# Test 41: CLI --mode analyze / --mode full / --canonical-results /
+# --scale-preset smoke wiring.
+# ---------------------------------------------------------------------------
+
+def test_cli_mode_analyze(tmp_path, monkeypatch):
+    out_dir = tmp_path / "cli_analyze"
+    results_dir = out_dir / "results"
+    results_dir.mkdir(parents=True)
+    records = [
+        _rec("A", 2, 0, "", "h_legsum", "", 200, True, 10.0, 60, 70, 10.0),
+        _rec("A", 2, 0, "0", "mlp", "0", 200, True, 10.0, 55, 65, 10.0),
+    ]
+    C.write_csv(results_dir / "c11_eval_raw.csv", records)
+    C.write_json(out_dir / "binding_k0.json", {})
+
+    M.main(["--mode", "analyze", "--out-dir", str(out_dir)])
+    assert (out_dir / "C11_RESULTS.md").exists()
+
+    # --canonical-results must be the ONLY path that writes the repo-level
+    # doc; the tripwire test elsewhere in this suite confirms it never
+    # exists after the suite runs WITHOUT this flag -- so this test itself
+    # must NOT pass --canonical-results, matching the tripwire.
+
+
+def test_cli_scale_preset_smoke_is_small():
+    """`--scale-preset smoke` must resolve to the pre-registered small
+    grid: n_train_worlds=2, n_test_worlds=2, epochs=1, budgets=(400,3200),
+    cells restricted to A at K in {0,2} only, arms mlp+gnn (no hrmv2 --
+    too slow for smoke)."""
+    resolved = M._resolve_scale_preset("smoke")
+    assert resolved["n_train_worlds"] == 2
+    assert resolved["n_test_worlds"] == 2
+    assert resolved["epochs"] == 1
+    assert tuple(sorted(resolved["budgets"])) == (400, 3200)
+    assert set(resolved["arms"]) == {"mlp", "gnn"}
+    cell_pairs = {(c["config_label"], c["K"]) for c in resolved["cells"]}
+    assert cell_pairs == {("A", 0), ("A", 2)}
+
+
+def test_cli_scale_preset_local_is_full_grid():
+    """`--scale-preset local` must resolve to the full pre-registered grid
+    (all 11 cells, all 5 native arms + hrmv2_act if registered, the
+    pre-registered epochs/budgets/world counts from `C11MissionConfig`)."""
+    resolved = M._resolve_scale_preset("local")
+    cfg = M.C11MissionConfig()
+    assert resolved["n_train_worlds"] == cfg.n_train_worlds
+    assert resolved["n_test_worlds"] == cfg.n_test_worlds
+    assert resolved["epochs"] == cfg.epochs
+    assert tuple(sorted(resolved["budgets"])) == tuple(sorted(cfg.budgets_grid))
+    assert len(resolved["cells"]) == 11

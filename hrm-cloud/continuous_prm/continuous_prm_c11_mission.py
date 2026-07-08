@@ -64,8 +64,10 @@ and eval/stats conventions) and docs/superpowers/plans/2026-07-07-c11-mission.md
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1768,7 +1770,44 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
     order, worlds ascending (bundle collection order == world_idx order,
     per `collect_cell_dataset`), arms sorted (reference arms first in a
     fixed tuple order, then learned arms sorted by name), budgets
-    ascending."""
+    ascending.
+
+    Task 8 side-channel dumps (review-derived integration requirements 2/3
+    -- see the plan/task prompt's "Halt-steps dumping"/"State-MAE dumping"
+    sections): immediately after EVERY learned-provider call (`h_arr =
+    provider(bundle)`, ONE call per (world, arm) regardless of how many
+    budgets are evaluated against that h_arr), BEFORE the next provider
+    runs on the SAME bundle:
+      - if `hasattr(bundle, "hrmv2_halt_steps")` (arm-agnostic trigger --
+        the attribute only ever appears from an ACT-live provider's
+        `_stash_halt_steps`, so keying off its presence rather than the
+        literal name "hrmv2_act" also picks up any other ACT-live-style
+        provider without a hardcoded name check): buffers one row
+        `(config_label, K, world_idx, seed, train_seed, mean_halt_steps,
+        n_queried)` -- mean over the non-NaN entries of the `(K+1, N)`
+        array -- then `del bundle.hrmv2_halt_steps` immediately (per the
+        task prompt's explicit choice of "del" over an overwrite-tolerant
+        read: the attribute is "last writer per cell" per its own
+        docstring, so leaving it would let a LATER, unrelated provider's
+        dump on the SAME bundle silently inherit stale cells from an
+        earlier model -- deleting closes that window at its narrowest
+        point, right after this provider's own read).
+      - for EVERY learned-arm provider call (reference arms `h_next`/
+        `h_legsum`/`h_oracle` are skipped -- they have no residual to
+        score and are never "learned"): computes `mean(|h_arr -
+        bundle.oracle|)` over the finite-oracle mask (`oracle < C.INF /
+        10.0`, the same mask `_residual_targets` uses), divided by
+        `bundle.world.side_len`, and buffers a row `(config_label, K,
+        world_idx, seed, train_seed, arm, state_mae)`.
+    Both buffers are written ONCE at the end (same convention as
+    `all_records`/`C.write_csv`, which overwrites rather than appends) to
+    `{out_dir}/results/c11_halt_steps.csv` / `{out_dir}/results/
+    c11_state_mae.csv` respectively -- SKIPPED (no file write) if the
+    corresponding buffer ended up empty (e.g. an eval run with no hrmv2/
+    learned arms at all), so `run_analyze` can distinguish "ran with zero
+    qualifying rows" from "never ran" only by file absence, which is
+    exactly the signal it needs for its "missing halt/mae files -> G2
+    marked not run" contract."""
     cfg = cfg or C11MissionConfig()
     n_worlds = int(n_test_worlds) if n_test_worlds is not None else int(cfg.n_test_worlds)
     eval_budgets = tuple(sorted(int(b) for b in (budgets if budgets is not None else cfg.budgets_grid)))
@@ -1778,6 +1817,8 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
 
     all_records: List[dict] = []
     binding_k0_updates: Dict[str, dict] = {}
+    halt_step_rows: List[dict] = []
+    state_mae_rows: List[dict] = []
 
     for cell in cells:
         config_label = cell["config_label"]
@@ -1858,6 +1899,45 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
                 h_arr = provider(bundle)
                 arm_h_arrays.append((arm_name, h_arr, False, str(train_seed_val)))
 
+                # T8 requirement 2: read-then-delete the halt-steps side
+                # channel IMMEDIATELY after this provider call, before the
+                # NEXT provider runs on this same bundle (arm-agnostic
+                # trigger -- see this function's own docstring for the
+                # "last writer per cell" staleness rationale).
+                halt_arr = getattr(bundle, "hrmv2_halt_steps", None)
+                if halt_arr is not None:
+                    finite_halt = halt_arr[np.isfinite(halt_arr)]
+                    mean_halt = float(np.mean(finite_halt)) if finite_halt.size > 0 else float("nan")
+                    halt_step_rows.append({
+                        "config_label": config_label,
+                        "K": K,
+                        "world_idx": world_idx,
+                        "seed": bundle.seed,
+                        "train_seed": str(train_seed_val),
+                        "mean_halt_steps": mean_halt,
+                        "n_queried": int(finite_halt.size),
+                    })
+                    del bundle.hrmv2_halt_steps
+
+                # T8 requirement 3: per-call state-MAE, every learned arm
+                # (reference arms are skipped -- they have no residual to
+                # score, see this function's own docstring).
+                finite_mask = bundle.oracle < C.INF / 10.0
+                if np.any(finite_mask):
+                    side = float(bundle.world.side_len)
+                    mae = float(np.mean(np.abs(h_arr - bundle.oracle)[finite_mask])) / side
+                else:
+                    mae = float("nan")
+                state_mae_rows.append({
+                    "config_label": config_label,
+                    "K": K,
+                    "world_idx": world_idx,
+                    "seed": bundle.seed,
+                    "train_seed": str(train_seed_val),
+                    "arm": arm_name,
+                    "state_mae": mae,
+                })
+
             for arm_name, h_arr, is_reference, train_seed_str in arm_h_arrays:
                 for budget in eval_budgets:
                     partial = _eval_bundle_arm_budget(bundle, arm_name, h_arr, budget, is_reference)
@@ -1891,6 +1971,15 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
         {col: r[col] for col in EVAL_RAW_COLS} for r in all_records
     ]
     C.write_csv(out_path / "results" / "c11_eval_raw.csv", ordered_records)
+
+    # T8 requirements 2/3: side-dump CSVs, skipped entirely (no file) when
+    # the buffer is empty -- see this function's docstring for why file
+    # ABSENCE (not an empty-but-present file) is the signal `run_analyze`
+    # relies on to mark G2 sections "not run".
+    if halt_step_rows:
+        C.write_csv(out_path / "results" / "c11_halt_steps.csv", halt_step_rows)
+    if state_mae_rows:
+        C.write_csv(out_path / "results" / "c11_state_mae.csv", state_mae_rows)
 
     if binding_k0_updates:
         binding_path = out_path / "binding_k0.json"
@@ -2345,6 +2434,892 @@ def g1_verdict(analysis: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Task 8: G2 analysis -- forced-segment curves (G2a) + halting-vs-K
+# correlation (G2b). Both are PURE functions over already-collected rows
+# (the raw eval records for G2a's expansion-ratio half, plus the
+# `c11_state_mae.csv` / `c11_halt_steps.csv` side-dump rows `run_eval`
+# writes per T8's requirements 2/3) -- no I/O, no world/PRM/A* calls,
+# mirroring `analyze`'s own "pure function over the raw CSV" convention.
+#
+# Spec section 1, G2 (quoted verbatim):
+# "G2 -- depth-of-compute (HRM-v2 mechanism). (a) Forced-segment curves:
+# eval the trained ACT arm at forced k in {1,2,4,8} segments; positive iff
+# quality (state-level MAE and/or expansion-ratio) improves monotonically
+# with bootstrap-CI separation between k=1 and k=8 on >=1 config at K=8.
+# (b) Learned halting: Spearman correlation of mean halt-steps vs K
+# positive with q < 0.05 (\"thinks longer on deeper missions\")."
+# ---------------------------------------------------------------------------
+
+# The forced-k diagnostic arm family (G2a): `hrmv2_act_k1`/`_k2`/`_k4`/`_k8`
+# (forced-segment inference, no q-halt) plus `hrmv2_act` itself as the
+# ACT-live reference point (its OWN learned halting decides how many
+# segments run, so it is not "forced" at any particular k -- included in
+# the curve as a free-running comparison point, per the task spec: "+
+# `hrmv2_act` as the ACT-live reference point").
+G2A_FORCED_K_ARMS: Tuple[str, ...] = ("hrmv2_act_k1", "hrmv2_act_k2", "hrmv2_act_k4", "hrmv2_act_k8")
+G2A_ARM_FAMILY: Tuple[str, ...] = G2A_FORCED_K_ARMS + ("hrmv2_act",)
+
+# Forced-k arm name -> its k value (hrmv2_act has NO fixed k -- excluded
+# from the ratio-monotonicity/mae-monotonicity checks below, which are
+# defined only over the 4 FORCED values; it still gets its own row in the
+# per-cell table for reporting).
+_FORCED_K_VALUE: Dict[str, int] = {"hrmv2_act_k1": 1, "hrmv2_act_k2": 2, "hrmv2_act_k4": 4, "hrmv2_act_k8": 8}
+
+
+def g2_analysis(records: Sequence[dict], mae_rows: Sequence[dict],
+                 binding: Dict[Tuple[str, int], int], cfg: Optional[C11MissionConfig] = None) -> dict:
+    """G2a: per (config_label, K) cell at that cell's binding budget, for
+    every arm in `G2A_ARM_FAMILY` present in `records`: success rate,
+    matched expansion-ratio vs `h_legsum` (paired per-(world_idx,
+    train_seed), both-found rows only, median + bootstrap CI 1000 resamples
+    seeded 12345 -- SAME convention as `analyze`'s `vs_legsum` block), and
+    mean `state_mae` from `mae_rows` for that (config_label, K, arm) (over
+    every mae_rows entry matching config_label/K/arm, regardless of K in
+    mae_rows -- mae_rows are typically all logged at K=8 per T8 requirement
+    3's "for EVERY learned-arm provider call", but this function does not
+    assume that; it groups by whatever (config_label, K, arm) keys are
+    actually present).
+
+    `records`/`mae_rows`: raw-CSV-style rows (string-typed, as read back by
+    `csv.DictReader`, OR already-typed) -- coerced via `_coerce_record` /
+    a local mae-row coercion respectively. `binding`: `{(config_label, K):
+    budget}`, same contract as `analyze`'s `binding` argument (the caller
+    assembles it; this function does not).
+
+    Returns `{"cells": {(config_label, K): {"binding": budget, "arms":
+    {arm: {"success", "ratio_median", "ci_lo", "ci_hi", "n_pairs",
+    "mean_state_mae", "n_mae"}}}}}` -- the caller (`g2a_verdict`) reduces
+    this into the pre-registered positive/negative/insufficient verdict."""
+    cfg = cfg or C11MissionConfig()
+    coerced = [_coerce_record(r) for r in records]
+
+    def _coerce_mae_row(row: dict) -> dict:
+        return {
+            "config_label": str(row["config_label"]),
+            "K": int(row["K"]),
+            "world_idx": int(row["world_idx"]),
+            "seed": str(row["seed"]),
+            "train_seed": str(row["train_seed"]),
+            "arm": str(row["arm"]),
+            "state_mae": float(row["state_mae"]),
+        }
+
+    coerced_mae = [_coerce_mae_row(r) for r in mae_rows]
+
+    by_cell: Dict[Tuple[str, int], List[dict]] = {}
+    for r in coerced:
+        by_cell.setdefault((r["config_label"], r["K"]), []).append(r)
+
+    mae_by_cell_arm: Dict[Tuple[str, int, str], List[float]] = {}
+    for r in coerced_mae:
+        mae_by_cell_arm.setdefault((r["config_label"], r["K"], r["arm"]), []).append(r["state_mae"])
+
+    cells_out: Dict[Tuple[str, int], dict] = {}
+
+    for cell_key, cell_binding in binding.items():
+        cell_key = (str(cell_key[0]), int(cell_key[1]))
+        config_label, K = cell_key
+        cell_rows = by_cell.get(cell_key, [])
+        binding_rows = [r for r in cell_rows if r["budget"] == int(cell_binding)]
+
+        by_arm: Dict[str, List[dict]] = {}
+        for r in binding_rows:
+            by_arm.setdefault(r["arm"], []).append(r)
+
+        present_arms = [a for a in G2A_ARM_FAMILY if a in by_arm]
+        if not present_arms:
+            continue
+
+        def _by_world_seed(arm_name: str) -> Dict[Tuple[int, str], dict]:
+            out: Dict[Tuple[int, str], dict] = {}
+            for r in by_arm.get(arm_name, []):
+                out[(r["world_idx"], r["train_seed"])] = r
+            return out
+
+        legsum_by_world: Dict[int, dict] = {}
+        for r in cell_rows:
+            if r["arm"] == "h_legsum" and r["budget"] == int(cell_binding):
+                legsum_by_world[r["world_idx"]] = r
+
+        arms_out: Dict[str, dict] = {}
+        for arm_name in present_arms:
+            arm_rows = by_arm[arm_name]
+            success = float(np.mean([1.0 if r["found"] else 0.0 for r in arm_rows])) if arm_rows else float("nan")
+
+            arm_by_ws = _by_world_seed(arm_name)
+            ratios: List[float] = []
+            for (world_idx, _train_seed), arm_row in arm_by_ws.items():
+                ls_row = legsum_by_world.get(world_idx)
+                if ls_row is None:
+                    continue
+                if bool(arm_row["found"]) and bool(ls_row["found"]):
+                    ratios.append(float(arm_row["expansions"]) / float(ls_row["expansions"]))
+            med, ci_lo, ci_hi = _bootstrap_median_ci(ratios, seed=12345, n_boot=1000, lo=2.5, hi=97.5)
+
+            mae_vals = mae_by_cell_arm.get((config_label, K, arm_name), [])
+            mean_mae = float(np.mean(mae_vals)) if mae_vals else None
+
+            arms_out[arm_name] = {
+                "success": success,
+                "ratio_median": med,
+                "ci_lo": ci_lo,
+                "ci_hi": ci_hi,
+                "n_pairs": len(ratios),
+                "mean_state_mae": mean_mae,
+                "n_mae": len(mae_vals),
+            }
+
+        cells_out[cell_key] = {"binding": int(cell_binding), "arms": arms_out}
+
+    return {"cells": cells_out}
+
+
+def g2a_verdict(g2: dict) -> dict:
+    """G2a verdict (spec section 1 / task prompt, quoted): positive iff on
+    >=1 config AT K=8 BOTH (a) the ratio medians are monotone
+    non-increasing in k over usable k values (n_pairs >= 1) AND (b) the k=1
+    vs k=8 bootstrap CIs are disjoint (ci_hi(k8) < ci_lo(k1)); ALTERNATIVELY
+    the same two conditions on mean state_mae (monotone decreasing + a
+    clear k1-vs-k8 gap -- operationalized: mae(k8) < mae(k1) AND the mae
+    sequence monotone non-increasing; no CI needed for mae, it is
+    near-deterministic per seed). Reports WHICH criterion fired ("ratio",
+    "mae", or "both" if both independently qualify). Cells with < 2 usable
+    k values (ratio n_pairs >= 1 for the ratio criterion, or a present
+    mean_state_mae for the mae criterion) -> insufficient for that
+    criterion; a (config, K=8) cell is "insufficient" overall only if BOTH
+    criteria are insufficient (< 2 usable k values each).
+
+    Only K=8 cells are read (the spec pins the verdict criterion to K=8
+    specifically -- the forced-k arms are trained/evaluated the same way at
+    every K, but the pre-registered depth-of-compute read is explicitly at
+    the deepest mission).
+
+    Returns `{"positive": bool, "positive_configs": [config_label, ...],
+    "table": {(config_label, K): {"status", "criterion", "ratio_by_k",
+    "mae_by_k", "ci_by_k"}}}` (K is always 8 in table keys here, kept as a
+    tuple key for symmetry with `g1_verdict`'s `(arm, config)`-keyed
+    table)."""
+    table: Dict[Tuple[str, int], dict] = {}
+    positive_configs: List[str] = []
+
+    for cell_key, cell in g2.get("cells", {}).items():
+        config_label, K = cell_key
+        if K != 8:
+            continue
+        arms = cell.get("arms", {})
+
+        ratio_by_k: Dict[int, Optional[float]] = {}
+        ci_by_k: Dict[int, Tuple[Optional[float], Optional[float]]] = {}
+        mae_by_k: Dict[int, Optional[float]] = {}
+        for arm_name, k_val in _FORCED_K_VALUE.items():
+            stats = arms.get(arm_name)
+            if stats is None or stats["n_pairs"] == 0:
+                ratio_by_k[k_val] = None
+                ci_by_k[k_val] = (None, None)
+            else:
+                ratio_by_k[k_val] = stats["ratio_median"]
+                ci_by_k[k_val] = (stats["ci_lo"], stats["ci_hi"])
+            mae_by_k[k_val] = stats["mean_state_mae"] if stats is not None else None
+
+        # -- ratio criterion.
+        usable_ratio_ks = sorted(k for k in ratio_by_k if ratio_by_k[k] is not None)
+        ratio_fires = False
+        if len(usable_ratio_ks) >= 2:
+            usable_ratios = [ratio_by_k[k] for k in usable_ratio_ks]
+            monotone = all(
+                usable_ratios[i] >= usable_ratios[i + 1] - 1e-12
+                for i in range(len(usable_ratios) - 1)
+            )
+            k1_ci = ci_by_k.get(1)
+            k8_ci = ci_by_k.get(8)
+            disjoint = (
+                k1_ci[0] is not None and k8_ci[1] is not None
+                and k8_ci[1] < k1_ci[0]
+            )
+            ratio_fires = bool(monotone and disjoint)
+
+        # -- mae criterion.
+        usable_mae_ks = sorted(k for k in mae_by_k if mae_by_k[k] is not None)
+        mae_fires = False
+        if len(usable_mae_ks) >= 2:
+            usable_maes = [mae_by_k[k] for k in usable_mae_ks]
+            mae_monotone = all(
+                usable_maes[i] >= usable_maes[i + 1] - 1e-12
+                for i in range(len(usable_maes) - 1)
+            )
+            mae1 = mae_by_k.get(1)
+            mae8 = mae_by_k.get(8)
+            mae_gap = mae1 is not None and mae8 is not None and mae8 < mae1
+            mae_fires = bool(mae_monotone and mae_gap)
+
+        if len(usable_ratio_ks) < 2 and len(usable_mae_ks) < 2:
+            status = "insufficient"
+            criterion = None
+        elif ratio_fires or mae_fires:
+            status = "positive"
+            if ratio_fires and mae_fires:
+                criterion = "both"
+            elif ratio_fires:
+                criterion = "ratio"
+            else:
+                criterion = "mae"
+        else:
+            status = "negative"
+            criterion = None
+
+        table[(config_label, 8)] = {
+            "status": status,
+            "criterion": criterion,
+            "ratio_by_k": ratio_by_k,
+            "ci_by_k": ci_by_k,
+            "mae_by_k": mae_by_k,
+        }
+        if status == "positive":
+            positive_configs.append(config_label)
+
+    return {
+        "positive": len(positive_configs) > 0,
+        "positive_configs": positive_configs,
+        "table": table,
+    }
+
+
+def g2b_analysis(halt_rows: Sequence[dict]) -> dict:
+    """G2b: Spearman correlation of `mean_halt_steps` vs `K`, pooled across
+    every row with K in {2,4,8} (K=0 excluded -- hrmv2 DOES train at K=0
+    (it is one of the 5 native-comparable arms in G1), but G2b's question
+    is specifically about depth-SENSITIVITY across K variation; K=0 has no
+    mission legs at all, so including it would conflate "does it think
+    longer on deeper missions" with "does it behave differently on the
+    K=0-vs-K>0 formulation boundary", a different question already covered
+    by the K=0 continuity control -- documented per the task spec's
+    instruction), plus a per-config_label breakdown of the same statistic.
+
+    Permutation test: 2000 permutations of the K labels (values shuffled
+    against the fixed halt-step values), seeded `np.random.default_rng(24680)`,
+    two-sided p = (count of |rho_perm| >= |rho_obs|, add-one-smoothed) /
+    (n_perm + 1).
+
+    DEGENERATE handling: if every `mean_halt_steps` value pooled is
+    identical (a constant channel -- e.g. the Q-head learned immediate-halt
+    at every depth, `mean_halt_steps == 1.0` everywhere), Spearman rho is
+    mathematically undefined (zero-variance input): returns `{"constant":
+    True, "value": <the constant>, "positive": False}` for that scope
+    instead of computing rho -- per the spec, this is treated as a
+    SUBSTANTIVE negative result (\"no learned depth-sensitivity\"), not a
+    crash or a silently-omitted stat.
+
+    Verdict positive iff rho > 0 AND p < 0.05.
+
+    Returns `{"pooled": {...}, "by_config": {config_label: {...}}}` where
+    each `{...}` is either the constant-channel dict above or `{"rho":
+    float, "p": float, "n": int, "constant": False, "positive": bool}`."""
+
+    def _coerce_halt_row(row: dict) -> dict:
+        return {
+            "config_label": str(row["config_label"]),
+            "K": int(row["K"]),
+            "world_idx": int(row["world_idx"]),
+            "seed": str(row["seed"]),
+            "train_seed": str(row["train_seed"]),
+            "mean_halt_steps": float(row["mean_halt_steps"]),
+            "n_queried": int(row["n_queried"]),
+        }
+
+    coerced = [_coerce_halt_row(r) for r in halt_rows if int(r["K"]) in (2, 4, 8)]
+
+    def _spearman_with_permutation(rows: Sequence[dict]) -> dict:
+        if not rows:
+            return {"rho": float("nan"), "p": float("nan"), "n": 0, "constant": False, "positive": False}
+
+        vals = np.array([r["mean_halt_steps"] for r in rows], dtype=np.float64)
+        ks = np.array([r["K"] for r in rows], dtype=np.float64)
+        n = vals.shape[0]
+
+        if np.allclose(vals, vals[0]):
+            return {"constant": True, "value": float(vals[0]), "positive": False, "n": int(n)}
+
+        def _spearman_rho(x: np.ndarray, y: np.ndarray) -> float:
+            # Rank-based Pearson correlation (average ranks for ties, the
+            # standard Spearman definition) -- no scipy dependency (this
+            # module's existing convention: `_mcnemar_exact_p`/`_bh` are
+            # hand-rolled too, not scipy-imported).
+            rx = _rankdata(x)
+            ry = _rankdata(y)
+            if np.std(rx) == 0 or np.std(ry) == 0:
+                return float("nan")
+            return float(np.corrcoef(rx, ry)[0, 1])
+
+        rho_obs = _spearman_rho(ks, vals)
+        if not np.isfinite(rho_obs):
+            # K itself is constant (e.g. every row is K=8) -- correlation
+            # undefined for a different reason than the value channel;
+            # treated the same way as the value-constant case (nothing to
+            # correlate against), but keeps `constant: False` since the
+            # DEGENERATE channel here is K, not mean_halt_steps -- reported
+            # via nan rho/p rather than the constant-channel branch (which
+            # is specifically about `mean_halt_steps` being constant).
+            return {"rho": float("nan"), "p": float("nan"), "n": int(n), "constant": False, "positive": False}
+
+        rng = np.random.default_rng(24680)
+        n_perm = 2000
+        count_ge = 0
+        for _ in range(n_perm):
+            perm_ks = rng.permutation(ks)
+            rho_perm = _spearman_rho(perm_ks, vals)
+            if np.isfinite(rho_perm) and abs(rho_perm) >= abs(rho_obs):
+                count_ge += 1
+        p = (count_ge + 1) / (n_perm + 1)
+
+        positive = bool(rho_obs > 0 and p < 0.05)
+        return {"rho": rho_obs, "p": float(p), "n": int(n), "constant": False, "positive": positive}
+
+    pooled = _spearman_with_permutation(coerced)
+
+    by_config: Dict[str, dict] = {}
+    config_labels = sorted({r["config_label"] for r in coerced})
+    for config_label in config_labels:
+        rows = [r for r in coerced if r["config_label"] == config_label]
+        by_config[config_label] = _spearman_with_permutation(rows)
+
+    return {"pooled": pooled, "by_config": by_config}
+
+
+def _rankdata(x: np.ndarray) -> np.ndarray:
+    """Average ranks with ties (the standard Spearman-rank convention,
+    matching `scipy.stats.rankdata`'s default `method="average"`): equal
+    values receive the mean of the rank positions they would occupy if
+    broken arbitrarily. 1-indexed ranks (the traditional convention;
+    irrelevant to the correlation itself, which is invariant to a constant
+    shift)."""
+    order = np.argsort(x, kind="mergesort")
+    ranks = np.empty(len(x), dtype=np.float64)
+    sorted_x = x[order]
+    i = 0
+    n = len(x)
+    while i < n:
+        j = i
+        while j + 1 < n and sorted_x[j + 1] == sorted_x[i]:
+            j += 1
+        avg_rank = (i + j) / 2.0 + 1.0
+        ranks[order[i:j + 1]] = avg_rank
+        i = j + 1
+    return ranks
+
+
+# ---------------------------------------------------------------------------
+# Task 8: results-doc writer.
+#
+# Gate texts copied VERBATIM from `docs/superpowers/specs/2026-07-07-c11-
+# compositional-mission-design.md` section 1 (read there, not re-derived --
+# any future edit to the spec's wording must be mirrored here by hand,
+# per the task prompt's "spec/plan links, pre-registered gate texts
+# VERBATIM from spec section 1" instruction).
+# ---------------------------------------------------------------------------
+
+G1_GATE_TEXT: str = (
+    "G1 -- dose-response in structure. Primary read: per (config, K), each structured arm "
+    "vs the MLP control on matched per-world expansion-ratio differences (both-solved worlds) "
+    "+ success McNemar. Continuity control: at K=0 the task reduces exactly to C7 (legsum == "
+    "euclid, no mission tokens beyond the goal leg) and all arms must statistically tie -- if "
+    "they don't, it is a formulation/implementation bug and the phase halts for diagnosis, not "
+    "a result. Positive verdict: >=1 structured arm beats the MLP with BH q < 0.05 at >=2 of "
+    "the 3 K in {2,4,8} values on >=1 config, with the gap monotone non-decreasing in K. "
+    "Anything less is a negative for that arm."
+)
+
+G2_GATE_TEXT: str = (
+    "G2 -- depth-of-compute (HRM-v2 mechanism). (a) Forced-segment curves: eval the trained "
+    "ACT arm at forced k in {1,2,4,8} segments; positive iff quality (state-level MAE and/or "
+    "expansion-ratio) improves monotonically with bootstrap-CI separation between k=1 and k=8 "
+    "on >=1 config at K=8. (b) Learned halting: Spearman correlation of mean halt-steps vs K "
+    "positive with q < 0.05 (\"thinks longer on deeper missions\")."
+)
+
+G3_GATE_TEXT: str = (
+    "G3 -- honest closure. If G0-H passed (it did), the I/O exposes real structure, and the "
+    "MLP control still ties everything: \"learned planning heuristics are architecture-agnostic\" "
+    "graduates to a strong publishable claim; the program pivots to the transfer+integration "
+    "paper with the architecture chapter closed."
+)
+
+
+def write_results_doc(g1_analysis: dict, k0: dict, g1: dict, g2: dict, g2b: dict,
+                       meta: dict, path: str) -> None:
+    """Write `C11_RESULTS.md` to the GIVEN `path` (NEVER a hardcoded repo
+    path -- see the module-level `run_analyze`/CLI split below for the
+    clobber-avoidance convention this mirrors exactly from the probe's own
+    `run_probe`/`_write_results_doc`/`main` split, per review requirement
+    4). All content is derived from the passed-in analysis dicts; no
+    hardcoded result glosses -- the ONLY place prose branches on a boolean
+    is the G3 closure paragraph, and every branch there reads its wording
+    from the SAME computed booleans it reports (`g1["positive"]`,
+    `g2a_verdict(g2)["positive"]`, `g2b["pooled"].get("positive")`), never
+    a value independent of them.
+
+    `g1_analysis`: the raw `analyze(records, binding, cfg)` dict (per-cell
+    success/vs_mlp/vs_legsum/oracle_vs_legsum), keyed `(config_label, K)`.
+    `k0`: `k0_continuity(g1_analysis)`. `g1`: `g1_verdict(g1_analysis)`.
+    `g2`: `g2_analysis(records, mae_rows, binding, cfg)`. `g2b`:
+    `g2b_analysis(halt_rows)`. `meta`: caller-supplied run metadata --
+    `date`, `branch`, `spec_path`, `plan_path`, `param_counts` (a `{arm:
+    int}` dict, used for the caveats section's "param-count spread within
+    band" line; missing/absent entries are rendered as "n/a", never
+    crash)."""
+    g2a = g2a_verdict(g2)
+    g2b_pooled = g2b.get("pooled", {})
+
+    config_labels = sorted({key[0] for key in g1_analysis})
+    k_values = sorted({key[1] for key in g1_analysis})
+
+    lines: List[str] = []
+    lines.append("# C11 -- Compositional-Mission PRM Heuristics: Results")
+    lines.append("")
+    lines.append(f"**Date:** {meta.get('date', 'n/a')}")
+    lines.append(f"**Branch:** {meta.get('branch', 'n/a')}")
+    lines.append(f"**Spec:** `{meta.get('spec_path', 'n/a')}`")
+    lines.append(f"**Plan:** `{meta.get('plan_path', 'n/a')}`")
+    lines.append("")
+    lines.append("## Pre-registered gates (verbatim, spec section 1)")
+    lines.append("")
+    lines.append(f"**{G1_GATE_TEXT}**")
+    lines.append("")
+    lines.append(f"**{G2_GATE_TEXT}**")
+    lines.append("")
+    lines.append(f"**{G3_GATE_TEXT}**")
+    lines.append("")
+
+    # -- Per-cell G1 tables.
+    lines.append("## G1 -- per-cell results")
+    lines.append("")
+    for config_label in config_labels:
+        lines.append(f"### Config {config_label}")
+        lines.append("")
+        header = "| K | Binding budget | Arm | Success | vs-MLP ratio [CI] (n) | vs-legsum ratio (n) |"
+        lines.append(header)
+        lines.append("|---|---|---|---|---|---|")
+        for K in k_values:
+            cell = g1_analysis.get((config_label, K))
+            if cell is None:
+                continue
+            binding_budget = cell["binding"]
+            success = cell.get("success", {})
+            vs_mlp = cell.get("vs_mlp", {})
+            vs_legsum = cell.get("vs_legsum", {})
+            for arm_name in sorted(success):
+                succ = _fmt_g(success.get(arm_name), ".2f")
+                if arm_name in vs_mlp:
+                    stats = vs_mlp[arm_name]
+                    ratio_str = (
+                        f"{_fmt_g(stats['ratio_median'])} "
+                        f"[{_fmt_g(stats['ci_lo'])}, {_fmt_g(stats['ci_hi'])}] (n={stats['n_pairs']})"
+                    )
+                elif arm_name == "mlp":
+                    ratio_str = "-- (control)"
+                else:
+                    ratio_str = "n/a"
+                if arm_name in vs_legsum:
+                    ls = vs_legsum[arm_name]
+                    legsum_str = f"{_fmt_g(ls['ratio_median'])} (n={ls['n']})"
+                else:
+                    legsum_str = "n/a"
+                lines.append(f"| {K} | {binding_budget} | {arm_name} | {succ} | {ratio_str} | {legsum_str} |")
+            oracle_row = cell.get("oracle_vs_legsum", {})
+            if oracle_row:
+                oracle_str = f"{_fmt_g(oracle_row.get('ratio_median'))} (n={oracle_row.get('n')})"
+                lines.append(f"| {K} | {binding_budget} | h_oracle (ceiling) | -- | -- | {oracle_str} |")
+        lines.append("")
+
+    # -- K=0 continuity verdict.
+    lines.append("## K=0 continuity control")
+    lines.append("")
+    k0_status = "PASS" if k0.get("pass") else "FAIL"
+    lines.append(f"**Verdict: {k0_status}**")
+    lines.append("")
+    if not k0.get("pass"):
+        lines.append("Violations (config_label, arm, reason):")
+        lines.append("")
+        for config_label, arm_name, reason in k0.get("violations", []):
+            lines.append(f"- {config_label} / {arm_name}: {reason}")
+        lines.append("")
+    else:
+        lines.append(
+            "No arm showed statistically significant separation from the MLP control at K=0 -- "
+            "the residual formulation reduces exactly to C7 at K=0 as required, so the G1 read "
+            "at K in {2,4,8} below is trusted."
+        )
+        lines.append("")
+
+    # -- G1 verdict.
+    lines.append("## G1 verdict")
+    lines.append("")
+    g1_positive = bool(g1.get("positive"))
+    if g1_positive:
+        arm_config_pairs = ", ".join(f"{arm}/{cfg_label}" for arm, cfg_label in g1.get("positive_arms", []))
+        lines.append(f"**Positive.** Beating arm/config pairs: {arm_config_pairs}.")
+    else:
+        lines.append("**Negative.** No structured arm beat the MLP control at >=2 of the 3 K values on any config.")
+    lines.append("")
+    lines.append("| Arm | Config | K=2 beat | K=4 beat | K=8 beat | Monotone | Status |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for (arm_name, config_label), row in sorted(g1.get("table", {}).items()):
+        beats = row.get("beats", {})
+        beat_strs = ["yes" if beats.get(K) else ("n/a" if K not in beats else "no") for K in (2, 4, 8)]
+        monotone_str = "yes" if row.get("monotone") else ("n/a" if row.get("monotone") is None else "no")
+        lines.append(
+            f"| {arm_name} | {config_label} | {beat_strs[0]} | {beat_strs[1]} | {beat_strs[2]} | "
+            f"{monotone_str} | {row.get('status')} |"
+        )
+    lines.append("")
+
+    # -- G2a table + verdict.
+    lines.append("## G2a -- forced-segment curves (K=8)")
+    lines.append("")
+    if not g2.get("cells"):
+        lines.append("**Not run** -- no forced-k / hrmv2_act records present at K=8.")
+        lines.append("")
+    else:
+        header = "| Config | k=1 ratio | k=2 ratio | k=4 ratio | k=8 ratio | k=1 mae | k=2 mae | k=4 mae | k=8 mae |"
+        lines.append(header)
+        lines.append("|---|---|---|---|---|---|---|---|---|")
+        for cell_key, cell in sorted(g2.get("cells", {}).items()):
+            config_label, K = cell_key
+            if K != 8:
+                continue
+            arms = cell.get("arms", {})
+            ratio_cols = []
+            mae_cols = []
+            for k_val in (1, 2, 4, 8):
+                arm_name = f"hrmv2_act_k{k_val}"
+                stats = arms.get(arm_name)
+                ratio_cols.append(_fmt_g(stats["ratio_median"]) if stats else "n/a")
+                mae_cols.append(_fmt_g(stats["mean_state_mae"]) if stats else "n/a")
+            lines.append(
+                f"| {config_label} | " + " | ".join(ratio_cols) + " | " + " | ".join(mae_cols) + " |"
+            )
+        lines.append("")
+    g2a_positive = bool(g2a.get("positive"))
+    if g2a_positive:
+        fired = ", ".join(
+            f"{cfg_label} (via {row['criterion']})"
+            for (cfg_label, K), row in g2a.get("table", {}).items()
+            if row.get("status") == "positive"
+        )
+        lines.append(f"**G2a verdict: positive.** Fired on: {fired}.")
+    else:
+        lines.append("**G2a verdict: negative or insufficient data.**")
+    lines.append("")
+
+    # -- G2b.
+    lines.append("## G2b -- halting vs mission depth")
+    lines.append("")
+    if g2b_pooled.get("constant"):
+        lines.append(
+            f"**Constant would-halt channel** (mean_halt_steps == {_fmt_g(g2b_pooled.get('value'))} "
+            "for every queried row, pooled across K in {2,4,8}). Per the pre-registered handling: "
+            "a constant would-halt channel (e.g. all 1.0 = the Q-head learned immediate-halt) is a "
+            "SUBSTANTIVE 'no learned depth-sensitivity' negative, not a measurement artifact -- the "
+            "channel itself was verified to move with training (it is not a dead wire)."
+        )
+        lines.append("")
+        lines.append("**G2b verdict: negative (constant channel).**")
+    elif g2b_pooled:
+        lines.append(
+            f"Pooled Spearman rho = {_fmt_g(g2b_pooled.get('rho'))}, permutation p = "
+            f"{_fmt_g(g2b_pooled.get('p'))} (n={g2b_pooled.get('n', 0)})."
+        )
+        lines.append("")
+        lines.append(f"**G2b verdict: {'positive' if g2b_pooled.get('positive') else 'negative'}.**")
+    else:
+        lines.append("**Not run** -- no halt-step records present.")
+    lines.append("")
+
+    # -- G3 closure paragraph, generated CONDITIONALLY from computed
+    # booleans (three branches: all-negative, any-positive, mixed -- no
+    # hardcoded glosses, per the probe's conditional-prose lesson: an
+    # earlier version of the PROBE's own doc hardcoded text that
+    # contradicted its own computed monotonicity booleans; see `git log
+    # --oneline --grep=clobber`, commit fd4aa55).
+    lines.append("## G3 -- closure")
+    lines.append("")
+    any_positive = g1_positive or g2a_positive or bool(g2b_pooled.get("positive"))
+    all_negative = (not g1_positive) and (not g2a_positive) and (not bool(g2b_pooled.get("positive")))
+    if all_negative:
+        lines.append(
+            "All three gates (G1 dose-response, G2a forced-segment curves, G2b halting-vs-depth) "
+            "came back negative or insufficient: every structured arm tied the MLP control, forced "
+            "compute depth did not improve quality, and learned halting showed no depth-sensitivity "
+            "(or a constant/degenerate channel). G0-H passed (the substrate has real, measured "
+            "oracle headroom) and the I/O contract exposes genuine sequence/graph/product-graph "
+            "structure to every arm identically -- so this is not an I/O-starvation or "
+            "headroom-absence artifact. Per the pre-registered G3 text: 'learned planning heuristics "
+            "are architecture-agnostic' graduates to a strong publishable claim on this substrate. "
+            "The architecture chapter of this program is closed; the next thrust is the "
+            "transfer+integration paper."
+        )
+    elif g1_positive and g2a_positive and bool(g2b_pooled.get("positive")):
+        lines.append(
+            "All three gates came back positive: >=1 structured arm beats the MLP control with a "
+            "monotone, statistically-separated dose-response in mission depth (G1); forced compute "
+            "depth improves quality monotonically with a clear k=1-vs-k=8 separation (G2a); and "
+            "learned halting correlates positively with mission depth at q < 0.05 (G2b). The "
+            "hierarchy/iterative-compute thesis lives on this substrate -- structure is not "
+            "architecture-agnostic here, and depth-of-compute is a real, learned mechanism, not "
+            "noise. Per the decision rule: invest in the high-DOF substrate (S1) next."
+        )
+    else:
+        fired = []
+        if g1_positive:
+            fired.append("G1 (structure dose-response)")
+        if g2a_positive:
+            fired.append("G2a (forced-segment quality curve)")
+        if bool(g2b_pooled.get("positive")):
+            fired.append("G2b (halting-vs-depth correlation)")
+        not_fired = [g for g in ("G1", "G2a", "G2b") if not any(g in f for f in fired)]
+        lines.append(
+            f"Mixed result: {', '.join(fired)} came back positive, while "
+            f"{', '.join(not_fired) if not_fired else 'no other gate'} did not. This is not the "
+            "clean all-tie the G3 architecture-agnostic text describes, nor the clean all-positive "
+            "hierarchy-thesis-lives text -- the honest reading is partial signal: at least one "
+            "mechanism (structure and/or iterative compute) shows a real, statistically-supported "
+            "effect on this substrate, but not every pre-registered gate agrees. This warrants "
+            "targeted follow-up on the SPECIFIC gate(s) that fired (e.g. a scaled-arm addendum "
+            "focused on the positive arm/mechanism) before either closing the architecture chapter "
+            "or fully committing to the high-DOF substrate."
+        )
+    lines.append("")
+
+    # -- Caveats (standing list, requirement 4).
+    lines.append("## Caveats")
+    lines.append("")
+    lines.append(
+        "- **HRM-v2 optimizer/loop confound (pre-registered accepted).** The HRM-v2 arm's "
+        "optimizer (adam-atan2 + constant LR + warmup) and per-segment training loop are "
+        "paper-faithful, not matched to arms 1-4's AdamW/smooth-L1 recipe -- mechanism-"
+        "faithfulness IS the arm, and this confound was pre-registered as accepted (spec section 5)."
+    )
+    lines.append(
+        "- **GNN m=8 rounds (pre-registered).** No post-hoc m tuning; a single pre-registered "
+        "m-sensitivity appendix run at m in {4,16} on one cell is allowed for interpretation only "
+        "(spec section 8)."
+    )
+    param_counts = meta.get("param_counts") or {}
+    if param_counts:
+        counts_str = ", ".join(f"{arm}={n:,}" for arm, n in sorted(param_counts.items()))
+    else:
+        counts_str = "n/a (no manifest param counts supplied to write_results_doc)"
+    lines.append(
+        f"- **Param-count spread within band.** Per-arm parameter counts (from the training "
+        f"manifest, via `meta`): {counts_str}. Every native arm targets the [0.5M, 3.5M] band; "
+        "the HRM-v2 arm targets [1M, 4M] (spec section 3, item 5) -- these bands overlap but are "
+        "not identical, a known spread."
+    )
+    lines.append(
+        "- **`door_open_at_s` trace slot (T2-review note).** This trace-token slot is "
+        "structurally 0.0 for configs without doors, and even for config C it does not directly "
+        "encode live door state -- door state is carried by leg presence/ordering in the mission "
+        "trace itself, not by this slot. Documented, not a bug."
+    )
+    lines.append(
+        "- **Eval-time fixed-compute ACT.** The would-halt channel (`hrmv2_halt_steps`) is a "
+        "readout of the model's OWN halting signal (`q_halt_logits > q_continue_logits`), not an "
+        "actual variable-compute eval loop -- ACT-live eval still runs to `carry.halted.all()` "
+        "(or the safety cap), so G2b measures learned depth-preference, not realized eval-time "
+        "compute savings."
+    )
+    lines.append(
+        "- **Oracle headroom is an upper bound.** `h_oracle` is the exact product-graph shortest "
+        "path; every learned arm is explicitly inadmissible (the residual formulation has no "
+        "admissibility guarantee at eval time) -- learned-arm costs are recorded but never "
+        "asserted optimal, and the oracle row in the G1 tables above is a CEILING, not a target "
+        "any learned arm is expected to reach."
+    )
+    lines.append("")
+
+    out_path = Path(path)
+    C.ensure_dir(out_path.parent)
+    tmp = out_path.with_suffix(out_path.suffix + f".tmp.{os.getpid()}")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    os.replace(tmp, out_path)
+
+
+def _fmt_g(v, spec: str = ".3f") -> str:
+    """Format a possibly-None/NaN numeric value for the results doc (mirrors
+    the probe's own `_fmt` helper, kept local to avoid importing across
+    phase modules for a one-line formatting utility)."""
+    if v is None:
+        return "n/a"
+    if isinstance(v, float) and v != v:  # NaN
+        return "nan"
+    if isinstance(v, (int, float)):
+        return format(v, spec)
+    return str(v)
+
+
+# ---------------------------------------------------------------------------
+# Task 8: run_analyze.
+# ---------------------------------------------------------------------------
+
+def _read_csv_rows(path: Path) -> List[dict]:
+    """`csv.DictReader` readback -- the standard C-series pattern (see e.g.
+    `continuous_prm_c6_heatmap_value_field.read_csv`), reimplemented here
+    (rather than imported) since `continuous_prm_common` itself has no
+    generic CSV reader (only `write_csv`) and importing a reader from a
+    peer PHASE module (C6) would violate this module's own "phase modules
+    must not import each other" convention already noted above `_mcnemar_
+    exact_p`'s docstring."""
+    with open(path, "r", newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def _assemble_analysis(out_dir: str, cfg: C11MissionConfig) -> dict:
+    """Shared read+analyze core for `run_analyze` and the CLI's
+    `--canonical-results` re-write path (`_rerun_write_results_doc_at`) --
+    factored out so the two call sites can never drift on the binding-map
+    assembly / BH-family-scoping / G2-gating logic (they read the SAME
+    on-disk artifacts and must produce byte-identical analysis dicts; only
+    the results-doc WRITE destination differs between the two callers).
+
+    Reads `{out_dir}/results/c11_eval_raw.csv`, `{out_dir}/binding_k0.json`,
+    `{out_dir}/results/c11_halt_steps.csv`, `{out_dir}/results/
+    c11_state_mae.csv` (the latter two OPTIONAL -- their absence means "G2
+    sections marked not run", never a crash, per the task spec's explicit
+    contract).
+
+    Binding map assembly: `cfg.binding_budgets` (the pre-registered K in
+    {2,4,8} budgets) PLUS, for every K=0 entry present in `binding_k0.json`
+    (keyed `f"{config_label}_K0"`, written by `run_eval`'s own K=0
+    calibration path), `(config_label, 0) -> budget`. This is the ONE place
+    the binding map is assembled from its two sources -- `analyze`/
+    `g2_analysis` never do this themselves (per their own docstrings).
+
+    BH-family scoping (review-derived integration requirement 1, MANDATORY):
+    filters `records` to `g1_records = [r for r in records if not
+    str(r["arm"]).startswith("hrmv2_act_k")]` BEFORE calling `analyze` --
+    the forced-k diagnostic rows would otherwise dilute the pre-registered
+    BH family from 5 structured arms to 9. The UNFILTERED `records` (forced-
+    k rows included) go to `g2_analysis`, which is their only consumer.
+
+    Returns `{"g1_analysis", "k0", "g1", "g2", "g2a", "g2b", "meta"}` --
+    everything `write_results_doc` needs, plus the meta dict (date/branch/
+    spec+plan paths/manifest param counts)."""
+    out_path = Path(out_dir)
+
+    records = _read_csv_rows(out_path / "results" / "c11_eval_raw.csv")
+
+    binding_k0_path = out_path / "binding_k0.json"
+    binding_k0 = C.read_json(binding_k0_path) if binding_k0_path.exists() else {}
+    binding: Dict[Tuple[str, int], int] = dict(cfg.binding_budgets)
+    for _key, entry in binding_k0.items():
+        binding[(str(entry["config_label"]), int(entry["K"]))] = int(entry["budget"])
+
+    halt_path = out_path / "results" / "c11_halt_steps.csv"
+    halt_rows = _read_csv_rows(halt_path) if halt_path.exists() else []
+
+    mae_path = out_path / "results" / "c11_state_mae.csv"
+    mae_rows = _read_csv_rows(mae_path) if mae_path.exists() else []
+
+    # -- Requirement 1: forced-k rows NEVER reach analyze/G1.
+    g1_records = [r for r in records if not str(r["arm"]).startswith("hrmv2_act_k")]
+
+    g1_analysis = analyze(g1_records, binding, cfg)
+    k0 = k0_continuity(g1_analysis)
+    g1 = g1_verdict(g1_analysis)
+
+    # -- G2 sees the FULL (unfiltered) records -- forced-k rows are its
+    # only reason to exist. Gated on whether ANY G2A_ARM_FAMILY arm is
+    # present in `records` at all (NOT on whether the mae/halt files
+    # happened to exist -- `g2_analysis` itself already handles an empty
+    # `mae_rows` gracefully, reporting `mean_state_mae: None` per arm, so
+    # a present-but-empty mae file must not suppress a real forced-k
+    # eval's ratio-only G2a read). File absence is what the "not run"
+    # contract is about (an eval that never touched any hrmv2 arm at
+    # all), not a merely-empty side-dump.
+    has_g2_arms = any(str(r["arm"]) in G2A_ARM_FAMILY for r in records)
+    g2 = g2_analysis(records, mae_rows, binding, cfg) if has_g2_arms else {"cells": {}}
+    g2a = g2a_verdict(g2)
+    g2b = g2b_analysis(halt_rows) if halt_rows else {"pooled": {}, "by_config": {}}
+
+    meta = {
+        "date": time.strftime("%Y-%m-%d"),
+        "branch": _current_git_branch(),
+        "spec_path": "docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md",
+        "plan_path": "docs/superpowers/plans/2026-07-07-c11-mission.md",
+        "param_counts": _manifest_param_counts(out_path),
+    }
+
+    return {"g1_analysis": g1_analysis, "k0": k0, "g1": g1, "g2": g2, "g2a": g2a, "g2b": g2b, "meta": meta}
+
+
+def run_analyze(out_dir: str, cfg: Optional[C11MissionConfig] = None) -> dict:
+    """Assembles the full analysis (`_assemble_analysis`) and writes
+    `write_results_doc(...)` to `{out_dir}/C11_RESULTS.md` (an
+    out_dir-scoped path -- NEVER the canonical repo path; only the CLI's
+    `--canonical-results` flag writes there, via a SEPARATE explicit call
+    after this one, per requirement 4/the probe's clobber lesson). Prints
+    the three gate verdict lines (K=0 continuity / G1 / G2a+G2b) and
+    returns `{"k0": k0, "g1": g1, "g2a": g2a, "g2b": g2b}`."""
+    cfg = cfg or C11MissionConfig()
+    out_path = Path(out_dir)
+
+    a = _assemble_analysis(out_dir, cfg)
+    k0, g1, g2, g2a, g2b = a["k0"], a["g1"], a["g2"], a["g2a"], a["g2b"]
+
+    results_path = out_path / "C11_RESULTS.md"
+    write_results_doc(a["g1_analysis"], k0, g1, g2, g2b, a["meta"], str(results_path))
+
+    k0_line = f"[c11-mission analyze] K=0 continuity: {'PASS' if k0['pass'] else 'FAIL'}"
+    g1_line = f"[c11-mission analyze] G1 verdict: {'positive' if g1['positive'] else 'negative'}"
+    g2_line = (
+        f"[c11-mission analyze] G2 verdict: G2a="
+        f"{'positive' if g2a['positive'] else 'negative'}, G2b="
+        f"{'positive' if g2b.get('pooled', {}).get('positive') else 'negative'}"
+    )
+    print(k0_line, flush=True)
+    print(g1_line, flush=True)
+    print(g2_line, flush=True)
+
+    return {"k0": k0, "g1": g1, "g2a": g2a, "g2b": g2b}
+
+
+def _current_git_branch() -> str:
+    """Best-effort current git branch name for the results doc's header --
+    NEVER raises (a detached HEAD, missing git binary, or non-repo cwd all
+    fall back to "n/a" rather than crashing analyze)."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+            cwd=str(Path(__file__).resolve().parent),
+        )
+        if result.returncode == 0:
+            branch = result.stdout.strip()
+            if branch:
+                return branch
+    except Exception:  # noqa: BLE001 -- best-effort metadata only
+        pass
+    return "n/a"
+
+
+def _manifest_param_counts(out_path: Path) -> Dict[str, int]:
+    """Per-arm parameter counts from `{out_path}/manifest.json`, for the
+    results doc's caveats section ("param-count spread within band").
+    Takes the FIRST manifest entry seen per arm name (param counts do not
+    vary across cell/seed for a given arm -- the matched recipe pins model
+    size per arm, not per cell -- so any entry is representative). Returns
+    `{}` if no manifest exists (never crashes `run_analyze`)."""
+    manifest = _load_manifest(out_path)
+    counts: Dict[str, int] = {}
+    for _key, entry in sorted(manifest.items()):
+        arm_name = entry.get("arm")
+        if arm_name and arm_name not in counts and "param_count" in entry:
+            counts[arm_name] = int(entry["param_count"])
+    return counts
+
+
+# ---------------------------------------------------------------------------
 # Task 7: HRM-v2 registration hook.
 #
 # `continuous_prm_c11_hrmv2_arm.py` never imports this module at its OWN
@@ -2378,13 +3353,60 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Task 4: CLI stub.
+# Task 8: run_full.
+# ---------------------------------------------------------------------------
+
+def run_full(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: Sequence[int],
+             cfg: Optional[C11MissionConfig] = None, n_train_worlds: Optional[int] = None,
+             n_test_worlds: Optional[int] = None, epochs: Optional[int] = None,
+             budgets: Optional[Sequence[int]] = None) -> None:
+    """Collect (implicit) -> `run_train` -> `run_eval` -> `run_analyze`, all
+    resume-friendly (every stage's own existing skip logic: `run_train`
+    skips a (arm, cell, seed) whose checkpoint already exists; `run_eval`
+    unconditionally re-runs A* -- cheap, ms-scale -- and OVERWRITES the raw/
+    halt/mae CSVs and `binding_k0.json` merge-entries each call, so re-
+    running `run_full` is safe but not incremental at the eval stage;
+    `run_analyze` likewise always regenerates `C11_RESULTS.md`). Bundle
+    collection itself has no separate "collect" step here -- `run_train`/
+    `run_eval` each collect their OWN split's bundles internally (per their
+    own docstrings), so "collect" is implicit in those two calls, per the
+    task spec's own parenthetical.
+
+    `arms` defaults (at the CLI layer, not here -- see `_resolve_scale_
+    preset`) to the 5 natives + `hrmv2_act`; forced-k arms are NEVER passed
+    to `run_train` (they have no trainer, see `_resolve_trainer`'s eval-
+    only branch, which `run_train` already handles by skipping with a
+    print line) -- but `run_eval` picks them up automatically whenever the
+    ALIASED arm's (`hrmv2_act`'s) checkpoint exists in the manifest, via its
+    own `ckpt_alias` resolution block, regardless of whether `arms` here
+    lists them explicitly. So `run_full`'s own `arms` argument does not
+    need to (and should not) include the forced-k names -- they ride along
+    for free once `hrmv2_act` itself is trained and evaluated.
+
+    Writes everything `run_train`/`run_eval`/`run_analyze` write, under
+    `out_dir`; the results doc is `{out_dir}/C11_RESULTS.md` -- NEVER the
+    canonical repo path (that is exclusively the CLI's `--canonical-results`
+    flag's job, applied as a SEPARATE call after this function returns)."""
+    cfg = cfg or C11MissionConfig()
+
+    run_train(out_dir, arms=arms, cells=cells, seeds=seeds, cfg=cfg,
+               n_train_worlds=n_train_worlds, epochs=epochs)
+    run_eval(out_dir, cells=cells, cfg=cfg, n_test_worlds=n_test_worlds,
+              budgets=budgets, arms=None)
+    run_analyze(out_dir, cfg)
+
+
+# ---------------------------------------------------------------------------
+# Task 4/8: CLI.
 # ---------------------------------------------------------------------------
 #
-# `--mode train|eval` only (T8 adds `analyze`/`full` -- this parser's
-# `choices` and the cell-selection helper below are written so adding those
-# modes later is a pure extension: new `choices` entries + new branches in
-# `main`, no restructuring of what's here).
+# `--mode train|eval|analyze|full`; `--canonical-results` (analyze/full
+# only -- writes ADDITIONALLY to the module-dir-anchored canonical
+# `C11_RESULTS.md`, never in place of the out_dir copy); `--scale-preset
+# smoke|local` (train/full only -- overrides n_train_worlds/n_test_worlds/
+# epochs/budgets/cells/arms with the pre-registered small or full grid,
+# each individually still overridable by an explicit flag of the same
+# name, per `_resolve_scale_preset`'s own "explicit flag wins" contract).
 
 def _parse_csv_arg(s: str) -> List[str]:
     return [t.strip() for t in str(s).split(",") if t.strip()]
@@ -2404,32 +3426,148 @@ def _select_cells(configs: Sequence[str], k_values: Sequence[int],
     return [c for c in build_cell_grid(cfg) if c["config_label"] in configs_set and c["K"] in k_set]
 
 
+# Native arms + hrmv2_act (if registered) -- the default `run_full`/`--mode
+# full` arm set (spec: "Default arms = 5 natives + hrmv2_act (+ forced-k in
+# EVAL only ...)"). Resolved lazily inside `_default_full_arms` (not a
+# module-level constant) since `hrmv2_act`'s registration happens at
+# IMPORT time via the try/except hook further down this file, which itself
+# runs AFTER `ARM_NAMES` is defined but the hook's outcome (registered or
+# not) is only knowable once the whole module has finished importing --
+# a module-level tuple built at class-body time would freeze the answer
+# too early if some future refactor moved the hook's position.
+def _default_full_arms() -> Tuple[str, ...]:
+    if "hrmv2_act" in PROVIDER_BUILDERS:
+        return ARM_NAMES + ("hrmv2_act",)
+    return ARM_NAMES
+
+
+def _resolve_scale_preset(name: str, cfg: Optional[C11MissionConfig] = None) -> dict:
+    """Resolve `--scale-preset smoke|local` into a dict of run-parameter
+    overrides: `{"n_train_worlds", "n_test_worlds", "epochs", "budgets",
+    "arms", "cells"}`.
+
+    `smoke`: n_train_worlds=2, n_test_worlds=2, epochs=1, budgets=(400,
+    3200), cells restricted to config A at K in {0,2} ONLY, arms
+    mlp+gnn (no hrmv2 -- too slow for smoke, per the task spec's explicit
+    instruction).
+
+    `local`: the full pre-registered grid -- every field pulled straight
+    from `cfg` (`n_train_worlds`, `n_test_worlds`, `epochs`,
+    `budgets_grid`), `cells` = the full 11-cell `build_cell_grid()`, `arms`
+    = `_default_full_arms()` (5 natives + `hrmv2_act` if registered)."""
+    cfg = cfg or C11MissionConfig()
+    if name == "smoke":
+        smoke_cells = [c for c in build_cell_grid(cfg) if c["config_label"] == "A" and c["K"] in (0, 2)]
+        return {
+            "n_train_worlds": 2,
+            "n_test_worlds": 2,
+            "epochs": 1,
+            "budgets": (400, 3200),
+            "arms": ("mlp", "gnn"),
+            "cells": smoke_cells,
+        }
+    if name == "local":
+        return {
+            "n_train_worlds": cfg.n_train_worlds,
+            "n_test_worlds": cfg.n_test_worlds,
+            "epochs": cfg.epochs,
+            "budgets": tuple(cfg.budgets_grid),
+            "arms": _default_full_arms(),
+            "cells": build_cell_grid(cfg),
+        }
+    raise ValueError(f"unknown scale preset {name!r}; expected 'smoke' or 'local'")
+
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="C11 compositional-mission PRM heuristics.")
-    parser.add_argument("--mode", choices=["train", "eval"], required=True)
+    parser.add_argument("--mode", choices=["train", "eval", "analyze", "full"], required=True)
     parser.add_argument("--out-dir", default="runs/c11_local")
-    parser.add_argument("--arms", default=",".join(ARM_NAMES))
+    parser.add_argument("--arms", default=None)
     parser.add_argument("--configs", default="A,B,C")
     parser.add_argument("--k-values", default="0,2,4,8")
     parser.add_argument("--seeds", default="0,1,2")
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--n-train-worlds", type=int, default=None)
     parser.add_argument("--n-test-worlds", type=int, default=None)
+    parser.add_argument("--budgets", default=None)
+    parser.add_argument("--scale-preset", choices=["smoke", "local"], default=None)
+    parser.add_argument(
+        "--canonical-results", action="store_true",
+        help="Additionally write C11_RESULTS.md to the canonical module-dir path "
+             "(hrm-cloud/continuous_prm/C11_RESULTS.md). ONLY this flag ever writes "
+             "there -- analyze/full otherwise write exclusively under --out-dir.",
+    )
     args = parser.parse_args(argv)
 
     cfg = C11MissionConfig()
-    arms = tuple(_parse_csv_arg(args.arms))
-    configs = _parse_csv_arg(args.configs)
-    k_values = [int(k) for k in _parse_csv_arg(args.k_values)]
+
+    # --scale-preset supplies DEFAULTS for the run-shape flags; any
+    # EXPLICITLY-passed flag of the same name overrides it (checked via
+    # `argv`'s raw presence, since argparse itself can't distinguish "user
+    # passed --epochs 1" from "user didn't pass --epochs" once both already
+    # collapsed to the same default=None sentinel otherwise).
+    preset = _resolve_scale_preset(args.scale_preset, cfg) if args.scale_preset else None
+
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
+
+    def _explicit(flag: str) -> bool:
+        return any(a == flag or a.startswith(flag + "=") for a in raw_argv)
+
+    if preset is not None:
+        cells = preset["cells"]
+        arms = tuple(_parse_csv_arg(args.arms)) if _explicit("--arms") else preset["arms"]
+        n_train_worlds = args.n_train_worlds if _explicit("--n-train-worlds") else preset["n_train_worlds"]
+        n_test_worlds = args.n_test_worlds if _explicit("--n-test-worlds") else preset["n_test_worlds"]
+        epochs = args.epochs if _explicit("--epochs") else preset["epochs"]
+        budgets = tuple(int(b) for b in _parse_csv_arg(args.budgets)) if _explicit("--budgets") else preset["budgets"]
+    else:
+        configs = _parse_csv_arg(args.configs)
+        k_values = [int(k) for k in _parse_csv_arg(args.k_values)]
+        cells = _select_cells(configs, k_values, cfg)
+        arms = tuple(_parse_csv_arg(args.arms)) if args.arms else _default_full_arms()
+        n_train_worlds = args.n_train_worlds
+        n_test_worlds = args.n_test_worlds
+        epochs = args.epochs
+        budgets = tuple(int(b) for b in _parse_csv_arg(args.budgets)) if args.budgets else None
+
     seeds = tuple(int(s) for s in _parse_csv_arg(args.seeds))
-    cells = _select_cells(configs, k_values, cfg)
 
     if args.mode == "train":
         run_train(args.out_dir, arms=arms, cells=cells, seeds=seeds, cfg=cfg,
-                   n_train_worlds=args.n_train_worlds, epochs=args.epochs)
+                   n_train_worlds=n_train_worlds, epochs=epochs)
     elif args.mode == "eval":
-        run_eval(args.out_dir, cells=cells, cfg=cfg, n_test_worlds=args.n_test_worlds,
-                  arms=arms)
+        run_eval(args.out_dir, cells=cells, cfg=cfg, n_test_worlds=n_test_worlds,
+                  budgets=budgets, arms=arms)
+    elif args.mode == "analyze":
+        run_analyze(args.out_dir, cfg)
+        if args.canonical_results:
+            canonical_path = Path(__file__).resolve().parent / "C11_RESULTS.md"
+            _rerun_write_results_doc_at(args.out_dir, cfg, str(canonical_path))
+    elif args.mode == "full":
+        run_full(args.out_dir, arms=arms, cells=cells, seeds=seeds, cfg=cfg,
+                  n_train_worlds=n_train_worlds, n_test_worlds=n_test_worlds,
+                  epochs=epochs, budgets=budgets)
+        if args.canonical_results:
+            canonical_path = Path(__file__).resolve().parent / "C11_RESULTS.md"
+            _rerun_write_results_doc_at(args.out_dir, cfg, str(canonical_path))
+
+
+def _rerun_write_results_doc_at(out_dir: str, cfg: C11MissionConfig, path: str) -> None:
+    """Regenerate the results doc at an ADDITIONAL `path` from the SAME
+    already-written `out_dir` artifacts `run_analyze` just produced, via
+    the shared `_assemble_analysis` core (byte-identical analysis to what
+    `run_analyze` itself just wrote under `out_dir` -- re-reading rather
+    than threading a second `md_path` parameter through `run_analyze`
+    keeps `run_analyze`'s OWN contract to always write to `{out_dir}/
+    C11_RESULTS.md` unconditionally, exactly mirroring the probe's
+    `run_probe(md_path=None)` -> default-under-out_dir convention while
+    keeping the CANONICAL-path write behind ITS OWN explicit call site
+    here, one level up, guarded by `--canonical-results` alone -- the same
+    two-call-site split `main`'s own `--probe` branch uses for
+    `run_probe`)."""
+    a = _assemble_analysis(out_dir, cfg)
+    write_results_doc(a["g1_analysis"], a["k0"], a["g1"], a["g2"], a["g2b"], a["meta"], path)
+    print(f"[c11-mission analyze] wrote canonical results doc: {path}", flush=True)
 
 
 if __name__ == "__main__":
