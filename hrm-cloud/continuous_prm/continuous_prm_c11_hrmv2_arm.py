@@ -765,24 +765,33 @@ def _load_mission():
 #   that row individually halts -- so different rows in the same tensor can
 #   be mid-episode on wildly different data at any given step). This
 #   trainer instead creates a FRESH carry once PER BATCH (`carry =
-#   model.initial_carry(batch)`), then loops segments-until-`all_finish`
-#   for THAT batch before moving to the next -- i.e. every row in a batch
-#   starts and ends its ACT episode together, batch-synchronized, matching
-#   the epoch/shuffle/batch STRUCTURE the other 5 arms use (so "40 epochs
-#   over the pooled TRAIN rows, shuffled per epoch" means the same thing
-#   for every arm) rather than the maze script's single unbounded
-#   `IterableDataset` stream. This is a DELIBERATE, PRE-REGISTERED
-#   deviation from the literal script (per spec section 5: "the segmented
-#   training loop [is] paper-faithful" refers to the SEGMENT MECHANISM --
-#   one optimizer step per segment, carry persisting ACROSS SEGMENTS within
-#   an episode -- not to the streaming script's specific cross-BATCH carry
-#   lifetime, which is an artifact of that script's unbounded-stream data
-#   loader, orthogonal to the mechanism under test here). The mechanism
-#   that actually matters for G2 (does deep supervision / ACT halting help)
-#   -- one gradient update per segment, real multi-segment episodes, live
-#   Q-learning halting during training -- is preserved exactly; only the
-#   batch-boundary bookkeeping is adapted to fit this phase's shared
-#   epoch/shuffle/batch harness.
+#   model.initial_carry(batch)`), then loops segments until every row has
+#   COMPLETED at least one ACT episode on that batch (the `ever_halted`
+#   DRAIN CONDITION -- see the loop body and `_PER_BATCH_SEGMENT_CAP`'s
+#   history comment for why the naive "until all rows are halted on the
+#   same call" reading of the spec's `all_finish` is unreachable in
+#   practice) before moving to the next -- i.e. every row in a batch
+#   STARTS its episode together (batch-synchronized fresh carry), every
+#   row COMPLETES >= 1 full episode per batch (bounded at halt_max_steps
+#   segments by `is_last_step`), and rows that halt early may begin a
+#   partial second episode on the same data before the batch drains
+#   (their extra segments contribute normal gradient updates, exactly as
+#   the streaming script's persistent carry would also have them do).
+#   This matches the epoch/shuffle/batch STRUCTURE the other 5 arms use
+#   (so "40 epochs over the pooled TRAIN rows, shuffled per epoch" means
+#   the same thing for every arm) rather than the maze script's single
+#   unbounded `IterableDataset` stream. This is a DELIBERATE,
+#   PRE-REGISTERED deviation from the literal script (per spec section 5:
+#   "the segmented training loop [is] paper-faithful" refers to the
+#   SEGMENT MECHANISM -- one optimizer step per segment, carry persisting
+#   ACROSS SEGMENTS within an episode -- not to the streaming script's
+#   specific cross-BATCH carry lifetime, which is an artifact of that
+#   script's unbounded-stream data loader, orthogonal to the mechanism
+#   under test here). The mechanism that actually matters for G2 (does
+#   deep supervision / ACT halting help) -- one gradient update per
+#   segment, real multi-segment episodes, live Q-learning halting during
+#   training -- is preserved exactly; only the batch-boundary bookkeeping
+#   is adapted to fit this phase's shared epoch/shuffle/batch harness.
 #
 # PARTIAL FINAL BATCH: dropped (`drop_last`-equivalent), per the spec's
 # explicit choice among the offered alternatives ("dropping <=1023 of ~50k
@@ -817,50 +826,55 @@ def _training_seed_formula(seed: int, cell: dict) -> int:
     return 10007 * (int(seed) + 1) + 101 * int(cell["config_idx"]) + int(cell["K"])
 
 
-# Per-batch segment cap -- a load-bearing safety bound, NOT an arbitrary
-# truncation. DISCOVERED, not designed-in from the spec: the per-batch
-# "loop until all_finish" instruction (faithful to `train_maze_
-# optimized.py`'s ONE-segment-per-optimizer-step mechanism) implicitly
-# assumes `carry.halted.all()` is reachable in a bounded number of calls.
-# It is NOT, once training has run even a few optimizer steps:
-# `HRMACTv1.forward`'s halting is PER-ROW -- a row that halts via the
-# Q-driven branch (`q_halt_logits > q_continue_logits`, active whenever
-# `self.training`) gets `reset_carry`'d on the VERY NEXT call and restarts
-# a fresh episode on ITS OWN step-clock, permanently desynchronized from
-# every other row's clock (each row is still GUARANTEED to halt again
-# within `halt_max_steps` of ITS OWN restart, via `is_last_step` -- see
-# `HRMACTv1.forward`'s algebra: `min_halt_steps <= halt_max_steps` always,
-# so `is_last_step` can never be suppressed by the exploration AND-mask --
-# but "guaranteed to halt eventually, on its own clock" is not the same as
-# "all rows halt on the SAME absolute segment call"). At batch_size=1 this
-# is a non-issue (trivially, "all" = "the one row"); empirically confirmed
-# clean convergence (exactly `halt_max_steps` segments) up to n=16, but at
-# this arm's REAL batch_size=128 (`C11MissionConfig.batch_size`, matched to
-# the native recipe), even ONE early-halting row is enough to desync the
-# whole batch, and getting all 128 independent, exploration-randomized
-# clocks to re-align becomes a coincidence that gets less likely the longer
-# it hasn't happened -- empirically verified to NOT occur within 3000
-# segments (27.8s wall time) on this arm's real encoded batch data for a
-# SINGLE batch (see the module's Task 7 build notes / final report for the
-# reproduction). Left uncapped, `train_hrmv2` can hang for minutes to
-# indefinitely on ONE batch.
+# Per-batch segment cap -- a PURE BACKSTOP behind the segment loop's real
+# terminator, the ever-halted DRAIN CONDITION (see the loop body in
+# `train_hrmv2`). History, because both halves were discovered the hard
+# way rather than designed in from the spec:
 #
-# The cap trades a small amount of faithfulness (a batch occasionally stops
-# before literally every row has halted on the SAME call) for guaranteed
-# termination, while preserving everything that actually matters about the
-# mechanism under test: still one optimizer step per segment, still real
-# ACT Q-learning dynamics (the rows that continue past the cap simply carry
-# their in-progress episode into the NEXT batch's fresh
-# `initial_carry`-driven restart -- functionally identical to how those
-# rows would have been reset anyway had `all_finish` become true one
-# segment later), still the same per-segment loss/backward/step contract.
-# 200 (=50x `halt_max_steps=4`'s own default, and comfortably larger than
-# the ~30-90 segments a partially-desynced batch typically needs to drain
-# down to its last few holdout rows in exploratory testing) is generous
-# under normal operation -- it essentially never binds for the arm's
-# intended full-size config (`hrmv2_config()`'s `halt_max_steps=8`, so 200
-# is 25x that) -- while bounding worst-case per-batch wall time to a
-# reasonable ceiling regardless of how the Q-head evolves during training.
+#   1. The spec's literal per-batch "loop until all_finish" instruction
+#      implicitly assumes `carry.halted.all()` (every row halted ON THE
+#      SAME call) is reachable in a bounded number of calls. It is NOT,
+#      once training has run even a few optimizer steps:
+#      `HRMACTv1.forward`'s halting is PER-ROW -- a row that halts via the
+#      Q-driven branch (`q_halt_logits > q_continue_logits`, active
+#      whenever `self.training`) gets `reset_carry`'d on the VERY NEXT
+#      call and restarts a fresh episode on ITS OWN step-clock,
+#      permanently desynchronized from every other row's clock (each row
+#      is still GUARANTEED to halt again within `halt_max_steps` of ITS
+#      OWN restart, via `is_last_step` -- see `HRMACTv1.forward`'s
+#      algebra: `min_halt_steps <= halt_max_steps` always, so
+#      `is_last_step` can never be suppressed by the exploration AND-mask
+#      -- but "guaranteed to halt eventually, on its own clock" is not the
+#      same as "all rows halt on the SAME absolute segment call").
+#      Empirically: clean convergence up to n=16; verified NOT to converge
+#      within 3000 segments (27.8s) on real encoded data at n=128 (the
+#      tiny-test batch size) once a few optimizer steps had nudged the
+#      Q-head -- and with ~10%/row exploration, P(all rows aligned-halted
+#      on one call) ~ 0.9^B, which is ~0 at the recipe's REAL
+#      `C11MissionConfig.batch_size` of 1024. Left uncapped, one batch can
+#      run indefinitely; this cap was originally added as the fix.
+#
+#   2. The T7 review then measured that with the cap as the ONLY
+#      terminator, it BOUND on ~90% of mid-training batches (14/16
+#      measured) -- i.e. nearly every batch burned the full 200 segments
+#      (~25x the intended `halt_max_steps=8` budget of `hrmv2_config()`'s
+#      default; the earlier claim here that the cap "essentially never
+#      binds" was FALSE, extrapolated from pre-training behavior), rows
+#      re-ran ~25-50 episodes on the same data, and T9's 33 full-scale
+#      runs would have inflated accordingly. The fix is the DRAIN
+#      CONDITION now in the loop: exit when `ever_halted.all()` -- every
+#      row has COMPLETED >= 1 ACT episode this batch -- which
+#      `is_last_step` bounds at `halt_max_steps` segments (all first
+#      episodes start synchronized on the fresh per-batch carry), while
+#      preserving one-optimizer-step-per-segment and live Q-dynamics.
+#
+# Under the drain condition this cap is genuinely unreachable
+# (`halt_max_steps` is 8 at the paper-faithful default, 200 = 25x that;
+# tests assert zero capped batches and per-batch segment counts <=
+# halt_max_steps) -- it exists purely to bound the damage of some future
+# regression in the drain logic or the parent package's halting semantics,
+# turning a would-be infinite loop into a loud, finite, diagnosable one
+# (`meta["capped_batches"]` > 0 is the tell).
 _PER_BATCH_SEGMENT_CAP = 200
 
 
@@ -871,14 +885,21 @@ def train_hrmv2(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
                  ) -> Tuple[Dict[str, torch.Tensor], dict]:
     """Train a fresh `TraceHRMACT` on `bundles`' pooled TRAIN targets, via
     the faithful per-segment loop (see the module-level comment block
-    above for the full recipe-split rationale, and `_PER_BATCH_SEGMENT_CAP`
-    for a discovered, load-bearing termination-safety bound on that loop --
-    per-row ACT halting can desynchronize across a batch once training
-    perturbs the Q-head, making "every row halted on the SAME segment
-    call" arbitrarily slow to reach without it). Returns
-    `(state_dict_cpu, meta)` -- the SAME `(state_dict, meta)` contract
-    `train_arm` returns, so this function is a drop-in `train` entry for
-    `register_provider_builder`.
+    above for the full recipe-split rationale). Each batch's segment loop
+    terminates on the ever-halted DRAIN CONDITION -- every row has
+    completed >= 1 ACT episode -- which `is_last_step` bounds at
+    `halt_max_steps` segments per batch (see the loop body's comment and
+    `_PER_BATCH_SEGMENT_CAP`'s history comment: per-row ACT halting
+    desynchronizes across a batch once training perturbs the Q-head, so
+    the naive "every row halted on the SAME call" condition is
+    unreachable at real batch sizes, and a fixed cap alone inflated every
+    batch to ~25x its segment budget). Returns `(state_dict_cpu, meta)`
+    -- the SAME `(state_dict, meta)` contract `train_arm` returns, so
+    this function is a drop-in `train` entry for
+    `register_provider_builder`; `meta` additionally carries the
+    drain-condition diagnostics (`capped_batches`, `max_batch_segments`,
+    `batch_segments_hist`) and the architecture config
+    (`hrmv2_config`).
 
     `hrmv2_cfg`: the `HRMACTv1Config` dict (from `hrmv2_config(...)`,
     typically with test-time overrides for speed); defaults to
@@ -932,6 +953,15 @@ def train_hrmv2(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
     final_loss: float = float("nan")
     total_segments = 0
     mean_halt_steps_final_epoch: float = float("nan")
+    # Drain-condition diagnostics (T7-review IMPORTANT 2): how many
+    # batches hit the backstop cap (must be 0 -- asserted in tests), the
+    # largest per-batch segment count (must be <= halt_max_steps under the
+    # ever-halted drain), and a compact {segment_count: n_batches}
+    # histogram (bounded at halt_max_steps + 1 distinct keys, so it stays
+    # tiny in the manifest even for full 40-epoch runs).
+    capped_batches = 0
+    max_batch_segments = 0
+    batch_segments_hist: Dict[int, int] = {}
 
     model.train()
     for epoch in range(n_epochs):
@@ -964,47 +994,49 @@ def train_hrmv2(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
             batch = {"inputs": inputs_t, "puzzle_identifiers": puzzle_ids_t, "y": y_batch}
 
             # THE FAITHFUL LOOP: carry created ONCE per batch; loop
-            # `loss_head(...)` (one ACT segment per call) until
-            # `all_finish`; ONE optimizer step PER SEGMENT (deep
-            # supervision -- the mechanism under test).
+            # `loss_head(...)` (one ACT segment per call); ONE optimizer
+            # step PER SEGMENT (deep supervision -- the mechanism under
+            # test).
             #
-            # SAFETY CAP -- a discovered necessity, not a spec-optional
-            # nicety (see `_PER_BATCH_SEGMENT_CAP`'s own docstring for the
-            # full empirical finding: once TRAINING perturbs the Q-head's
-            # halt/continue outputs even slightly, individual rows in a
-            # batch can halt EARLY via the Q-driven branch
-            # (`HRMACTv1.forward`'s `halted = halted | (q_halt_logits >
-            # q_continue_logits)`), which immediately RESETS that row's
-            # carry on the NEXT call and restarts it on its OWN clock --
-            # permanently desynchronized from every other row's clock.
-            # `carry.halted.all()` then requires EVERY row's independent,
-            # exploration-randomized clock to land on a halt at the exact
-            # SAME absolute segment call, which becomes vanishingly
-            # unlikely as batch size grows -- empirically verified NOT to
-            # happen within 3000 segments (27.8s) for this arm's real
-            # batch_size=128 data once even a few optimizer steps have
-            # nudged the Q-head. Uncapped, this loop can run for minutes
-            # to indefinitely on a SINGLE batch. This is a genuine property
-            # of adapting per-row-asynchronous ACT halting into a
-            # per-BATCH "wait for everyone" loop -- the real streaming
-            # script (`train_maze_optimized.py`) never hits this failure
-            # mode because it never waits for "all halted": it keeps ONE
-            # carry persistent across the ENTIRE run and just keeps
-            # stepping forever, letting rows halt/reset/continue on their
-            # own schedules indefinitely (see this trainer's own
-            # module-level "DOCUMENTED DEVIATION" comment above for why
-            # THIS trainer instead uses a fresh per-batch carry). The cap
-            # is the natural, minimal fix that preserves everything else
-            # about the faithful loop (still one optimizer step per
-            # segment, still real Q-learning dynamics, still the SAME
-            # segment mechanism) while guaranteeing every batch actually
-            # terminates.
+            # DRAIN CONDITION (T7-review IMPORTANT 2): the loop exits when
+            # `ever_halted.all()` -- every row has COMPLETED >= 1 ACT
+            # episode this batch -- NOT when `carry.halted.all()` (all
+            # rows halted on the SAME call). The original all-on-the-same-
+            # call condition is unreachable in practice: `initial_carry`
+            # starts every row's episode synchronized, but the FIRST row
+            # to halt early (Q-vote or exploration path, active whenever
+            # `self.training`) gets `reset_carry`'d on the very next call
+            # and restarts on its OWN step-clock, permanently
+            # desynchronized -- and with ~10%/row exploration,
+            # P(all B rows aligned-halted on one call) ~ 0.9^B ~ 0 at the
+            # real B=1024, so the old loop's 200-segment cap was the
+            # de-facto terminator on ~90% of mid-training batches
+            # (measured 14/16 by the T7 review), inflating every batch to
+            # ~25x its `halt_max_steps` segment budget and re-running rows
+            # ~25-50 episodes on the same data. The drain condition is
+            # bounded: all first episodes START synchronized (fresh
+            # carry), and `is_last_step` unconditionally halts any
+            # still-running row at its episode step `halt_max_steps`
+            # (never suppressible -- `min_halt_steps <= halt_max_steps`
+            # always, see `HRMACTv1.forward`'s exploration mask algebra),
+            # so every row's FIRST halt lands within the batch's first
+            # `halt_max_steps` segments and the loop drains by then.
+            # Early-halting rows may begin a second episode before the
+            # batch drains; those partial-episode segments still
+            # contribute normal gradient updates on the same data
+            # (harmless, and exactly what the streaming script's
+            # persistent carry would also do to them). One-optimizer-step-
+            # per-segment and live Q-learning dynamics are preserved
+            # untouched. `_PER_BATCH_SEGMENT_CAP` remains as a pure
+            # backstop only -- genuinely never binding now (asserted by
+            # `test_streaming_trainer_segment_steps`: zero capped batches,
+            # every batch's segment count <= halt_max_steps).
             carry = loss_head.initial_carry(batch)
-            all_finish = False
+            ever_halted = torch.zeros(n, dtype=torch.bool, device=device)
             batch_halt_steps: List[float] = []
             batch_segments = 0
-            while not all_finish and batch_segments < _PER_BATCH_SEGMENT_CAP:
-                carry, loss, metrics, _outputs, all_finish_t = loss_head(
+            while not bool(ever_halted.all()) and batch_segments < _PER_BATCH_SEGMENT_CAP:
+                carry, loss, metrics, _outputs, _all_finish_t = loss_head(
                     return_keys=[], carry=carry, batch=batch
                 )
                 if not torch.isfinite(loss):
@@ -1019,7 +1051,12 @@ def train_hrmv2(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
                 count = float(metrics["count"].item())
                 if count > 0:
                     batch_halt_steps.append(float(metrics["steps"].item()) / count)
-                all_finish = bool(all_finish_t)
+                ever_halted = ever_halted | carry.halted
+
+            if batch_segments >= _PER_BATCH_SEGMENT_CAP and not bool(ever_halted.all()):
+                capped_batches += 1
+            max_batch_segments = max(max_batch_segments, batch_segments)
+            batch_segments_hist[batch_segments] = batch_segments_hist.get(batch_segments, 0) + 1
 
             epoch_halt_steps.extend(batch_halt_steps)
 
@@ -1046,6 +1083,23 @@ def train_hrmv2(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
         "wall_s": wall_s,
         "total_segments": total_segments,
         "mean_halt_steps_final_epoch": mean_halt_steps_final_epoch,
+        # Drain-condition diagnostics (T7-review IMPORTANT 2) -- see the
+        # loop body's comment: capped_batches must be 0 in practice.
+        "capped_batches": int(capped_batches),
+        "max_batch_segments": int(max_batch_segments),
+        "batch_segments_hist": dict(batch_segments_hist),
+        # T7-review minor 2: persist the ARCHITECTURE config alongside the
+        # weights, so a non-default architecture (e.g. a scaled T10
+        # variant or a test-sized model) can be reconstructed at eval time
+        # from the ckpt/manifest instead of failing `make_provider`'s
+        # strict state_dict load against `hrmv2_config()`'s defaults --
+        # today the registered `build` still constructs the default
+        # architecture (a mismatched ckpt fails LOUDLY at load, which is
+        # the acceptable current behavior), but the config traveling with
+        # the ckpt makes the future fix a pure consumer-side change. All
+        # values are scalars/strings, so this JSON-serializes cleanly into
+        # the manifest.
+        "hrmv2_config": dict(hrmv2_cfg),
     }
     return state_dict_cpu, meta
 
@@ -1077,14 +1131,19 @@ def train_hrmv2(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
 #     takes exactly `halt_max_steps` iterations, independent of q-head
 #     values) -- not a bug in this arm's code, and not something this
 #     phase is permitted to patch (`HRM-v2/` is frozen). Practical
-#     consequence: `hrmv2_halt_steps` (the per-query side channel) will be
-#     UNIFORMLY `halt_max_steps` for every query under this provider as
-#     currently specified -- flagged explicitly in this module's T7 report
-#     as a parent-code obstacle worth downstream (G2b) awareness, since a
-#     halting-vs-K correlation study needs genuine per-query variation,
-#     which this port's eval-mode contract does not produce. The provider
-#     itself is implemented EXACTLY as specified regardless ("eval mode,
-#     the model's own halting") -- this comment documents what that
+#     consequence (T7-review IMPORTANT 1): SEGMENTS-RUN is therefore a
+#     constant and useless as a halting readout -- so the per-query side
+#     channel (`bundle.hrmv2_halt_steps`) records the Q-DERIVED WOULD-HALT
+#     step instead: the first segment at which `q_halt_logits >
+#     q_continue_logits` fires (the exact comparison the training-mode
+#     early-halt branch uses), `halt_max_steps` if never -- computed
+#     inside the SAME segment loop from logits every segment call already
+#     produces (zero extra compute), and genuinely VARYING with what the
+#     Q-head learned, which is what gate G2b's halting-vs-K correlation
+#     needs (Spearman on a constant is undefined). See
+#     `_hrmv2_forward_batch_act`'s docstring for the full rationale. The
+#     provider's yhat path is implemented EXACTLY as specified ("eval
+#     mode, the model's own halting") -- this comment documents what that
 #     mechanism actually does, verified rather than assumed.
 #   - Forced-k: bypasses `model.forward`'s ACT wrapper ENTIRELY, driving
 #     `model.inner` directly for exactly k calls (each call is "one
@@ -1117,17 +1176,36 @@ def _hrmv2_forward_batch_act(model: "TraceHRMACT", bundle: "WorldBundle",
                               device: torch.device) -> torch.Tensor:
     """ACT-LIVE provider: run the model's own halting (eval mode) segment
     loop until `all_finish`, reading out via `readout_yhat(outputs,
-    cap=cfg.residual_cap)`. SIDE-CHANNEL: stashes per-query halt steps on
-    `bundle.hrmv2_halt_steps` (an `(K+1, N)` float32 ndarray, NaN off the
-    queried states, filled with each queried state's `carry.steps` value
-    at the step it halted -- in `[1, halt_max_steps]` for every queried
-    state, per `HRMACTv1.forward`'s `new_steps = new_steps + 1` BEFORE the
-    halt check, so the minimum possible halted step is 1, not 0). Eval
-    mode + `model.training == False` also means `halt_exploration_prob`'s
-    forced-minimum-steps branch never fires (see the module-level comment
-    block above), so this provider's step count is driven purely by
-    `is_last_step` under the CURRENT `hrm` port -- documented there, not
-    re-derived here."""
+    cap=cfg.residual_cap)`.
+
+    SIDE-CHANNEL (T7-review IMPORTANT 1): stashes the per-query Q-DERIVED
+    WOULD-HALT step on `bundle.hrmv2_halt_steps` (an `(K+1, N)` float32
+    ndarray, NaN off the queried states) -- the FIRST segment index (1-
+    based) at which the model's own halting signal, `q_halt_logits >
+    q_continue_logits` (the exact comparison `HRMACTv1.forward`'s training-
+    mode early-halt branch uses), fires for that query; `halt_max_steps`
+    if it never fires. Values are therefore in `[1, halt_max_steps]`.
+
+    WHY would-halt and not segments-run: in eval mode
+    (`model.training == False`) the early-halt branch and the exploration
+    branch of `HRMACTv1.forward` are BOTH `self.training`-gated and never
+    fire, so segments-run is CONSTANT -- every query runs exactly
+    `halt_max_steps` segments regardless of the trained Q-head (verified
+    empirically on both a rigged q-head and a trained model; the vendored
+    original at repo-root `models/hrm/hrm_act_v1.py` behaves identically
+    per the T7 review). A constant channel makes gate G2b -- Spearman
+    correlation of halt-steps vs mission depth K -- undefined. The
+    Q-derived would-halt step is the paper-legitimate "learned halting"
+    readout under this port's fixed-compute eval contract: it is computed
+    from the SAME q logits the training-mode halting actually branches on,
+    read out of the SAME segment loop this provider already runs (zero
+    extra forward passes -- `outputs["q_halt_logits"]`/
+    `["q_continue_logits"]` are produced by every segment call
+    unconditionally), and it VARIES with what the Q-head learned, which is
+    the thing G2b is trying to measure. `yhat` (the actual heuristic
+    prediction) is unaffected: it is still read out at each row's REAL
+    halt (which in eval mode is always the final, `is_last_step`-forced
+    segment), exactly as before."""
     was_training = model.training
     model.eval()
     try:
@@ -1135,30 +1213,43 @@ def _hrmv2_forward_batch_act(model: "TraceHRMACT", bundle: "WorldBundle",
             batch = _build_batch_for_states(model, bundle, states, cfg, device)
             carry = model.initial_carry(batch)
 
-            # All three bookkeeping tensors live on `device` throughout the
-            # loop (matching `carry.halted`/`carry.steps`'s device) --
-            # moved to CPU/numpy only once, after the loop, when stashing
-            # the halt-step side channel. Mixing a CPU `remaining`/
-            # `halt_steps_out` with a CUDA `carry` would raise a device
-            # mismatch the moment `device` is not "cpu" (this arm's tests
-            # run on CPU, but `make_provider`/`predict_field` derive
-            # `device` from the model's OWN device, which is CUDA whenever
-            # a trained checkpoint is loaded onto a CUDA model -- so this
-            # must be device-correct regardless of what this run happens
-            # to use).
-            halt_steps_out = torch.zeros(len(states), dtype=torch.float32, device=device)
+            # All bookkeeping tensors live on `device` throughout the loop
+            # (matching `carry.halted`/`outputs[...]`'s device) -- moved to
+            # CPU/numpy only once, after the loop, when stashing the
+            # side channel. Mixing CPU bookkeeping with a CUDA `carry`
+            # would raise a device mismatch the moment `device` is not
+            # "cpu" (this arm's tests run on CPU, but `make_provider`/
+            # `predict_field` derive `device` from the model's OWN device,
+            # which is CUDA whenever a trained checkpoint is loaded onto a
+            # CUDA model -- so this must be device-correct regardless of
+            # what this run happens to use).
+            would_halt_out = torch.zeros(len(states), dtype=torch.float32, device=device)
             yhat_out = torch.zeros(len(states), dtype=torch.float32, device=device)
             remaining = torch.ones(len(states), dtype=torch.bool, device=device)
+            undecided = torch.ones(len(states), dtype=torch.bool, device=device)
 
             halt_max_steps = int(model.config.halt_max_steps)
+            seg_idx = 0
             for _ in range(halt_max_steps + 1):
                 carry, outputs = model(carry, batch)
+                seg_idx += 1
+
+                # Q-derived would-halt vote: record the FIRST segment at
+                # which q_halt > q_continue (strict >, matching the
+                # training-mode branch's own comparison) for each
+                # still-undecided query. Zero extra compute -- both logits
+                # are already in `outputs` on every segment call.
+                vote = outputs["q_halt_logits"] > outputs["q_continue_logits"]
+                newly_decided = vote & undecided
+                if newly_decided.any():
+                    would_halt_out[newly_decided] = float(seg_idx)
+                    undecided = undecided & ~newly_decided
+
                 newly_halted = carry.halted & remaining
                 if newly_halted.any():
                     yhat_row = readout_yhat(outputs, cap=float(cfg.residual_cap))
                     idx = newly_halted.nonzero(as_tuple=True)[0]
                     yhat_out[idx] = yhat_row[idx]
-                    halt_steps_out[idx] = carry.steps[idx].to(torch.float32)
                     remaining = remaining & ~newly_halted
                 if carry.halted.all():
                     break
@@ -1172,10 +1263,17 @@ def _hrmv2_forward_batch_act(model: "TraceHRMACT", bundle: "WorldBundle",
                     f"{int(remaining.sum())} states never halted within "
                     f"{halt_max_steps} ACT-live segments"
                 )
+
+            # Queries whose q-vote never fired record halt_max_steps (the
+            # "would run the full budget" reading -- consistent with what
+            # training-mode halting would have done to them: only
+            # is_last_step would have stopped them).
+            if undecided.any():
+                would_halt_out[undecided] = float(halt_max_steps)
     finally:
         model.train(was_training)
 
-    _stash_halt_steps(bundle, states, halt_steps_out.detach().cpu().numpy())
+    _stash_halt_steps(bundle, states, would_halt_out.detach().cpu().numpy())
     return yhat_out
 
 
@@ -1188,7 +1286,19 @@ def _stash_halt_steps(bundle: "WorldBundle", states: Sequence[Tuple[int, int]],
     the same bundle, e.g. across multiple budgets in `run_eval`, keep
     accumulating/overwriting the SAME queried cells rather than each call
     starting over from an all-NaN array -- consistent with every other
-    query in the same eval run sharing one halt-step map per bundle)."""
+    query in the same eval run sharing one halt-step map per bundle).
+
+    CROSS-CALL STALENESS CAVEAT (T7-review minor 3): because cells are
+    only OVERWRITTEN when re-queried (never invalidated wholesale), a
+    SECOND, differently-configured model (different seed/checkpoint/
+    halt_max_steps) that queries only a SUBSET of a bundle's states leaves
+    the non-requeried cells holding the FIRST model's values -- the map is
+    "last writer per cell", not "one coherent model per map". Within one
+    `run_eval` this cannot mix models (each provider queries the FULL
+    (K+1) x N state set via `predict_field`, overwriting every cell), but
+    a consumer doing partial ad-hoc queries across models must clear the
+    attribute (`del bundle.hrmv2_halt_steps`) between models, as the
+    side-channel test itself does between its two q-head rigs."""
     K = len(bundle.wp)
     N = bundle.rm.points.shape[0]
     existing = getattr(bundle, "hrmv2_halt_steps", None)

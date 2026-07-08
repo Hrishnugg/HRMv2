@@ -429,13 +429,28 @@ def _one_bundle(config_label="A", K=2, n_attempts=60):
 def test_streaming_trainer_segment_steps():
     """`train_hrmv2` on a tiny dataset (1 bundle, capped to <=256 rows,
     batch 128, epochs=1): the optimizer's `.step` must be called once PER
-    SEGMENT actually run (summed over every batch's segments-until-
-    all_finish loop) -- this is the faithful loop's whole point (deep
-    supervision: one gradient update per ACT segment, not per batch).
-    AdamATan2 must be the optimizer class in use, and `warmup_constant_lr`
-    must drive the LR schedule (lr == cfg lr once past the 100-step
-    warmup -- verified by checking the scheduler's effect directly, since a
-    tiny run may not itself reach step 100)."""
+    SEGMENT actually run (summed over every batch's segment loop) -- this
+    is the faithful loop's whole point (deep supervision: one gradient
+    update per ACT segment, not per batch). AdamATan2 must be the
+    optimizer class in use, and `warmup_constant_lr` must drive the LR
+    schedule (verified in the companion test below).
+
+    T7-review IMPORTANT 2 assertions: the segment loop drains on
+    `ever_halted.all()` (every row completed >= 1 ACT episode this batch),
+    which `is_last_step` bounds at `halt_max_steps` segments per batch --
+    so (a) `_PER_BATCH_SEGMENT_CAP` must NEVER bind (`capped_batches ==
+    0`), (b) every batch's segment count is <= halt_max_steps
+    (`max_batch_segments`), and (c) total segments <= epochs x n_batches x
+    halt_max_steps. (Pre-fix, the loop waited for ALL rows to be halted on
+    the SAME call -- `carry.halted.all()` -- which desyncs once training
+    perturbs the Q-head; the 200-segment cap then bound on ~90% of
+    mid-training batches, inflating each batch to ~25x its
+    `halt_max_steps` budget.)
+
+    Minor 2: the hrmv2 architecture config dict must round-trip through
+    `meta["hrmv2_config"]` (so a non-default architecture can be
+    reconstructed at eval time from the ckpt/manifest instead of failing a
+    strict state_dict load against `hrmv2_config()`'s defaults)."""
     cell, bundle = _one_bundle("A", K=2)
     # Cap to <=256 rows for speed (targets are already small for K=2, A).
     if bundle.targets.shape[0] > 256:
@@ -473,6 +488,28 @@ def test_streaming_trainer_segment_steps():
     assert meta["epochs"] == 1
     assert isinstance(state_dict, dict)
     assert all(v.device.type == "cpu" for v in state_dict.values())
+
+    # IMPORTANT-2 drain-condition bounds: the cap is a pure backstop that
+    # must never bind; each batch drains within halt_max_steps segments.
+    halt_max = hrmv2_cfg["halt_max_steps"]
+    n_rows = bundle.targets.shape[0]
+    n_batches = n_rows // mission_cfg.batch_size  # drop-last
+    assert meta["capped_batches"] == 0, (
+        f"the per-batch segment cap must be a never-binding backstop under "
+        f"the ever-halted drain condition; it bound on "
+        f"{meta['capped_batches']} batch(es)"
+    )
+    assert meta["max_batch_segments"] <= halt_max, (
+        f"every batch must drain within halt_max_steps={halt_max} segments; "
+        f"observed max_batch_segments={meta['max_batch_segments']}"
+    )
+    assert meta["total_segments"] <= 1 * n_batches * halt_max, (
+        f"total segments {meta['total_segments']} exceeds the "
+        f"epochs x batches x halt_max_steps bound {1 * n_batches * halt_max}"
+    )
+
+    # Minor 2: the architecture config round-trips through meta.
+    assert meta["hrmv2_config"] == hrmv2_cfg
 
 
 def test_streaming_trainer_uses_adamatan2_and_warmup():
@@ -606,7 +643,27 @@ def test_act_live_halt_steps_side_channel():
     """After running the ACT-live forward_batch over 10 states, the bundle
     must carry `hrmv2_halt_steps`: an `(K+1, N)` float32 ndarray, NaN off
     the 10 queried (i, s) cells, and in `[1, halt_max_steps]` on the
-    queried ones."""
+    queried ones.
+
+    T7-review IMPORTANT 1: the channel records the Q-DERIVED WOULD-HALT
+    step -- the FIRST segment at which `q_halt_logits > q_continue_logits`
+    fires for that query, `halt_max_steps` if it never fires -- NOT
+    segments-run. Segments-run is CONSTANT (`halt_max_steps`) in eval mode
+    (the early-halt branch in `HRMACTv1.forward` is `self.training`-gated;
+    reviewer confirmed the vendored original behaves identically), and
+    G2b's Spearman(halt-steps, K) is undefined on a constant. This test
+    pins the two rig-derived extremes the reviewer verified in a
+    prototype:
+      - a FRESH model: `q_head` init is weight-zeroed + bias filled -5.0
+        on BOTH channels (`HRMACTv1_Inner.__init__`), so `q_halt ==
+        q_continue` exactly and the STRICT `>` never fires -> every
+        queried value == halt_max_steps;
+      - a rigged COPY (bias +100/-100, weight zeroed): `q_halt >
+        q_continue` from segment 1 -> every queried value == 1.0.
+    The two rigs producing DIFFERENT values is the load-bearing assertion:
+    the channel must VARY with the Q-head, else G2b is degenerate."""
+    import copy
+
     cell, bundle = _one_bundle("A", K=2)
     hrmv2_cfg = _tiny_hrmv2_cfg(halt_max_steps=4)
     mission_cfg = _tiny_mission_cfg()
@@ -617,6 +674,8 @@ def test_act_live_halt_steps_side_channel():
     N = bundle.rm.points.shape[0]
     states = [(i, s) for s in range(3) for i in range(N)][:10]
 
+    # --- Rig 1: fresh model (q_halt == q_continue == -5.0 exactly; strict
+    # `>` never fires) -> would-halt == halt_max_steps for every query.
     with torch.no_grad():
         out = HA._hrmv2_forward_batch_act(model, bundle, states, mission_cfg, torch.device("cpu"))
 
@@ -630,22 +689,68 @@ def test_act_live_halt_steps_side_channel():
     for (i, s) in states:
         queried_mask[s, i] = True
 
-    queried_vals = halt_steps[queried_mask]
-    assert np.all(np.isfinite(queried_vals))
-    assert np.all(queried_vals >= 1)
-    assert np.all(queried_vals <= hrmv2_cfg["halt_max_steps"])
+    fresh_vals = halt_steps[queried_mask].copy()
+    assert np.all(np.isfinite(fresh_vals))
+    assert np.all(fresh_vals >= 1)
+    assert np.all(fresh_vals <= hrmv2_cfg["halt_max_steps"])
+    assert np.all(fresh_vals == float(hrmv2_cfg["halt_max_steps"])), (
+        f"fresh q-head (bias -5/-5, strict >) must never vote halt -> all "
+        f"would-halt == {hrmv2_cfg['halt_max_steps']}; got "
+        f"{sorted(set(fresh_vals.tolist()))}"
+    )
 
     unqueried_vals = halt_steps[~queried_mask]
     assert np.all(np.isnan(unqueried_vals))
+
+    # --- Rig 2: q-head rigged to vote halt from the FIRST segment
+    # (q_halt=+100 >> q_continue=-100, input-independent) -> would-halt ==
+    # 1.0 for every query.
+    rigged = copy.deepcopy(model)
+    rigged.eval()
+    with torch.no_grad():
+        rigged.inner.q_head.bias[0] = 100.0   # Q(halt)
+        rigged.inner.q_head.bias[1] = -100.0  # Q(continue)
+        rigged.inner.q_head.weight.zero_()
+
+    # Clear the side channel so rig 2's writes to the SAME queried cells
+    # are unambiguous (not rig-1 leftovers).
+    del bundle.hrmv2_halt_steps
+    with torch.no_grad():
+        out2 = HA._hrmv2_forward_batch_act(rigged, bundle, states, mission_cfg, torch.device("cpu"))
+    assert out2.shape == (10,)
+
+    rigged_vals = bundle.hrmv2_halt_steps[queried_mask]
+    assert np.all(rigged_vals == 1.0), (
+        f"q-head rigged +100/-100 must vote halt at segment 1 -> all "
+        f"would-halt == 1.0; got {sorted(set(rigged_vals.tolist()))}"
+    )
+
+    # The channel VARIES with the Q-head -- the whole point (G2b is
+    # undefined on a constant).
+    assert not np.array_equal(fresh_vals, rigged_vals)
 
 
 # ---------------------------------------------------------------------------
 # Test: trainer determinism on CPU.
 # ---------------------------------------------------------------------------
 
-def test_trainer_determinism_cpu():
+def test_trainer_determinism_cpu(monkeypatch):
     """Two identical `train_hrmv2` calls (same cell/bundle/seed/cfg) on CPU
-    must produce allclose state_dicts."""
+    must produce allclose state_dicts.
+
+    T7-review minor 4: `train_hrmv2` auto-selects CUDA when available
+    (`torch.device("cuda" if torch.cuda.is_available() else "cpu")`), and
+    this machine HAS CUDA -- so without intervention this test would
+    actually exercise GPU determinism (which the trainer's own docstring
+    explicitly does NOT promise: CUDA attention kernels are not bitwise
+    deterministic). To make the test match its name and the docstring's
+    CPU-only determinism claim, `torch.cuda.is_available` is monkeypatched
+    to False for the duration of BOTH calls, forcing the CPU path (the
+    reviewer's offered alternative was renaming the test; forcing CPU was
+    chosen because CPU determinism is the property the trainer actually
+    guarantees, so it is the property worth pinning)."""
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
     cell, bundle = _one_bundle("A", K=2)
     if bundle.targets.shape[0] > 128:
         bundle.targets = bundle.targets[:128]
@@ -662,6 +767,7 @@ def test_trainer_determinism_cpu():
     for k in state_dict_a:
         assert torch.allclose(state_dict_a[k], state_dict_b[k], atol=1e-6), f"mismatch at {k}"
     assert meta_a["final_loss"] == pytest.approx(meta_b["final_loss"])
+    assert all(v.device.type == "cpu" for v in state_dict_a.values())
 
 
 # ---------------------------------------------------------------------------
