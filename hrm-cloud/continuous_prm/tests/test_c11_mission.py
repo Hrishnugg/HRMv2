@@ -1619,3 +1619,212 @@ def test_vs_legsum_and_oracle_rows():
     oracle_row = cell["oracle_vs_legsum"]
     assert oracle_row["n"] == 2
     assert oracle_row["ratio_median"] == pytest.approx(0.5)
+
+
+# ===========================================================================
+# Task 7: HRM-v2 registration hook + trainer-registry dispatch in run_train.
+#
+# These tests exercise ONLY the core module's side of the T7 contract: the
+# optional-import registration hook (edit (a)), the G1_STRUCTURED_ARM_NAMES
+# append (edit (b)), and run_train's dispatch to a per-arm registered
+# trainer (edit (c)). The HRM-v2 module's OWN trainer/provider correctness
+# (segment-step counting, forced-k exactness, halt-step side channel) is
+# tested in isolation in test_c11_hrmv2_arm.py -- these tests never build a
+# real TraceHRMACT or run real HRM-v2 training, keeping them fast regardless
+# of whether `hrm` is installed (the registration-hook test explicitly
+# covers BOTH the with-hrm and without-hrm paths).
+# ---------------------------------------------------------------------------
+
+def test_hrmv2_registration_and_g1_family():
+    """With `hrm` present (this test process already has it importable, per
+    every other hrmv2 test in this suite): the core module's post-import
+    registration hook must have registered `hrmv2_act` plus the 4 forced-k
+    names into `M.PROVIDER_BUILDERS`, `G1_STRUCTURED_ARM_NAMES` must contain
+    "hrmv2_act" and NONE of the forced-k names (per the tuple's own
+    docstring comment -- forced-k variants are G2-only diagnostics), and
+    `run_train` with arms=("hrmv2_act_k2",) must SKIP (no `train` entry for
+    a forced-k arm) rather than silently falling through to `train_arm`.
+
+    The ImportError-only guard itself (core still imports when `hrm`
+    registration raises ImportError) is verified separately via a
+    subprocess with `hrm` hidden from `sys.modules`/`sys.meta_path` --
+    monkeypatching `sys.modules` in-process cannot prove re-importability
+    of a module that's already cached in `sys.modules`, so a subprocess is
+    the only faithful way to test "import fails cleanly with hrm absent"
+    (documented choice, per the plan's "pick one; document" instruction).
+    """
+    hrm = pytest.importorskip("hrm")
+
+    assert "hrmv2_act" in M.PROVIDER_BUILDERS
+    for k in (1, 2, 4, 8):
+        assert f"hrmv2_act_k{k}" in M.PROVIDER_BUILDERS
+
+    assert "hrmv2_act" in M.G1_STRUCTURED_ARM_NAMES
+    for k in (1, 2, 4, 8):
+        assert f"hrmv2_act_k{k}" not in M.G1_STRUCTURED_ARM_NAMES
+
+    # Every registered hrmv2 entry carries both halves of the provider
+    # contract (build + forward_batch) -- the T4-review Important-1 trap.
+    for name in ("hrmv2_act", "hrmv2_act_k1", "hrmv2_act_k2", "hrmv2_act_k4", "hrmv2_act_k8"):
+        entry = M.PROVIDER_BUILDERS[name]
+        assert callable(entry["build"])
+        assert callable(entry["forward_batch"])
+
+    # hrmv2_act itself has a registered trainer; the forced-k arms do NOT
+    # (they are eval-only per spec -- "forced-k variants NEVER enter" the
+    # trained-arm family).
+    assert M.PROVIDER_BUILDERS["hrmv2_act"].get("train") is not None
+    for k in (1, 2, 4, 8):
+        assert M.PROVIDER_BUILDERS[f"hrmv2_act_k{k}"].get("train") is None
+
+    # Forced-k arms must never reach train_arm: run_train on a forced-k arm
+    # name must SKIP with no checkpoint written (out_dir stays empty of
+    # ckpts for this arm), not crash and not silently train the native
+    # fallback.
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        cell = _cell("A", 2)
+        M.run_train(tmp, arms=("hrmv2_act_k2",), cells=[cell], seeds=(0,),
+                    n_train_worlds=2, epochs=1)
+        ckpt_dir = Path(tmp) / "ckpt"
+        # Either the ckpt dir was never created, or it exists but holds no
+        # hrmv2_act_k2 checkpoint -- either is an acceptable "did not train"
+        # outcome; what must NEVER happen is a hrmv2_act_k2 ckpt appearing.
+        if ckpt_dir.exists():
+            assert not any(p.name.startswith("hrmv2_act_k2__") for p in ckpt_dir.iterdir())
+        manifest_path = Path(tmp) / "manifest.json"
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text())
+            assert not any(k.startswith("hrmv2_act_k2__") for k in manifest)
+
+
+def test_hrmv2_registration_import_error_only_guard():
+    """The registration hook wraps `import continuous_prm_c11_hrmv2_arm as
+    _HA; _HA.register_hrmv2_providers()` in a try/except ImportError-ONLY --
+    core must still import fine without `hrm`, AND (the load-bearing part
+    of the guard) `hrmv2_act` must NOT end up in `PROVIDER_BUILDERS` when
+    `hrm` is unavailable -- registration must genuinely fail, not silently
+    "succeed" with closures that would only fail later, the first time
+    something tries to use them (a real bug this test caught: an earlier
+    `register_hrmv2_providers()` deferred ALL `hrm`-touching to
+    provider-construction time, so registration itself never raised
+    ImportError even with `hrm` fully blocked).
+
+    NOTE: `G1_STRUCTURED_ARM_NAMES` is a STATIC module-level tuple (edit
+    (b) is a plain literal append, independent of whether registration at
+    import time succeeds) -- it is expected to contain "hrmv2_act"
+    UNCONDITIONALLY, `hrm` present or not; `g1_verdict` itself already
+    intersects this tuple with the arms actually PRESENT in a given
+    analysis run (`arm_names = [a for a in G1_STRUCTURED_ARM_NAMES if a in
+    present_arms]`), so a name being listed here when `hrm` was never
+    available is harmless -- it simply never appears in `present_arms` for
+    such a run. This test therefore checks the registry (the thing that
+    actually gates whether the arm can be trained/evaluated), not the
+    static name list.
+
+    Verified via a subprocess that hides BOTH the `hrm` package and (for
+    good measure) re-imports the core module fresh, so this is a faithful
+    "hrm truly absent" simulation rather than an in-process monkeypatch of
+    an already-cached module."""
+    import subprocess
+    import sys as _sys
+
+    module_dir = str(Path(__file__).resolve().parents[1])
+    script = (
+        "import sys\n"
+        "class _BlockHRM:\n"
+        "    def find_module(self, name, path=None):\n"
+        "        if name == 'hrm' or name.startswith('hrm.'):\n"
+        "            return self\n"
+        "        return None\n"
+        "    def find_spec(self, name, path=None, target=None):\n"
+        "        if name == 'hrm' or name.startswith('hrm.'):\n"
+        "            raise ImportError(f'blocked for test: {name}')\n"
+        "        return None\n"
+        "    def load_module(self, name):\n"
+        "        raise ImportError(f'blocked for test: {name}')\n"
+        "sys.meta_path.insert(0, _BlockHRM())\n"
+        f"sys.path.insert(0, {module_dir!r})\n"
+        "import continuous_prm_c11_mission as M\n"
+        "assert 'hrmv2_act' not in M.PROVIDER_BUILDERS, "
+        "'hrmv2_act should not be registered when hrm import is blocked'\n"
+        "assert 'hrmv2_act' in M.G1_STRUCTURED_ARM_NAMES, "
+        "'G1_STRUCTURED_ARM_NAMES is a static append, independent of hrm availability'\n"
+        "print('OK')\n"
+    )
+    result = subprocess.run(
+        [_sys.executable, "-c", script],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, (
+        f"core module failed to import with hrm blocked:\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
+    assert "OK" in result.stdout
+
+
+def test_run_train_dispatches_registered_trainer(tmp_path):
+    """A dummy registered arm with a counting `train` fn: run_train must
+    call IT (not `train_arm`) exactly once, write a checkpoint + manifest
+    entry, and never touch `train_arm` for this arm name."""
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+
+    train_calls = {"n": 0}
+    train_arm_calls = {"n": 0}
+
+    class _DummyTrainedArm(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.bias = torch.nn.Parameter(torch.tensor(0.5))
+
+    def _dummy_build(cfg_arg):
+        return _DummyTrainedArm()
+
+    def _dummy_forward_batch(model, bundle_arg, states, cfg_arg, device):
+        val = torch.clamp(model.bias, 0.0, float(cfg_arg.residual_cap))
+        return val.expand(len(states)).contiguous()
+
+    def _dummy_train(cell_arg, bundles_arg, seed_arg, cfg_arg, epochs_arg):
+        train_calls["n"] += 1
+        model = _DummyTrainedArm()
+        state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        meta = {
+            "arm": "dummy_trained",
+            "config_label": cell_arg["config_label"],
+            "K": int(cell_arg["K"]),
+            "seed": int(seed_arg),
+            "epochs": int(epochs_arg) if epochs_arg is not None else int(cfg_arg.epochs),
+            "param_count": sum(p.numel() for p in model.parameters()),
+            "first_epoch_loss": 0.1,
+            "final_loss": 0.05,
+            "wall_s": 0.001,
+        }
+        return state_dict, meta
+
+    M.register_provider_builder("dummy_trained", _dummy_build, _dummy_forward_batch, train=_dummy_train)
+
+    orig_train_arm = M.train_arm
+
+    def _wrapped_train_arm(*a, **kw):
+        train_arm_calls["n"] += 1
+        return orig_train_arm(*a, **kw)
+
+    try:
+        M.train_arm = _wrapped_train_arm
+        out_dir = tmp_path / "run_dummy_trainer"
+        M.run_train(str(out_dir), arms=("dummy_trained",), cells=[cell], seeds=(0,), cfg=cfg,
+                    n_train_worlds=2, epochs=1)
+
+        assert train_calls["n"] == 1
+        assert train_arm_calls["n"] == 0
+
+        ckpt_path = out_dir / "ckpt" / "dummy_trained__A2__s0.pt"
+        assert ckpt_path.exists()
+        manifest = json.loads((out_dir / "manifest.json").read_text())
+        key = "dummy_trained__A2__s0"
+        assert key in manifest
+        assert manifest[key]["arm"] == "dummy_trained"
+    finally:
+        M.train_arm = orig_train_arm
+        M.PROVIDER_BUILDERS.pop("dummy_trained", None)

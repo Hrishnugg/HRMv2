@@ -972,6 +972,8 @@ def register_provider_builder(
     name: str,
     build: Callable[[C11MissionConfig], nn.Module],
     forward_batch: Callable[..., torch.Tensor],
+    train: Optional[Callable[..., Tuple[Dict[str, torch.Tensor], dict]]] = None,
+    ckpt_alias: Optional[str] = None,
 ) -> None:
     """Register an external arm under `name` in the module-level provider
     registry, carrying the FULL per-arm contract:
@@ -987,10 +989,32 @@ def register_provider_builder(
         per-arm forward helpers (`_forward_mlp_or_trace` etc.), so the
         registered arm plugs into `_forward_arm_batch`'s dispatch and from
         there into `predict_field`/`make_provider`/`run_eval` end-to-end.
+      - `train` (OPTIONAL, T7): `train(cell, bundles, seed, cfg, epochs) ->
+        (state_dict_cpu, meta)`, the SAME return contract as `train_arm`.
+        When given, `run_train` calls THIS function for the arm instead of
+        `train_arm` (see `run_train`'s dispatch). When omitted (`None`,
+        the default), the arm is EVAL-ONLY: `run_train` skips it entirely
+        rather than silently falling through to `train_arm` (which would
+        crash or -- worse -- silently train the wrong model, since
+        `train_arm` only knows the 5 native `build_arm` branches plus
+        whatever `PROVIDER_BUILDERS[name]["build"]` returns, with no
+        awareness of a bespoke training loop like HRM-v2's per-segment
+        ACT trainer). This is how the forced-k HRM-v2 diagnostics
+        (`hrmv2_act_k{1,2,4,8}`) stay eval-only: they register `build`
+        (needed so `make_provider`/`predict_field` can reconstruct the
+        model) and `forward_batch` (the forced-k inference path) but no
+        `train`.
+      - `ckpt_alias` (OPTIONAL, T7): the name of ANOTHER registered (or
+        native) arm whose CHECKPOINT this arm should be evaluated against.
+        Used by `run_eval` to let eval-only arms (the forced-k HRM-v2
+        diagnostics) ride the SAME trained weights as `hrmv2_act` without
+        ever training their own copy -- see `run_eval`'s alias-resolution
+        block. `None` (the default) means "this arm's own checkpoints only"
+        (every native arm and most registered arms).
 
-    Both pieces are REQUIRED (a build-only registration would crash at
-    provider call time, not registration time -- the failure the T4 review
-    flagged). Registering a native arm name raises ValueError.
+    `build`/`forward_batch` are REQUIRED (a build-only registration would
+    crash at provider call time, not registration time -- the failure the
+    T4 review flagged). Registering a native arm name raises ValueError.
 
     Safe to call from a different module after this one has been imported
     (e.g. `continuous_prm_c11_hrmv2_arm` registering `hrmv2_act` and
@@ -1003,7 +1027,12 @@ def register_provider_builder(
             f"the native arms {ARM_NAMES} are constructed by build_arm's own chain "
             f"(silent shadowing is not allowed -- pick a distinct name)"
         )
-    PROVIDER_BUILDERS[name] = {"build": build, "forward_batch": forward_batch}
+    PROVIDER_BUILDERS[name] = {
+        "build": build,
+        "forward_batch": forward_batch,
+        "train": train,
+        "ckpt_alias": ckpt_alias,
+    }
 
 
 def build_arm(name: str, cfg: C11MissionConfig) -> nn.Module:
@@ -1455,6 +1484,58 @@ def _atomic_torch_save(payload: dict, path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Task 7: trainer-registry dispatch (native `train_arm` vs. a registered
+# arm's own `train` function).
+# ---------------------------------------------------------------------------
+
+def _resolve_trainer(arm_name: str) -> Optional[Callable[..., Tuple[Dict[str, torch.Tensor], dict]]]:
+    """Returns a callable `(arm_name, cell, bundles, seed, cfg, epochs) ->
+    (state_dict, meta)` for `arm_name` -- i.e. `train_arm`'s OWN signature,
+    regardless of whether `arm_name` is native or registered, so
+    `run_train`'s single call site (`trainer_fn(arm_name, cell, bundles,
+    seed, cfg=cfg, epochs=epochs)`) never needs to branch on that
+    distinction itself.
+
+      - Native arms (`arm_name in ARM_NAMES`): always `train_arm` (every
+        native arm shares the one matched-recipe trainer by construction).
+      - Registered arms WITH a `train` entry (e.g. `hrmv2_act` ->
+        `train_hrmv2`): wrapped in a thin adapter that drops the leading
+        `arm_name` argument, since a registered trainer already knows which
+        arm it trains (`register_provider_builder`'s `train(cell, bundles,
+        seed, cfg, epochs)` contract has no `arm_name` parameter -- unlike
+        `train_arm`, which dispatches ON `arm_name` internally via
+        `build_arm`).
+      - Registered arms WITHOUT a `train` entry (the forced-k HRM-v2
+        diagnostics): returns `None` -- `run_train` treats this as
+        "eval-only, skip" rather than falling through to `train_arm` (which
+        would either crash inside `build_arm`'s native-only dispatch, since
+        these names aren't in `ARM_NAMES`, or -- if `build_arm`'s registry
+        fallback kicked in -- silently train the registered `build()`
+        model with the WRONG recipe, an even worse outcome than crashing).
+      - Unknown arm names (neither native nor registered at all): returns
+        `train_arm` unchanged, preserving the pre-T7 behavior of letting
+        `train_arm`/`build_arm` raise their own `ValueError` at call time
+        (not this function's job to pre-validate arm existence)."""
+    if arm_name in ARM_NAMES:
+        return train_arm
+
+    entry = PROVIDER_BUILDERS.get(arm_name)
+    if entry is None:
+        return train_arm  # Unknown name -- let train_arm/build_arm raise.
+
+    registered_train = entry.get("train")
+    if registered_train is None:
+        return None  # Eval-only registered arm -- run_train must skip it.
+
+    def _adapter(_arm_name: str, cell: dict, bundles: Sequence[WorldBundle], seed: int,
+                 cfg: Optional[C11MissionConfig] = None, epochs: Optional[int] = None
+                 ) -> Tuple[Dict[str, torch.Tensor], dict]:
+        return registered_train(cell, bundles, seed, cfg, epochs)
+
+    return _adapter
+
+
+# ---------------------------------------------------------------------------
 # Task 4: run_train.
 # ---------------------------------------------------------------------------
 
@@ -1508,6 +1589,22 @@ def run_train(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: S
 
     for cell in cells:
         for arm_name in arms:
+            trainer_fn = _resolve_trainer(arm_name)
+            if trainer_fn is None:
+                # Registered (non-native) arm with no `train` entry --
+                # EVAL-ONLY by construction (the forced-k HRM-v2
+                # diagnostics: they need `build`/`forward_batch` to work
+                # inside `run_eval`, but must NEVER be trained themselves,
+                # let alone silently fall through to `train_arm`, which has
+                # no idea how to train an arbitrary registered arm). Skip
+                # every seed for this arm in one print, not once per seed.
+                print(
+                    f"[c11-mission train] skip arm {arm_name!r} for cell "
+                    f"{cell['config_label']}{cell['K']} (no registered trainer -- "
+                    f"eval-only arm)",
+                    flush=True,
+                )
+                continue
             for seed in seeds:
                 key = _ckpt_key(arm_name, cell, seed)
                 ckpt_path = _ckpt_path(out_path, arm_name, cell, seed)
@@ -1550,7 +1647,7 @@ def run_train(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: S
                     bundle_cache[ck] = collect_cell_dataset(cell, split="train", n_worlds=n_worlds, cfg=cfg)
                 bundles = bundle_cache[ck]
 
-                state_dict, meta = train_arm(arm_name, cell, bundles, seed, cfg=cfg, epochs=epochs)
+                state_dict, meta = trainer_fn(arm_name, cell, bundles, seed, cfg=cfg, epochs=epochs)
 
                 C.ensure_dir(ckpt_path.parent)
                 _atomic_torch_save({"state_dict": state_dict, "meta": meta}, ckpt_path)
@@ -1708,6 +1805,47 @@ def run_eval(out_dir: str, cells: Sequence[dict], cfg: Optional[C11MissionConfig
             arm_name = entry["arm"]
             provider = make_provider(arm_name, payload["state_dict"], cfg)
             providers.append((arm_name, provider, int(entry["seed"])))
+
+        # T7: ckpt_alias resolution -- eval-only registered arms (the
+        # forced-k HRM-v2 diagnostics: `hrmv2_act_k{1,2,4,8}`) have NO
+        # manifest entry of their own (they are never trained -- see
+        # `_resolve_trainer`/`run_train`'s eval-only skip), so the loop
+        # above never discovers them. For every `arms is None` request (or
+        # a request that explicitly includes an aliased name), find every
+        # PROVIDER_BUILDERS entry with a `ckpt_alias` set, and -- for each
+        # of the ALIASED arm's manifest entries in THIS cell (one per
+        # training seed) -- build a provider under the ALIASING arm's own
+        # name (so its registered `forward_batch`, e.g. the forced-k path,
+        # is what actually runs) but loaded from the ALIASED arm's
+        # checkpoint (so `hrmv2_act_k4` evaluates the SAME trained weights
+        # as `hrmv2_act`, per spec: "all five share the SAME checkpoint").
+        # Records from these providers still carry `arm=hrmv2_act_kN` (the
+        # aliasing arm's own name, from `arm_name` below), never the
+        # alias's name -- `make_provider` is called with `arm_name`
+        # (aliasing), not the entry's own `entry["arm"]` (aliased), so
+        # `build_arm`/`_forward_arm_batch` dispatch to the ALIASING arm's
+        # registered `build`/`forward_batch` while the loaded weights come
+        # from the ALIASED arm's state_dict.
+        alias_names = [
+            name for name, entry in PROVIDER_BUILDERS.items()
+            if entry.get("ckpt_alias") is not None
+        ]
+        if arms is not None:
+            alias_names = [n for n in alias_names if n in set(arms)]
+        alias_names.sort()
+        for aliasing_arm in alias_names:
+            aliased_arm = PROVIDER_BUILDERS[aliasing_arm]["ckpt_alias"]
+            aliased_entries = [
+                (key, entry) for key, entry in manifest.items()
+                if entry.get("config_label") == config_label and int(entry.get("K", -1)) == K
+                and entry.get("arm") == aliased_arm
+            ]
+            aliased_entries.sort(key=lambda ke: ke[0])
+            for key, entry in aliased_entries:
+                ckpt_path = out_path / entry["ckpt"]
+                payload = torch.load(ckpt_path, map_location="cpu")
+                provider = make_provider(aliasing_arm, payload["state_dict"], cfg)
+                providers.append((aliasing_arm, provider, int(entry["seed"])))
 
         legsum_records_for_calib: List[dict] = []
 
@@ -2089,7 +2227,7 @@ def k0_continuity(analysis: dict) -> dict:
 # "hrmv2_act" here when that arm lands (the ACT-live provider is a G1
 # participant); the forced-k variants ("hrmv2_act_k1"/"_k2"/"_k4"/"_k8")
 # are G2-only diagnostics and must NEVER enter this tuple.
-G1_STRUCTURED_ARM_NAMES: Tuple[str, ...] = ("unet_film", "gnn", "hrm_trace", "onlstm_trace")
+G1_STRUCTURED_ARM_NAMES: Tuple[str, ...] = ("unet_film", "gnn", "hrm_trace", "onlstm_trace", "hrmv2_act")
 
 G1_K_VALUES: Tuple[int, ...] = (2, 4, 8)
 
@@ -2204,6 +2342,39 @@ def g1_verdict(analysis: dict) -> dict:
         "positive_arms": positive_arms,
         "table": table,
     }
+
+
+# ---------------------------------------------------------------------------
+# Task 7: HRM-v2 registration hook.
+#
+# `continuous_prm_c11_hrmv2_arm.py` never imports this module at its OWN
+# top level (T6/T7's isolation contract: `hrm` absent must not break this
+# core module, or anything that imports it, or the hrmv2 module itself).
+# The reverse direction is fine and is how the two modules connect: THIS
+# module imports the hrmv2 module and asks it to register its providers,
+# with the import wrapped in a try/except that catches ONLY ImportError
+# (never a bare `except Exception`, which would silently swallow a real
+# bug inside `register_hrmv2_providers` itself -- e.g. a typo in one of the
+# five `register_provider_builder` calls should still crash loudly). When
+# `hrm` (the HRM-v2 package) is not installed, `import
+# continuous_prm_c11_hrmv2_arm` itself still succeeds (it has no top-level
+# `hrm` import either -- see that module's own `_load_hrm` convention), but
+# `register_hrmv2_providers()` EAGERLY calls `_load_hrm()` as its very
+# first action (a deliberate design choice, not incidental -- an earlier
+# version deferred all `hrm`-touching to provider-construction time, which
+# meant registration itself never raised and silently registered
+# `hrmv2_act` even with `hrm` fully absent), so THIS call is what actually
+# raises ImportError the moment `hrm` is unavailable, and THAT is what this
+# guard catches -- so the net effect is "this whole hook is a no-op when
+# `hrm` is absent, and core still imports fine" (verified by
+# `test_hrmv2_registration_import_error_only_guard` in
+# `tests/test_c11_mission.py`, via a subprocess with `hrm` blocked at
+# `sys.meta_path`).
+try:
+    import continuous_prm_c11_hrmv2_arm as _HA
+    _HA.register_hrmv2_providers()
+except ImportError:
+    pass
 
 
 # ---------------------------------------------------------------------------

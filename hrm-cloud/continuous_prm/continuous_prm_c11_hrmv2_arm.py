@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
-"""C11 Task 6: HRM-v2 ACT arm -- model adaptation ONLY (the trainer +
-providers are Task 7; the core registry hook into
-`continuous_prm_c11_mission.py` is also Task 7). This module never imports
-or modifies anything under `HRM-v2/` at module scope -- the whole
-adaptation lives here, entirely via subclassing the installed `hrm` package
-(`pip install -e ./HRM-v2 --no-deps`), imported lazily inside function
-bodies so this module (and everything that imports it) stays importable on
-a machine without `hrm` installed.
+"""C11 Task 6: HRM-v2 ACT arm -- model adaptation (`TraceHRMInner`,
+`TraceHRMACT`, `readout_yhat`, `RegressionACTLossHead`). Task 7 (this file,
+extended): the faithful per-segment trainer (`train_hrmv2`), the ACT-live
+and forced-k eval providers (`_hrmv2_forward_batch_act`,
+`_hrmv2_forward_batch_forced_k`), and the registration hook
+(`register_hrmv2_providers`) that the core module
+(`continuous_prm_c11_mission.py`) calls, post-import, to wire this arm into
+the shared provider registry. This module never imports or modifies
+anything under `HRM-v2/` at module scope -- the whole adaptation lives
+here, entirely via subclassing the installed `hrm` package (`pip install -e
+./HRM-v2 --no-deps`), imported lazily inside function bodies so this module
+(and everything that imports it) stays importable on a machine without
+`hrm` installed. T7 additionally uses `continuous_prm_c11_mission`'s
+encoders (`encode_trace_padded`) and dataset types (`WorldBundle`,
+`stack_targets`) -- per the SAME isolation discipline, that import is ALSO
+lazy (inside `train_hrmv2`/the provider functions), never at module scope,
+so this module still imports cleanly standalone. The two lazy-import
+targets (`hrm`, `continuous_prm_c11_mission`) are independent: either can
+be absent without breaking the other's import.
 
 This is C11's sixth arm: the FULL HRM-v2 mechanism (hierarchical H/L
 cycles, deep supervision per segment, ACT Q-learning halting) trained on
@@ -69,28 +80,33 @@ non-fp16/bf16 tensor, confirmed by reading
 device, so `flash_attention()` -- and therefore any `import flash_attn` --
 is never even attempted).
 
-See docs/superpowers/plans/2026-07-07-c11-mission.md (Task 6) and
+See docs/superpowers/plans/2026-07-07-c11-mission.md (Tasks 6-7) and
 docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md
 (section 5) for the authoritative spec.
 """
 from __future__ import annotations
 
+import copy
 import math
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+import time
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 if TYPE_CHECKING:
     # Only for type checkers / IDEs -- never executed, so this does not
-    # violate the "no top-level `hrm` import" contract at runtime.
+    # violate the "no top-level `hrm`" / "no top-level
+    # `continuous_prm_c11_mission`" import contracts at runtime.
     from hrm.models.hrm_act_v1 import (
         HRMACTv1,
         HRMACTv1_Inner,
         HRMACTv1Config,
         HRMACTv1InnerCarry,
     )
+    from continuous_prm_c11_mission import C11MissionConfig, WorldBundle
 
 _INSTALL_CMD = "pip install -e ./HRM-v2 --no-deps"
 
@@ -226,9 +242,19 @@ class TraceHRMInner(nn.Module):
     way: `TraceHRMInner` is defined once, lazily, the first time it's
     needed, and cached at module scope under this same name via
     `_get_trace_hrm_inner_cls()`. Callers should use the module-level
-    `TraceHRMInner` name (see the bottom of this section, where it's bound
-    to the lazily-built class via a module `__getattr__` hook) -- from the
-    outside this is indistinguishable from an ordinary class.
+    `TraceHRMInner` name -- see the bottom of this section, where the name
+    `TraceHRMInner` is REBOUND (a plain module-level assignment,
+    `TraceHRMInner = _TraceHRMInnerFactory()`) from this placeholder class
+    to an INSTANCE of `_TraceHRMInnerFactory`, a small callable class whose
+    `__call__` builds-and-instantiates the real lazy subclass and whose
+    `__instancecheck__` makes `isinstance(x, TraceHRMInner)` work against
+    it. The mechanism is factory-INSTANCE rebinding of the module
+    attribute, not a module-level `__getattr__` hook (Python 3.7+'s
+    PEP 562 mechanism, which this module does NOT use) -- from the
+    outside, calling `TraceHRMInner(config, token_dim=12)` looks
+    indistinguishable from an ordinary class either way, but the
+    implementation is "the name now points at a callable object," not "a
+    module-level `__getattr__` intercepts attribute lookups."
     """
 
 
@@ -248,6 +274,24 @@ def _build_trace_hrm_inner_cls():
 
         def __init__(self, config, token_dim: int = 12):
             super().__init__(config)
+            # T6-review minor: `_input_embeddings` below deliberately OMITS
+            # the parent's puzzle-embedding branch (see that method's own
+            # docstring) rather than keeping it dead-but-present -- correct
+            # ONLY when `puzzle_emb_ndim == 0` (so `puzzle_emb_len == 0` and
+            # no puzzle-embedding prefix is ever expected in the sequence).
+            # A future config with `puzzle_emb_ndim > 0` would silently
+            # produce a shape-shifted sequence (the parent's own forward
+            # expects `total_seq_len = seq_len + puzzle_emb_len`) with no
+            # error until some downstream shape mismatch -- this assert
+            # fails LOUDLY and immediately at construction time instead.
+            assert config.puzzle_emb_ndim == 0, (
+                f"TraceHRMInner requires puzzle_emb_ndim == 0 (got "
+                f"{config.puzzle_emb_ndim}): _input_embeddings omits the "
+                f"parent's puzzle-embedding branch entirely, which is only "
+                f"correct when puzzle embeddings are disabled -- see "
+                f"_input_embeddings's docstring for why the branch is left "
+                f"out rather than kept-but-unreachable."
+            )
             self.token_dim = int(token_dim)
 
             # `trace_proj`: Linear(token_dim, hidden_size). Init std mirrors
@@ -327,7 +371,16 @@ class _TraceHRMInnerFactory:
         return cls(config, token_dim=token_dim)
 
     def __instancecheck__(self, instance):
-        cls = _get_trace_hrm_inner_cls()
+        # T6-review minor: `hrm` absent means `_get_trace_hrm_inner_cls()`
+        # raises ImportError (via `_load_hrm()`) -- an `isinstance` check
+        # must not propagate that as a crash. Without `hrm` installed,
+        # nothing in the process could possibly BE a `TraceHRMInner`
+        # (the class itself couldn't have been built), so `False` is the
+        # semantically correct answer, not just a safe fallback.
+        try:
+            cls = _get_trace_hrm_inner_cls()
+        except ImportError:
+            return False
         return isinstance(instance, cls)
 
 
@@ -397,7 +450,13 @@ class _TraceHRMACTFactory:
         return cls(config_dict, token_dim=token_dim)
 
     def __instancecheck__(self, instance):
-        cls = _get_trace_hrm_act_cls()
+        # T6-review minor: see `_TraceHRMInnerFactory.__instancecheck__`'s
+        # comment -- `hrm` absent must yield `False`, not an ImportError
+        # crash, from an `isinstance` check.
+        try:
+            cls = _get_trace_hrm_act_cls()
+        except ImportError:
+            return False
         return isinstance(instance, cls)
 
 
@@ -408,8 +467,8 @@ TraceHRMACT = _TraceHRMACTFactory()  # type: ignore[assignment,misc]
 # readout_yhat: scalar readout convention.
 # ---------------------------------------------------------------------------
 
-def readout_yhat(outputs: Dict[str, torch.Tensor]) -> torch.Tensor:
-    """`torch.clamp(F.softplus(outputs["logits"][:, 0, 0]), 0.0, 4.0)`.
+def readout_yhat(outputs: Dict[str, torch.Tensor], cap: float = 4.0) -> torch.Tensor:
+    """`torch.clamp(F.softplus(outputs["logits"][:, 0, 0]), 0.0, cap)`.
 
     Position 0 of the trace sequence is ALWAYS the query token (see
     `TRACE_TOKEN_LAYOUT` / `encode_trace` in `continuous_prm_c11_mission.py`:
@@ -432,11 +491,19 @@ def readout_yhat(outputs: Dict[str, torch.Tensor]) -> torch.Tensor:
     keeps the raw logit non-negative (residuals are non-negative by
     admissibility, per the spec's target construction:
     `y = clip((oracle - hl) / side_len, 0, cap)`, `y >= 0` before
-    clipping); clamp to `[0, cap=4.0]` matches the SAME
+    clipping); clamp to `[0, cap]` (default 4.0, T6's original hardcoded
+    value -- now a parameter per the T6 review: `cap` should be THREADABLE
+    from `cfg.residual_cap` rather than hardcoded, so a future
+    `residual_cap` change cannot silently desync this arm's readout from
+    the other 5 arms' `_softplus_clamp(cap=cfg.residual_cap)` convention.
+    T7's providers pass `cap=cfg.residual_cap` explicitly;
+    `RegressionACTLossHead` keeps the 4.0 default, matching
+    `hrmv2_config()`'s own pinned defaults, since the loss head has no
+    `cfg` object to thread a value from) matches the SAME
     `residual_cap`/`max_norm_residual` convention every other C11 arm uses
     (`continuous_prm_c11_mission._softplus_clamp` /
     `continuous_prm_common.ContinuousHeuristicModel.forward`)."""
-    return torch.clamp(F.softplus(outputs["logits"][:, 0, 0]), 0.0, 4.0)
+    return torch.clamp(F.softplus(outputs["logits"][:, 0, 0]), 0.0, float(cap))
 
 
 def regression_correct(yhat: torch.Tensor, y: torch.Tensor, band: float = 0.1) -> torch.Tensor:
@@ -494,11 +561,25 @@ def _build_regression_act_loss_head_cls():
           correctness SOURCE differs (regression band vs. exact-match).
         - Metrics dict: keeps `count`, `q_halt_accuracy`, `steps` from the
           original (they generalize as-is to a scalar-target regression
-          setting) and adds `mae` (mean absolute error, SAME sum-then-
-          divide-by-batch-size convention the trainer applies to the main
-          loss, i.e. reported as a raw batch-sum here -- consistent with
-          how `lm_loss`/`q_halt_loss` are also reported as raw sums, not
-          pre-divided, in the original `metrics.update(...)` block)."""
+          setting) and adds `mae`: `sum(|yhat - y|)` over ONLY the rows
+          that halted THIS segment (`torch.where(valid_metrics, ...,
+          0).sum()`, `valid_metrics = new_carry.halted`), reported as a
+          raw sum here -- consistent with how `lm_loss`/`q_halt_loss` are
+          also reported as raw (unnormalized) sums in the original
+          `metrics.update(...)` block, never pre-divided inside the loss
+          head. T6-review fix: the divisor to recover a true per-row mean
+          from this raw sum is `metrics["count"]` (the number of ROWS that
+          halted this segment, i.e. `valid_metrics.sum()` -- the SAME
+          halted-gated count `q_halt_accuracy`/`steps` are also gated by),
+          NOT `batch_size`: a mid-training segment typically has only SOME
+          rows halt (the rest continue to the next segment), so `count <=
+          batch_size` in general and dividing by `batch_size` would
+          under-count the true mean whenever `count < batch_size`. Callers
+          that want a per-row MAE must compute `mae / count.clamp_min(1)`
+          themselves (mirroring how `accuracy`/`exact_accuracy`/
+          `q_halt_accuracy` are similarly divided by `count` OUTSIDE the
+          loss head, e.g. in `evaluate()`'s accumulation loop in
+          `train_maze_optimized.py`)."""
 
         def __init__(self, model: nn.Module, band: float = 0.1):
             super().__init__()
@@ -578,11 +659,674 @@ class _RegressionACTLossHeadFactory:
         return cls(model, band=band)
 
     def __instancecheck__(self, instance):
-        cls = _get_regression_act_loss_head_cls()
+        # T6-review minor: see `_TraceHRMInnerFactory.__instancecheck__`'s
+        # comment -- `hrm` absent must yield `False`, not an ImportError
+        # crash, from an `isinstance` check.
+        try:
+            cls = _get_regression_act_loss_head_cls()
+        except ImportError:
+            return False
         return isinstance(instance, cls)
 
 
 RegressionACTLossHead = _RegressionACTLossHeadFactory()  # type: ignore[assignment,misc]
+
+
+# ---------------------------------------------------------------------------
+# Task 7: lazy import of the core mission module (encoders + dataset types).
+# ---------------------------------------------------------------------------
+
+def _load_mission():
+    """Lazy import of `continuous_prm_c11_mission` -- called from inside
+    every T7 function that needs `encode_trace_padded`/`stack_targets`/
+    `WorldBundle`/`C11MissionConfig`, never at module scope, so this module
+    keeps importing cleanly even when the core module (or, transitively,
+    `hrm-cloud`'s other C-series dependencies) is unavailable for some
+    reason. In the NORMAL case (the core module is what imports THIS
+    module, via its `register_hrmv2_providers()` hook), by the time any T7
+    function actually runs, `continuous_prm_c11_mission` is already fully
+    loaded and sitting in `sys.modules` -- this is a plain cached-module
+    lookup, not a re-execution of that module's top level -- so there is no
+    circular-import deadlock: the core module's own top-level `import
+    continuous_prm_c11_hrmv2_arm as _HA; _HA.register_hrmv2_providers()`
+    only REGISTERS callables (never calls `train_hrmv2`/a provider
+    function immediately), and those callables' own bodies don't run until
+    long after both modules have finished importing."""
+    import continuous_prm_c11_mission as _M
+
+    return _M
+
+
+# ---------------------------------------------------------------------------
+# Task 7: train_hrmv2 -- the faithful per-segment trainer.
+# ---------------------------------------------------------------------------
+#
+# RECIPE SPLIT (spec section 5's "recipe deviation, accepted and flagged" --
+# this is documented here, at the trainer itself, not just in the spec,
+# since it is THE thing under test by this arm):
+#
+#   MATCHED to the native `train_arm` recipe (arms 1-4), so this arm's data
+#   diet and epoch budget are directly comparable to theirs:
+#     - Data: `stack_targets(bundles)` -- the SAME pooled (i, s, y,
+#       bundle_idx) rows every native arm trains on, from the SAME
+#       `WorldBundle`s (`run_train` collects bundles once per cell and
+#       reuses them across every arm touching that cell, hrmv2 included).
+#     - Epochs: `cfg.epochs` (40, overridable via the `epochs` param) --
+#       same default as the native recipe.
+#     - Shuffle: the SAME per-epoch `np.random.default_rng` shuffle,
+#       seeded identically (`10007*(seed+1) + 101*config_idx + K`, via
+#       `_training_seed`-equivalent arithmetic reproduced here since this
+#       module doesn't import `continuous_prm_c11_mission._training_seed`
+#       -- a private helper of that module -- but the FORMULA itself is
+#       public per the plan's "Matched recipe" section and reproduced
+#       verbatim below).
+#     - Loss target: smooth-L1 on ŷ vs y (the loss the native recipe also
+#       optimizes) -- BUT computed by `RegressionACTLossHead`'s own
+#       `lm_loss` term (`reduction="sum"`, not the native trainer's
+#       `reduction="mean"` via `F.smooth_l1_loss(preds, y_batch,
+#       beta=cfg.smooth_l1_beta)` with PyTorch's default `beta=1.0` --
+#       `RegressionACTLossHead` is deliberately NOT parameterized by
+#       `cfg.smooth_l1_beta`, since it mirrors `ACTLossHead`'s own
+#       hardcoded-beta convention faithfully rather than threading a
+#       recipe knob through the loss head -- the two betas coincide at
+#       their shared default of 1.0 in this arm's actual runs, so this is
+#       a documentation-only distinction, not a live divergence, UNLESS
+#       `cfg.smooth_l1_beta` is ever overridden away from 1.0 for the
+#       native arms, in which case this arm's loss would silently NOT
+#       track that override -- flagged here rather than hidden).
+#
+#   PAPER-FAITHFUL (deliberately UNMATCHED to the native recipe -- this
+#   deviation IS the arm; it is the mechanism under test, not a bug):
+#     - Optimizer: `AdamATan2` (`hrm.train.optim.AdamATan2`, scale-invariant
+#       atan2-based update) instead of `AdamW` -- the paper's own optimizer,
+#       per `train_maze_optimized.py`.
+#     - LR schedule: warmup-then-constant (`warmup_constant_lr`, 100-step
+#       warmup) instead of the native recipe's flat LR -- also per
+#       `train_maze_optimized.py` (whose own `warmup_steps=500` is a
+#       maze-scale value; 100 is this arm's own choice, small relative to
+#       the total step count of a 40-epoch run over even a handful of
+#       bundles, since HRM-v2 batches are much smaller in row-count terms
+#       than the maze's ~48k-step budget).
+#     - Grad-clip: NONE (the native recipe's `cfg.grad_clip=1.0` via
+#       `clip_grad_norm_` is a native-recipe-only knob; the paper's
+#       training script has no grad-clip call, so none is added here --
+#       another faithfulness choice, not an oversight).
+#     - THE SEGMENT LOOP ITSELF: one optimizer step PER ACT SEGMENT (deep
+#       supervision), not one step per batch. This is the paper's actual
+#       training mechanism and the reason this arm exists at all -- see
+#       the loop body below.
+#
+#   DOCUMENTED DEVIATION FROM THE LITERAL STREAMING SCRIPT
+#   (`train_maze_optimized.py`'s `main()`): that script keeps ONE carry
+#   PERSISTENT ACROSS THE ENTIRE TRAINING RUN (created once before the
+#   first batch, threaded through every subsequent batch via the
+#   dataloader's `for batch_idx, batch in enumerate(pbar)` loop, reset only
+#   per-ROW via the model's own `reset_carry(carry.halted, ...)` whenever
+#   that row individually halts -- so different rows in the same tensor can
+#   be mid-episode on wildly different data at any given step). This
+#   trainer instead creates a FRESH carry once PER BATCH (`carry =
+#   model.initial_carry(batch)`), then loops segments-until-`all_finish`
+#   for THAT batch before moving to the next -- i.e. every row in a batch
+#   starts and ends its ACT episode together, batch-synchronized, matching
+#   the epoch/shuffle/batch STRUCTURE the other 5 arms use (so "40 epochs
+#   over the pooled TRAIN rows, shuffled per epoch" means the same thing
+#   for every arm) rather than the maze script's single unbounded
+#   `IterableDataset` stream. This is a DELIBERATE, PRE-REGISTERED
+#   deviation from the literal script (per spec section 5: "the segmented
+#   training loop [is] paper-faithful" refers to the SEGMENT MECHANISM --
+#   one optimizer step per segment, carry persisting ACROSS SEGMENTS within
+#   an episode -- not to the streaming script's specific cross-BATCH carry
+#   lifetime, which is an artifact of that script's unbounded-stream data
+#   loader, orthogonal to the mechanism under test here). The mechanism
+#   that actually matters for G2 (does deep supervision / ACT halting help)
+#   -- one gradient update per segment, real multi-segment episodes, live
+#   Q-learning halting during training -- is preserved exactly; only the
+#   batch-boundary bookkeeping is adapted to fit this phase's shared
+#   epoch/shuffle/batch harness.
+#
+# PARTIAL FINAL BATCH: dropped (`drop_last`-equivalent), per the spec's
+# explicit choice among the offered alternatives ("dropping <=1023 of ~50k
+# rows/epoch is cleaner"). No padding-by-cycling, no validity mask.
+#
+# CONFIG BATCH_SIZE vs ACTUAL BATCH SIZE: `hrmv2_config()`'s
+# `batch_size=64` field is NOT threaded into the actual per-step tensor
+# size. Verified directly (not assumed) by running a 200-row batch through
+# `model.initial_carry`/`model.forward` with `config.batch_size=64` still
+# set: both derive every shape purely from `batch["inputs"].shape[0]`
+# (`HRMACTv1.initial_carry`: `batch_size = batch["inputs"].shape[0]`;
+# `HRMACTv1_Inner.empty_carry(batch_size)` takes that value as a plain
+# argument) -- `config.batch_size` is read NOWHERE in the forward/carry
+# path for this arm's configuration (`puzzle_emb_ndim=0` means the ONE
+# place batch_size-must-match-config would matter, `CastedSparseEmbedding`
+# for puzzle embeddings, never gets constructed at all -- see
+# `HRMACTv1_Inner.__init__`'s `if self.config.puzzle_emb_ndim > 0:` guard).
+# So `hrmv2_config()`'s `batch_size=64` stays as-is (cosmetic/unused for
+# this arm), and real batches are `cfg.batch_size` (1024, the mission
+# config's field, matched to the native recipe) rows each.
+
+def _training_seed_formula(seed: int, cell: dict) -> int:
+    """The SAME pre-registered training-seed formula
+    `continuous_prm_c11_mission._training_seed` uses (`10007*(seed+1) +
+    101*config_idx + K`), reproduced here rather than imported (that
+    function is a private helper of the core module, and this module's
+    lazy-import discipline is about avoiding a HARD dependency on the core
+    module at IMPORT time, not about refusing to depend on its PUBLIC
+    behavior at call time -- but a private underscore-prefixed helper is
+    exactly the kind of internal detail that should be duplicated-with-
+    attribution rather than reached into)."""
+    return 10007 * (int(seed) + 1) + 101 * int(cell["config_idx"]) + int(cell["K"])
+
+
+# Per-batch segment cap -- a load-bearing safety bound, NOT an arbitrary
+# truncation. DISCOVERED, not designed-in from the spec: the per-batch
+# "loop until all_finish" instruction (faithful to `train_maze_
+# optimized.py`'s ONE-segment-per-optimizer-step mechanism) implicitly
+# assumes `carry.halted.all()` is reachable in a bounded number of calls.
+# It is NOT, once training has run even a few optimizer steps:
+# `HRMACTv1.forward`'s halting is PER-ROW -- a row that halts via the
+# Q-driven branch (`q_halt_logits > q_continue_logits`, active whenever
+# `self.training`) gets `reset_carry`'d on the VERY NEXT call and restarts
+# a fresh episode on ITS OWN step-clock, permanently desynchronized from
+# every other row's clock (each row is still GUARANTEED to halt again
+# within `halt_max_steps` of ITS OWN restart, via `is_last_step` -- see
+# `HRMACTv1.forward`'s algebra: `min_halt_steps <= halt_max_steps` always,
+# so `is_last_step` can never be suppressed by the exploration AND-mask --
+# but "guaranteed to halt eventually, on its own clock" is not the same as
+# "all rows halt on the SAME absolute segment call"). At batch_size=1 this
+# is a non-issue (trivially, "all" = "the one row"); empirically confirmed
+# clean convergence (exactly `halt_max_steps` segments) up to n=16, but at
+# this arm's REAL batch_size=128 (`C11MissionConfig.batch_size`, matched to
+# the native recipe), even ONE early-halting row is enough to desync the
+# whole batch, and getting all 128 independent, exploration-randomized
+# clocks to re-align becomes a coincidence that gets less likely the longer
+# it hasn't happened -- empirically verified to NOT occur within 3000
+# segments (27.8s wall time) on this arm's real encoded batch data for a
+# SINGLE batch (see the module's Task 7 build notes / final report for the
+# reproduction). Left uncapped, `train_hrmv2` can hang for minutes to
+# indefinitely on ONE batch.
+#
+# The cap trades a small amount of faithfulness (a batch occasionally stops
+# before literally every row has halted on the SAME call) for guaranteed
+# termination, while preserving everything that actually matters about the
+# mechanism under test: still one optimizer step per segment, still real
+# ACT Q-learning dynamics (the rows that continue past the cap simply carry
+# their in-progress episode into the NEXT batch's fresh
+# `initial_carry`-driven restart -- functionally identical to how those
+# rows would have been reset anyway had `all_finish` become true one
+# segment later), still the same per-segment loss/backward/step contract.
+# 200 (=50x `halt_max_steps=4`'s own default, and comfortably larger than
+# the ~30-90 segments a partially-desynced batch typically needs to drain
+# down to its last few holdout rows in exploratory testing) is generous
+# under normal operation -- it essentially never binds for the arm's
+# intended full-size config (`hrmv2_config()`'s `halt_max_steps=8`, so 200
+# is 25x that) -- while bounding worst-case per-batch wall time to a
+# reasonable ceiling regardless of how the Q-head evolves during training.
+_PER_BATCH_SEGMENT_CAP = 200
+
+
+def train_hrmv2(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
+                 cfg: Optional["C11MissionConfig"] = None,
+                 hrmv2_cfg: Optional[dict] = None,
+                 epochs: Optional[int] = None,
+                 ) -> Tuple[Dict[str, torch.Tensor], dict]:
+    """Train a fresh `TraceHRMACT` on `bundles`' pooled TRAIN targets, via
+    the faithful per-segment loop (see the module-level comment block
+    above for the full recipe-split rationale, and `_PER_BATCH_SEGMENT_CAP`
+    for a discovered, load-bearing termination-safety bound on that loop --
+    per-row ACT halting can desynchronize across a batch once training
+    perturbs the Q-head, making "every row halted on the SAME segment
+    call" arbitrarily slow to reach without it). Returns
+    `(state_dict_cpu, meta)` -- the SAME `(state_dict, meta)` contract
+    `train_arm` returns, so this function is a drop-in `train` entry for
+    `register_provider_builder`.
+
+    `hrmv2_cfg`: the `HRMACTv1Config` dict (from `hrmv2_config(...)`,
+    typically with test-time overrides for speed); defaults to
+    `hrmv2_config()`'s paper-faithful full-size defaults when omitted.
+    `cfg`: the `C11MissionConfig` (data/epochs/batch_size/lr/weight_decay
+    -- the MATCHED half of the recipe split); defaults to
+    `C11MissionConfig()`.
+
+    Seeding: `torch.manual_seed`/`torch.cuda.manual_seed_all` and the numpy
+    shuffle RNG are BOTH seeded with `_training_seed_formula(seed, cell)`
+    -- identical formula and identical dual-seeding convention to
+    `train_arm`'s own seeding (see that function's docstring), so two
+    `train_hrmv2` calls with identical inputs produce allclose state_dicts
+    on CPU (bit-determinism, like `train_arm`, is CPU-only -- CUDA attention
+    kernels are not bitwise deterministic across runs)."""
+    _M = _load_mission()
+    HRMACTv1, HRMACTv1_Inner, HRMACTv1Config, HRMACTv1InnerCarry = _load_hrm()
+    from hrm.train.optim import AdamATan2, warmup_constant_lr
+
+    cfg = cfg or _M.C11MissionConfig()
+    hrmv2_cfg = dict(hrmv2_cfg) if hrmv2_cfg is not None else hrmv2_config()
+    n_epochs = int(epochs) if epochs is not None else int(cfg.epochs)
+
+    train_seed_val = _training_seed_formula(seed, cell)
+    torch.manual_seed(train_seed_val)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(train_seed_val)
+    shuffle_rng = np.random.default_rng(train_seed_val)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = build_hrmv2_arm(hrmv2_cfg).to(device)
+    param_count = sum(p.numel() for p in model.parameters())
+
+    loss_head = RegressionACTLossHead(model, band=0.1)
+
+    opt = AdamATan2(model.parameters(), lr=cfg.lr, betas=(0.9, 0.95), weight_decay=cfg.weight_decay)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=lambda step: warmup_constant_lr(step, 100))
+
+    targets = _M.stack_targets(bundles)  # (n, 4): (i, s, y, bundle_idx)
+    n_rows = targets.shape[0]
+    all_i = targets[:, 0].astype(np.int64)
+    all_s = targets[:, 1].astype(np.int64)
+    all_y = targets[:, 2].astype(np.float32)
+    all_bidx = targets[:, 3].astype(np.int64)
+
+    batch_size = int(cfg.batch_size)
+    n_full_batches = n_rows // batch_size  # drop-last: partial tail dropped.
+
+    t0 = time.time()
+    first_epoch_loss: Optional[float] = None
+    final_loss: float = float("nan")
+    total_segments = 0
+    mean_halt_steps_final_epoch: float = float("nan")
+
+    model.train()
+    for epoch in range(n_epochs):
+        order = shuffle_rng.permutation(n_rows)
+        epoch_seg_losses: List[float] = []
+        epoch_halt_steps: List[float] = []
+
+        for b in range(n_full_batches):
+            batch_idx = order[b * batch_size:(b + 1) * batch_size]
+            rows_i = all_i[batch_idx]
+            rows_s = all_s[batch_idx]
+            rows_bidx = all_bidx[batch_idx]
+            y_batch = torch.from_numpy(all_y[batch_idx]).to(device)
+
+            # Per-arm batch encoding, grouped by bundle (mirrors
+            # `_forward_batch_by_bundle`'s bundle-grouping convention --
+            # `encode_trace_padded` is called once per DISTINCT bundle
+            # present in the batch, not once per row).
+            n = batch_idx.shape[0]
+            padded = np.zeros((n, cfg.seq_max, cfg.token_dim), dtype=np.float32)
+            for b_idx in np.unique(rows_bidx):
+                b_idx = int(b_idx)
+                row_mask = rows_bidx == b_idx
+                states = list(zip(rows_i[row_mask].tolist(), rows_s[row_mask].tolist()))
+                bundle_padded, _mask = _M.encode_trace_padded(bundles[b_idx], states, cfg)
+                padded[row_mask] = bundle_padded
+
+            inputs_t = torch.from_numpy(padded).to(device)
+            puzzle_ids_t = torch.zeros(n, dtype=torch.int32, device=device)
+            batch = {"inputs": inputs_t, "puzzle_identifiers": puzzle_ids_t, "y": y_batch}
+
+            # THE FAITHFUL LOOP: carry created ONCE per batch; loop
+            # `loss_head(...)` (one ACT segment per call) until
+            # `all_finish`; ONE optimizer step PER SEGMENT (deep
+            # supervision -- the mechanism under test).
+            #
+            # SAFETY CAP -- a discovered necessity, not a spec-optional
+            # nicety (see `_PER_BATCH_SEGMENT_CAP`'s own docstring for the
+            # full empirical finding: once TRAINING perturbs the Q-head's
+            # halt/continue outputs even slightly, individual rows in a
+            # batch can halt EARLY via the Q-driven branch
+            # (`HRMACTv1.forward`'s `halted = halted | (q_halt_logits >
+            # q_continue_logits)`), which immediately RESETS that row's
+            # carry on the NEXT call and restarts it on its OWN clock --
+            # permanently desynchronized from every other row's clock.
+            # `carry.halted.all()` then requires EVERY row's independent,
+            # exploration-randomized clock to land on a halt at the exact
+            # SAME absolute segment call, which becomes vanishingly
+            # unlikely as batch size grows -- empirically verified NOT to
+            # happen within 3000 segments (27.8s) for this arm's real
+            # batch_size=128 data once even a few optimizer steps have
+            # nudged the Q-head. Uncapped, this loop can run for minutes
+            # to indefinitely on a SINGLE batch. This is a genuine property
+            # of adapting per-row-asynchronous ACT halting into a
+            # per-BATCH "wait for everyone" loop -- the real streaming
+            # script (`train_maze_optimized.py`) never hits this failure
+            # mode because it never waits for "all halted": it keeps ONE
+            # carry persistent across the ENTIRE run and just keeps
+            # stepping forever, letting rows halt/reset/continue on their
+            # own schedules indefinitely (see this trainer's own
+            # module-level "DOCUMENTED DEVIATION" comment above for why
+            # THIS trainer instead uses a fresh per-batch carry). The cap
+            # is the natural, minimal fix that preserves everything else
+            # about the faithful loop (still one optimizer step per
+            # segment, still real Q-learning dynamics, still the SAME
+            # segment mechanism) while guaranteeing every batch actually
+            # terminates.
+            carry = loss_head.initial_carry(batch)
+            all_finish = False
+            batch_halt_steps: List[float] = []
+            batch_segments = 0
+            while not all_finish and batch_segments < _PER_BATCH_SEGMENT_CAP:
+                carry, loss, metrics, _outputs, all_finish_t = loss_head(
+                    return_keys=[], carry=carry, batch=batch
+                )
+                if not torch.isfinite(loss):
+                    raise RuntimeError("nonfinite loss for arm 'hrmv2_act'")
+                (loss / n).backward()
+                opt.step()
+                scheduler.step()
+                opt.zero_grad(set_to_none=False)
+                total_segments += 1
+                batch_segments += 1
+                epoch_seg_losses.append(float(loss.item()) / n)
+                count = float(metrics["count"].item())
+                if count > 0:
+                    batch_halt_steps.append(float(metrics["steps"].item()) / count)
+                all_finish = bool(all_finish_t)
+
+            epoch_halt_steps.extend(batch_halt_steps)
+
+        epoch_mean = float(np.mean(epoch_seg_losses)) if epoch_seg_losses else float("nan")
+        if epoch == 0:
+            first_epoch_loss = epoch_mean
+        final_loss = epoch_mean
+        if epoch_halt_steps:
+            mean_halt_steps_final_epoch = float(np.mean(epoch_halt_steps))
+
+    wall_s = time.time() - t0
+
+    state_dict_cpu = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+    meta = {
+        "arm": "hrmv2_act",
+        "config_label": cell.get("config_label"),
+        "K": int(cell["K"]),
+        "seed": int(seed),
+        "epochs": n_epochs,
+        "param_count": int(param_count),
+        "first_epoch_loss": first_epoch_loss,
+        "final_loss": final_loss,
+        "wall_s": wall_s,
+        "total_segments": total_segments,
+        "mean_halt_steps_final_epoch": mean_halt_steps_final_epoch,
+    }
+    return state_dict_cpu, meta
+
+
+# ---------------------------------------------------------------------------
+# Task 7: eval providers -- ACT-live and forced-k.
+# ---------------------------------------------------------------------------
+#
+# Both providers share the SAME batch-building step (encode every queried
+# (i, s) state's trace tokens via `encode_trace_padded`, grouped by bundle
+# -- trivial here since `forward_batch`'s contract is single-bundle, so no
+# grouping is actually needed, unlike the training loop's multi-bundle
+# batches) and differ only in the SEGMENT LOOP driving the model:
+#   - ACT-live: the model's OWN halting (`model.forward`'s ACT wrapper),
+#     run in eval mode. IMPORTANT FINDING (verified by reading
+#     `HRMACTv1.forward` AND by direct execution, not assumed): in eval
+#     mode (`self.training == False`), the EARLY-halt branch (`halted =
+#     halted | (q_halt_logits > q_continue_logits)`) and the exploration
+#     branch are BOTH gated on `self.training` and therefore NEVER fire --
+#     only `is_last_step` (`new_steps >= halt_max_steps`) can halt a
+#     sequence in eval mode. This means the ACT-live eval provider ALWAYS
+#     runs exactly `halt_max_steps` segments for EVERY query, regardless of
+#     the trained Q-head's actual halt/continue preferences -- Q-driven
+#     early stopping is a TRAINING-time exploration/bootstrapping
+#     mechanism in this port, not a mechanism the port exposes at eval
+#     time. This is a real, load-bearing property of the FROZEN, installed
+#     `hrm` package (confirmed empirically: `model.eval()` +
+#     `halt_exploration_prob=0.5` + running to `carry.halted.all()` always
+#     takes exactly `halt_max_steps` iterations, independent of q-head
+#     values) -- not a bug in this arm's code, and not something this
+#     phase is permitted to patch (`HRM-v2/` is frozen). Practical
+#     consequence: `hrmv2_halt_steps` (the per-query side channel) will be
+#     UNIFORMLY `halt_max_steps` for every query under this provider as
+#     currently specified -- flagged explicitly in this module's T7 report
+#     as a parent-code obstacle worth downstream (G2b) awareness, since a
+#     halting-vs-K correlation study needs genuine per-query variation,
+#     which this port's eval-mode contract does not produce. The provider
+#     itself is implemented EXACTLY as specified regardless ("eval mode,
+#     the model's own halting") -- this comment documents what that
+#     mechanism actually does, verified rather than assumed.
+#   - Forced-k: bypasses `model.forward`'s ACT wrapper ENTIRELY, driving
+#     `model.inner` directly for exactly k calls (each call is "one
+#     segment" by the same definition `train_maze_optimized.py`'s own
+#     comment uses: "ONE segment per optimizer step... forward one segment
+#     through the loss head" -- `model.inner.forward` IS that one-segment
+#     unit; the ACT wrapper (`model.forward`) adds only the
+#     halt/continue/exploration/target-Q bookkeeping around it). This
+#     genuinely ignores q-halt (there is no q-based branching in this
+#     path at all -- q values aren't even read), giving TRUE k-segment
+#     compute regardless of what the trained Q-head would have decided.
+
+def _build_batch_for_states(model: "TraceHRMACT", bundle: "WorldBundle",
+                             states: Sequence[Tuple[int, int]], cfg: "C11MissionConfig",
+                             device: torch.device) -> Dict[str, torch.Tensor]:
+    """Build the `{"inputs", "puzzle_identifiers"}` batch dict for
+    `states` on `bundle`, via `encode_trace_padded` (the SAME encoder every
+    other trace-consuming arm uses -- identical information per the I/O
+    contract, spec section 3)."""
+    _M = _load_mission()
+    padded, _mask = _M.encode_trace_padded(bundle, states, cfg)
+    inputs_t = torch.from_numpy(padded).to(device)
+    n = len(states)
+    puzzle_ids_t = torch.zeros(n, dtype=torch.int32, device=device)
+    return {"inputs": inputs_t, "puzzle_identifiers": puzzle_ids_t}
+
+
+def _hrmv2_forward_batch_act(model: "TraceHRMACT", bundle: "WorldBundle",
+                              states: Sequence[Tuple[int, int]], cfg: "C11MissionConfig",
+                              device: torch.device) -> torch.Tensor:
+    """ACT-LIVE provider: run the model's own halting (eval mode) segment
+    loop until `all_finish`, reading out via `readout_yhat(outputs,
+    cap=cfg.residual_cap)`. SIDE-CHANNEL: stashes per-query halt steps on
+    `bundle.hrmv2_halt_steps` (an `(K+1, N)` float32 ndarray, NaN off the
+    queried states, filled with each queried state's `carry.steps` value
+    at the step it halted -- in `[1, halt_max_steps]` for every queried
+    state, per `HRMACTv1.forward`'s `new_steps = new_steps + 1` BEFORE the
+    halt check, so the minimum possible halted step is 1, not 0). Eval
+    mode + `model.training == False` also means `halt_exploration_prob`'s
+    forced-minimum-steps branch never fires (see the module-level comment
+    block above), so this provider's step count is driven purely by
+    `is_last_step` under the CURRENT `hrm` port -- documented there, not
+    re-derived here."""
+    was_training = model.training
+    model.eval()
+    try:
+        with torch.no_grad():
+            batch = _build_batch_for_states(model, bundle, states, cfg, device)
+            carry = model.initial_carry(batch)
+
+            # All three bookkeeping tensors live on `device` throughout the
+            # loop (matching `carry.halted`/`carry.steps`'s device) --
+            # moved to CPU/numpy only once, after the loop, when stashing
+            # the halt-step side channel. Mixing a CPU `remaining`/
+            # `halt_steps_out` with a CUDA `carry` would raise a device
+            # mismatch the moment `device` is not "cpu" (this arm's tests
+            # run on CPU, but `make_provider`/`predict_field` derive
+            # `device` from the model's OWN device, which is CUDA whenever
+            # a trained checkpoint is loaded onto a CUDA model -- so this
+            # must be device-correct regardless of what this run happens
+            # to use).
+            halt_steps_out = torch.zeros(len(states), dtype=torch.float32, device=device)
+            yhat_out = torch.zeros(len(states), dtype=torch.float32, device=device)
+            remaining = torch.ones(len(states), dtype=torch.bool, device=device)
+
+            halt_max_steps = int(model.config.halt_max_steps)
+            for _ in range(halt_max_steps + 1):
+                carry, outputs = model(carry, batch)
+                newly_halted = carry.halted & remaining
+                if newly_halted.any():
+                    yhat_row = readout_yhat(outputs, cap=float(cfg.residual_cap))
+                    idx = newly_halted.nonzero(as_tuple=True)[0]
+                    yhat_out[idx] = yhat_row[idx]
+                    halt_steps_out[idx] = carry.steps[idx].to(torch.float32)
+                    remaining = remaining & ~newly_halted
+                if carry.halted.all():
+                    break
+
+            if remaining.any():
+                # Should not happen (halt_max_steps bounds the loop above
+                # at halt_max_steps+1 iterations, and `is_last_step` alone
+                # guarantees `carry.halted.all()` by step halt_max_steps),
+                # but guard rather than silently returning stale zeros.
+                raise RuntimeError(
+                    f"{int(remaining.sum())} states never halted within "
+                    f"{halt_max_steps} ACT-live segments"
+                )
+    finally:
+        model.train(was_training)
+
+    _stash_halt_steps(bundle, states, halt_steps_out.detach().cpu().numpy())
+    return yhat_out
+
+
+def _stash_halt_steps(bundle: "WorldBundle", states: Sequence[Tuple[int, int]],
+                       halt_steps: np.ndarray) -> None:
+    """Store-on-bundle pattern (matching `WorldBundle.node_rays`/
+    `field_grids`'s established convention): `bundle.hrmv2_halt_steps` is
+    an `(K+1, N)` float32 ndarray, created NaN-filled on first use and
+    updated in place on every call (so repeated ACT-live provider calls on
+    the same bundle, e.g. across multiple budgets in `run_eval`, keep
+    accumulating/overwriting the SAME queried cells rather than each call
+    starting over from an all-NaN array -- consistent with every other
+    query in the same eval run sharing one halt-step map per bundle)."""
+    K = len(bundle.wp)
+    N = bundle.rm.points.shape[0]
+    existing = getattr(bundle, "hrmv2_halt_steps", None)
+    if existing is None or existing.shape != (K + 1, N):
+        existing = np.full((K + 1, N), np.nan, dtype=np.float32)
+    for row, (i, s) in enumerate(states):
+        existing[s, i] = halt_steps[row]
+    bundle.hrmv2_halt_steps = existing
+
+
+def _hrmv2_forward_batch_forced_k(k: int) -> Callable[..., torch.Tensor]:
+    """Returns a `forward_batch(model, bundle, states, cfg, device)`
+    callable that runs EXACTLY `k` inner segment advances, ignoring q-halt
+    entirely (`model.inner` is driven directly -- the ACT wrapper's
+    halt/continue/exploration logic never runs, so there is no q-based
+    branching to ignore in the first place; this IS what "ignore q-halt"
+    means operationally). `k` is captured by closure; the returned
+    callable's signature matches the `forward_batch` contract exactly, so
+    it plugs directly into `register_provider_builder`."""
+    k = int(k)
+    if k < 1:
+        raise ValueError(f"k must be >= 1, got {k}")
+
+    def _forward_batch(model: "TraceHRMACT", bundle: "WorldBundle",
+                        states: Sequence[Tuple[int, int]], cfg: "C11MissionConfig",
+                        device: torch.device) -> torch.Tensor:
+        was_training = model.training
+        model.eval()
+        try:
+            with torch.no_grad():
+                batch = _build_batch_for_states(model, bundle, states, cfg, device)
+                n = len(states)
+                inner_carry = model.inner.empty_carry(n)
+                inner_carry = model.inner.reset_carry(
+                    torch.ones(n, dtype=torch.bool, device=device), inner_carry
+                )
+                outputs = None
+                logits = None
+                for _ in range(k):
+                    inner_carry, logits, (_q_halt, _q_continue) = model.inner(inner_carry, batch)
+                outputs = {"logits": logits}
+                yhat = readout_yhat(outputs, cap=float(cfg.residual_cap))
+        finally:
+            model.train(was_training)
+        return yhat
+
+    return _forward_batch
+
+
+# ---------------------------------------------------------------------------
+# Task 7: registration hook -- called by the core module post-import.
+# ---------------------------------------------------------------------------
+
+_HRMV2_FORCED_K_VALUES: Tuple[int, ...] = (1, 2, 4, 8)
+
+_HRMV2_REGISTERED = False
+
+
+def register_hrmv2_providers() -> None:
+    """Register `hrmv2_act` (ACT-live, WITH a trainer) and
+    `hrmv2_act_k{1,2,4,8}` (forced-k, EVAL-ONLY -- no trainer, `ckpt_alias=
+    "hrmv2_act"`) into the core module's provider registry
+    (`continuous_prm_c11_mission.register_provider_builder`). Called by the
+    core module itself, post-import, wrapped in a try/except ImportError.
+
+    EAGERLY calls `_load_hrm()` FIRST, before registering anything --
+    THIS is the load-bearing line for the core module's guard contract
+    (`try: ... register_hrmv2_providers() except ImportError: pass`). An
+    earlier version of this function deferred ALL `hrm`-touching to
+    provider-CONSTRUCTION time (the `build(cfg)` closures below, which
+    only run when `run_train`/`run_eval`/`make_provider` actually build a
+    model) -- which meant `register_hrmv2_providers()` itself NEVER raised
+    ImportError even when `hrm` was completely absent, so the core
+    module's registration hook silently registered `hrmv2_act` anyway
+    (with `build`/`forward_batch` closures that would only fail LATER, the
+    first time something tried to actually use them) -- a real bug caught
+    by `test_hrmv2_registration_import_error_only_guard`'s subprocess test
+    (which blocks `hrm` at `sys.meta_path` and asserts `hrmv2_act` is NOT
+    registered): the pre-fix core module imported "successfully" but with
+    a registry entry that lied about `hrm` availability. Calling
+    `_load_hrm()` up front makes this function fail FAST and VISIBLY the
+    moment `hrm` is unavailable, exactly where the core module's
+    try/except expects the failure to occur.
+
+    Idempotent: calling this twice (e.g. two test processes each importing
+    the core module) is a no-op the second time (`PROVIDER_BUILDERS`
+    already has the names; `register_provider_builder` would otherwise be
+    fine with re-registering the SAME names to the SAME callables anyway,
+    since only NATIVE arm names are rejected -- but the module-level guard
+    keeps this cheap and avoids rebuilding closures pointlessly)."""
+    global _HRMV2_REGISTERED
+    if _HRMV2_REGISTERED:
+        return
+
+    _load_hrm()  # Eager check -- see the docstring above; must run FIRST.
+    _M = _load_mission()
+
+    def _build(cfg: "C11MissionConfig") -> "TraceHRMACT":
+        return build_hrmv2_arm(hrmv2_config())
+
+    def _train(cell: dict, bundles: Sequence["WorldBundle"], seed: int,
+               cfg: Optional["C11MissionConfig"] = None, epochs: Optional[int] = None
+               ) -> Tuple[Dict[str, torch.Tensor], dict]:
+        """Adapter binding `train_hrmv2`'s `hrmv2_cfg` parameter (which has
+        NO slot in the registry's `train(cell, bundles, seed, cfg, epochs)`
+        contract -- exactly 5 positional parameters, none of them a
+        model-architecture config) to the paper-faithful default
+        (`hrmv2_config()`, called FRESH on every invocation rather than
+        once at registration time, so it always reflects the CURRENT
+        `hrmv2_config` -- relevant for tests that monkeypatch it). Passing
+        `train_hrmv2` directly as `train=train_hrmv2` (an earlier version
+        of this registration did exactly that) is a signature mismatch:
+        `_resolve_trainer`'s adapter in the core module calls
+        `registered_train(cell, bundles, seed, cfg, epochs)` -- 5
+        positional arguments -- which `train_hrmv2` receives as `(cell,
+        bundles, seed, cfg=<cfg>, hrmv2_cfg=<epochs value>)`, silently
+        binding the CALLER's `epochs` argument to `train_hrmv2`'s
+        `hrmv2_cfg` parameter (both are keyword-or-positional in that
+        slot) -- a genuine, silent parameter-mismatch bug caught by an
+        end-to-end `run_train` smoke test (train_hrmv2 crashed inside
+        `hrmv2_config()` with `TypeError: 'int' object is not iterable`
+        the moment `epochs` was an int, since `hrmv2_cfg` expects a
+        dict-or-None). This thin wrapper is the fix: it matches the
+        registry's EXACT positional contract and threads `hrmv2_cfg`
+        itself, rather than relying on positional-argument coincidence."""
+        return train_hrmv2(cell, bundles, seed, cfg=cfg, hrmv2_cfg=hrmv2_config(), epochs=epochs)
+
+    _M.register_provider_builder(
+        "hrmv2_act", _build, _hrmv2_forward_batch_act, train=_train,
+    )
+
+    for k in _HRMV2_FORCED_K_VALUES:
+        _M.register_provider_builder(
+            f"hrmv2_act_k{k}", _build, _hrmv2_forward_batch_forced_k(k),
+            train=None, ckpt_alias="hrmv2_act",
+        )
+
+    _HRMV2_REGISTERED = True
 
 
 __all__ = [
@@ -593,4 +1337,6 @@ __all__ = [
     "readout_yhat",
     "regression_correct",
     "RegressionACTLossHead",
+    "train_hrmv2",
+    "register_hrmv2_providers",
 ]
