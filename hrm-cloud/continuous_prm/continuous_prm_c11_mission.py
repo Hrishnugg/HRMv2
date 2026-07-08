@@ -3618,4 +3618,17 @@ def _rerun_write_results_doc_at(out_dir: str, cfg: C11MissionConfig, path: str) 
 
 
 if __name__ == "__main__":
-    main()
+    # Delegate to the CANONICAL module object rather than calling main() on
+    # `__main__`. Script execution creates a SECOND module object
+    # (`__main__`) with its own copy of every module-level global, including
+    # PROVIDER_BUILDERS. The hrmv2 module registers its providers via
+    # `import continuous_prm_c11_mission` (the canonical object), so under
+    # script execution the registrations land in the canonical registry
+    # while run_train/run_eval executing on `__main__` consult the empty
+    # copy -- `--arms hrmv2_act` then dies with "unknown arm name" even
+    # though every import-based caller (tests, the estimator) works. The T9
+    # launch hit exactly this. Delegation makes all CLI state live in the
+    # one canonical module object.
+    import continuous_prm_c11_mission as _canonical
+
+    _canonical.main()

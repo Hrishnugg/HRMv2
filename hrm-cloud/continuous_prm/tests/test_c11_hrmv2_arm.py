@@ -845,3 +845,33 @@ def test_run_train_run_eval_end_to_end_through_registry(tmp_path, monkeypatch):
     k4_seeds = set(r["train_seed"] for r in rows if r["arm"] == "hrmv2_act_k4")
     assert k2_seeds == hrmv2_seeds
     assert k4_seeds == hrmv2_seeds
+
+
+# ---------------------------------------------------------------------------
+# Regression: CLI script execution must share the canonical module's provider
+# registry. Running `python continuous_prm_c11_mission.py` creates a second
+# module object (`__main__`) whose PROVIDER_BUILDERS copy is EMPTY unless the
+# __main__ block delegates to the canonical module -- the T9 launch died with
+# "unknown arm name 'hrmv2_act'" from exactly this split-brain. This test
+# reproduces the launch as a real subprocess on the smallest possible cell
+# (A/K=0, 1 world, 1 epoch, full-size hrmv2 model) and must see a checkpoint,
+# not the ValueError.
+# ---------------------------------------------------------------------------
+
+def test_cli_script_execution_trains_hrmv2(tmp_path):
+    import subprocess
+    module_path = Path(__file__).resolve().parents[1] / "continuous_prm_c11_mission.py"
+    out_dir = tmp_path / "cli_split_brain"
+    proc = subprocess.run(
+        [sys.executable, str(module_path), "--mode", "train", "--arms", "hrmv2_act",
+         "--configs", "A", "--k-values", "0", "--seeds", "0",
+         "--n-train-worlds", "1", "--epochs", "1", "--out-dir", str(out_dir)],
+        cwd=str(module_path.parent), capture_output=True, text=True, timeout=600,
+    )
+    assert proc.returncode == 0, (
+        f"CLI script execution failed (split-brain regression?):\n"
+        f"stdout:\n{proc.stdout[-2000:]}\nstderr:\n{proc.stderr[-2000:]}"
+    )
+    assert "unknown arm name" not in proc.stderr
+    ckpt = out_dir / "ckpt" / "hrmv2_act__A0__s0.pt"
+    assert ckpt.exists(), f"no checkpoint written; stdout:\n{proc.stdout[-2000:]}"
