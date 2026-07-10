@@ -2347,8 +2347,8 @@ def _synthetic_g1_analysis_and_verdict(positive: bool):
     meta = {
         "date": "2026-07-07",
         "branch": "c11-mission",
-        "spec_path": "docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md",
-        "plan_path": "docs/superpowers/plans/2026-07-07-c11-mission.md",
+        "spec_path": "docs/experiments/continuous/c11/design/2026-07-07-c11-compositional-mission-design.md",
+        "plan_path": "docs/experiments/continuous/c11/plans/2026-07-07-c11-mission.md",
         "param_counts": {"mlp": 1_300_000, "gnn": 980_000, "hrmv2_act": 2_100_000},
     }
     return analysis, k0, g1, g2, g2b, meta
@@ -2436,20 +2436,143 @@ def test_results_doc_writer_g3_branches_differ():
 
 
 # ---------------------------------------------------------------------------
+# Test 37c: G3 gated on the K=0 continuity control (post-run diagnosis fix)
+# + diagnosis-addendum injection.
+# ---------------------------------------------------------------------------
+
+def test_results_doc_writer_k0_fail_halts_g3(tmp_path):
+    """Post-run diagnosis fix: when `k0["pass"] is False`, G3 must render
+    the HALT branch and NONE of the three closure branches' prose -- the
+    first full run's doc printed the all-tie/architecture-agnostic closure
+    directly beneath a K=0 section listing CI-separated violations, which
+    is factually self-contradictory (the pre-registered protocol makes G1
+    unreadable until the K=0 separation is diagnosed).
+
+    Uses the all-negative fixture (so WITHOUT the gate the all-negative
+    closure WOULD render -- the strongest possible regression check) with
+    k0 overridden to a failing dict."""
+    analysis, _k0_pass, g1, g2, g2b, meta = _synthetic_g1_analysis_and_verdict(False)
+    assert g1["positive"] is False  # gates all-negative -> old code rendered the all-tie closure
+    k0_fail = {
+        "pass": False,
+        "violations": [
+            ("A", "gnn", "ci_hi=0.85 < 1.0"),
+            ("B", "unet_film", "mcnemar_q=0.001 < 0.05"),
+        ],
+    }
+
+    path = tmp_path / "k0_fail" / "C11_RESULTS.md"
+    M.write_results_doc(analysis, k0_fail, g1, g2, g2b, meta, str(path))
+    text = path.read_text(encoding="utf-8")
+
+    # K=0 section reports the failure.
+    assert "**Verdict: FAIL**" in text
+
+    # G3 section slice (from its heading to the next section's heading).
+    g3_start = text.find("## G3")
+    g3_end = text.find("## Caveats")
+    assert 0 <= g3_start < g3_end
+    g3 = text[g3_start:g3_end]
+
+    # HALT branch present, with the violations listed inside G3 itself.
+    assert "WITHHELD pending diagnosis" in g3
+    assert "A / gnn: ci_hi=0.85 < 1.0" in g3
+    assert "B / unet_film: mcnemar_q=0.001 < 0.05" in g3
+    # The G1 verdict line above still renders (computed mechanically).
+    assert "## G1 verdict" in text
+
+    # NONE of the three closure branches' prose may appear. The all-neg /
+    # mixed / all-pos branch-unique phrases are globally unique, so global
+    # absence is asserted; "architecture-agnostic" ALSO occurs verbatim in
+    # the pre-registered G3 gate text (rendered in every doc's gates
+    # section), so ITS absence is asserted on the G3 section only.
+    assert "not an I/O-starvation or headroom-absence artifact" not in text
+    assert "Mixed result:" not in text
+    assert "All three gates came back positive" not in text
+    assert "architecture-agnostic" not in g3
+
+    # No addendum attached -> the halt branch says so.
+    assert "No diagnosis addendum is attached" in g3
+
+    # With an addendum attached, the halt branch points at it instead.
+    path2 = tmp_path / "k0_fail_addendum" / "C11_RESULTS.md"
+    M.write_results_doc(analysis, k0_fail, g1, g2, g2b, meta, str(path2),
+                        addendum_md="Post-diagnosis interpretation body.")
+    text2 = path2.read_text(encoding="utf-8")
+    g3_2 = text2[text2.find("## G3"):text2.find("## Caveats")]
+    assert "carries the post-diagnosis interpretation" in g3_2
+    assert "No diagnosis addendum is attached" not in g3_2
+    assert "## Diagnosis addendum" in text2
+    assert "Post-diagnosis interpretation body." in text2
+
+
+def test_results_doc_writer_addendum_injection(tmp_path):
+    """`addendum_md` renders VERBATIM as the doc's final `## Diagnosis
+    addendum` section; absent entirely when None (the default). Also
+    exercises the `run_analyze(addendum_path=...)` file-path threading
+    (the CLI's `--addendum` mechanism) end-to-end on a minimal synthetic
+    out_dir."""
+    marker = "hand-authored diagnosis marker XYZ123"
+    analysis, k0, g1, g2, g2b, meta = _synthetic_g1_analysis_and_verdict(False)
+
+    # -- Direct writer call, addendum provided (k0 passes -> closure still
+    # renders as usual; the addendum is orthogonal to the k0 gate).
+    path_with = tmp_path / "with" / "C11_RESULTS.md"
+    M.write_results_doc(analysis, k0, g1, g2, g2b, meta, str(path_with),
+                        addendum_md=f"Some **verbatim** markdown.\n\n{marker}")
+    text = path_with.read_text(encoding="utf-8")
+    assert "## Diagnosis addendum" in text
+    assert marker in text
+    # Final section: after the caveats.
+    assert text.find("## Diagnosis addendum") > text.find("## Caveats")
+    # Verbatim (the markdown formatting survives untouched).
+    assert "Some **verbatim** markdown." in text
+
+    # -- None (default): no heading, no content.
+    path_without = tmp_path / "without" / "C11_RESULTS.md"
+    M.write_results_doc(analysis, k0, g1, g2, g2b, meta, str(path_without))
+    text2 = path_without.read_text(encoding="utf-8")
+    assert "## Diagnosis addendum" not in text2
+    assert marker not in text2
+
+    # -- File-path threading through run_analyze (the CLI's --addendum).
+    out_dir = tmp_path / "threaded"
+    results_dir = out_dir / "results"
+    results_dir.mkdir(parents=True)
+    records = [
+        _rec("A", 2, 0, "", "h_legsum", "", 200, True, 10.0, 60, 70, 10.0),
+        _rec("A", 2, 0, "0", "mlp", "0", 200, True, 10.0, 55, 65, 10.0),
+    ]
+    C.write_csv(results_dir / "c11_eval_raw.csv", records)
+    C.write_json(out_dir / "binding_k0.json", {})
+    addendum_file = tmp_path / "diagnosis.md"
+    addendum_file.write_text(f"### Sub-heading survives\n\n{marker}", encoding="utf-8")
+
+    M.run_analyze(str(out_dir), M.C11MissionConfig(), addendum_path=str(addendum_file))
+    threaded_text = (out_dir / "C11_RESULTS.md").read_text(encoding="utf-8")
+    assert "## Diagnosis addendum" in threaded_text
+    assert marker in threaded_text
+    assert "### Sub-heading survives" in threaded_text
+
+
+# ---------------------------------------------------------------------------
 # Test 38: canonical-results clobber tripwire (the probe's lesson).
 # ---------------------------------------------------------------------------
 
 def test_canonical_results_tripwire():
     """The repo-level canonical results doc must NEVER be created or
     modified by the test suite -- ONLY the CLI's `--canonical-results`
-    flag writes there (module-dir anchored, per requirement 4). Asserts
+    flag writes there (documentation-tree anchored, per requirement 4). Asserts
     non-existence NOW (this phase has not yet run its canonical local
     validation pass -- Task 9); if a future run legitimately commits this
     file, this assertion should be revisited to instead checksum-compare
     against a known-good committed version (mirroring the probe's own
     `test_smoke_probe_does_not_clobber_canonical_doc` convention) rather
     than deleted outright."""
-    canonical_path = Path(__file__).resolve().parents[1] / "C11_RESULTS.md"
+    canonical_path = (
+        Path(__file__).resolve().parents[3]
+        / "docs" / "experiments" / "continuous" / "c11" / "results" / "C11_RESULTS.md"
+    )
     assert not canonical_path.exists(), (
         f"{canonical_path} exists -- the test suite (or some prior run in this "
         f"session) wrote to the canonical path instead of an out_dir-scoped one"

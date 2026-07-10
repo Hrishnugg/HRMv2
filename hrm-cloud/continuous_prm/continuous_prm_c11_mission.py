@@ -56,9 +56,9 @@ the module; `write_json`/`write_csv` are `continuous_prm_common`'s
 existing atomic (tmp+`os.replace`) helpers, reused rather than
 reimplemented.
 
-See docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md
+See docs/experiments/continuous/c11/design/2026-07-07-c11-compositional-mission-design.md
 (sections 3/4/6/7 are authoritative on the I/O contract, matched recipe,
-and eval/stats conventions) and docs/superpowers/plans/2026-07-07-c11-mission.md
+and eval/stats conventions) and docs/experiments/continuous/c11/plans/2026-07-07-c11-mission.md
 (Tasks 1-4).
 """
 from __future__ import annotations
@@ -2839,7 +2839,7 @@ def _rankdata(x: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Task 8: results-doc writer.
 #
-# Gate texts copied VERBATIM from `docs/superpowers/specs/2026-07-07-c11-
+# Gate texts copied VERBATIM from `docs/experiments/continuous/c11/design/2026-07-07-c11-
 # compositional-mission-design.md` section 1 (read there, not re-derived --
 # any future edit to the spec's wording must be mirrored here by hand,
 # per the task prompt's "spec/plan links, pre-registered gate texts
@@ -2874,17 +2874,36 @@ G3_GATE_TEXT: str = (
 
 
 def write_results_doc(g1_analysis: dict, k0: dict, g1: dict, g2: dict, g2b: dict,
-                       meta: dict, path: str) -> None:
+                       meta: dict, path: str, addendum_md: Optional[str] = None) -> None:
     """Write `C11_RESULTS.md` to the GIVEN `path` (NEVER a hardcoded repo
     path -- see the module-level `run_analyze`/CLI split below for the
     clobber-avoidance convention this mirrors exactly from the probe's own
     `run_probe`/`_write_results_doc`/`main` split, per review requirement
     4). All content is derived from the passed-in analysis dicts; no
-    hardcoded result glosses -- the ONLY place prose branches on a boolean
+    hardcoded result glosses -- the ONLY place prose branches on booleans
     is the G3 closure paragraph, and every branch there reads its wording
-    from the SAME computed booleans it reports (`g1["positive"]`,
-    `g2a_verdict(g2)["positive"]`, `g2b["pooled"].get("positive")`), never
-    a value independent of them.
+    from the SAME computed booleans it reports (`k0["pass"]`,
+    `g1["positive"]`, `g2a_verdict(g2)["positive"]`,
+    `g2b["pooled"].get("positive")`), never a value independent of them.
+
+    G3 gating on the continuity control (post-run diagnosis fix): the
+    three closure branches are consulted ONLY when `k0["pass"]` is True.
+    When the K=0 continuity control FAILED, G3 renders a HALT section
+    instead -- per the pre-registered protocol (spec section 1) a K=0
+    failure makes the G1 read uninterpretable until the separation is
+    diagnosed, so rendering ANY closure claim (all-tie, all-positive, or
+    partial) beneath a failing K=0 section would be factually
+    self-contradictory. (Exactly what an earlier version did on the first
+    full run: it branched on the G1/G2a/G2b booleans alone and printed
+    the all-tie closure text under a K=0 section listing eight
+    CI-separated violations.)
+
+    `addendum_md` (optional): a hand-authored markdown string, rendered
+    VERBATIM as a final `## Diagnosis addendum` section -- the injection
+    point for the post-diagnosis interpretation after a K=0 failure (or
+    any other post-run annotation). `None` (the default) renders no such
+    section. The CLI threads this from `--addendum <file>` via
+    `run_analyze`/`_rerun_write_results_doc_at`.
 
     `g1_analysis`: the raw `analyze(records, binding, cfg)` dict (per-cell
     success/vs_mlp/vs_legsum/oracle_vs_legsum), keyed `(config_label, K)`.
@@ -3079,58 +3098,96 @@ def write_results_doc(g1_analysis: dict, k0: dict, g1: dict, g2: dict, g2b: dict
     lines.append("")
 
     # -- G3 closure paragraph, generated CONDITIONALLY from computed
-    # booleans (three branches: all-negative, any-positive, mixed -- no
-    # hardcoded glosses, per the probe's conditional-prose lesson: an
-    # earlier version of the PROBE's own doc hardcoded text that
-    # contradicted its own computed monotonicity booleans; see `git log
-    # --oneline --grep=clobber`, commit fd4aa55).
+    # booleans -- gated FIRST on the K=0 continuity control (post-run
+    # diagnosis fix: the first full run's K=0 control FAILED, and this
+    # block -- then branching on the G1/G2a/G2b booleans alone -- rendered
+    # the all-tie/architecture-agnostic closure text directly beneath a
+    # K=0 section listing eight CI-separated violations; factually
+    # self-contradictory and procedurally invalid, since the
+    # pre-registered protocol makes G1 unreadable until the K=0 separation
+    # is diagnosed). When k0 passes: three branches (all-negative,
+    # all-positive, mixed) -- no hardcoded glosses, per the probe's
+    # conditional-prose lesson (an earlier version of the PROBE's own doc
+    # hardcoded text that contradicted its own computed monotonicity
+    # booleans; see `git log --oneline --grep=clobber`, commit fd4aa55).
     lines.append("## G3 -- closure")
     lines.append("")
-    any_positive = g1_positive or g2a_positive or bool(g2b_pooled.get("positive"))
-    all_negative = (not g1_positive) and (not g2a_positive) and (not bool(g2b_pooled.get("positive")))
-    if all_negative:
+    if not bool(k0.get("pass")):
+        # HALT branch: NO closure claim may render. The wording below must
+        # never contain any closure-branch-unique phrase (the writer test
+        # asserts their absence from this section).
         lines.append(
-            "All three gates (G1 dose-response, G2a forced-segment curves, G2b halting-vs-depth) "
-            "came back negative or insufficient: every structured arm tied the MLP control, forced "
-            "compute depth did not improve quality, and learned halting showed no depth-sensitivity "
-            "(or a constant/degenerate channel). G0-H passed (the substrate has real, measured "
-            "oracle headroom) and the I/O contract exposes genuine sequence/graph/product-graph "
-            "structure to every arm identically -- so this is not an I/O-starvation or "
-            "headroom-absence artifact. Per the pre-registered G3 text: 'learned planning heuristics "
-            "are architecture-agnostic' graduates to a strong publishable claim on this substrate. "
-            "The architecture chapter of this program is closed; the next thrust is the "
-            "transfer+integration paper."
+            "**G3 closure WITHHELD pending diagnosis.** The K=0 continuity control FAILED "
+            "(see the K=0 section above). Per the pre-registered protocol (spec section 1: at "
+            "K=0 all arms must statistically tie -- \"if they don't, it is a formulation/"
+            "implementation bug and the phase halts for diagnosis, not a result\"), the G1 "
+            "dose-response verdict line above still renders -- it is computed mechanically "
+            "from the records -- but it is NOT interpretable as an architecture result until "
+            "the K=0 separation is diagnosed, and no pre-registered closure claim (all-tie, "
+            "all-positive, or partial) is rendered for this run."
         )
-    elif g1_positive and g2a_positive and bool(g2b_pooled.get("positive")):
-        lines.append(
-            "All three gates came back positive: >=1 structured arm beats the MLP control with a "
-            "monotone, statistically-separated dose-response in mission depth (G1); forced compute "
-            "depth improves quality monotonically with a clear k=1-vs-k=8 separation (G2a); and "
-            "learned halting correlates positively with mission depth at q < 0.05 (G2b). The "
-            "hierarchy/iterative-compute thesis lives on this substrate -- structure is not "
-            "architecture-agnostic here, and depth-of-compute is a real, learned mechanism, not "
-            "noise. Per the decision rule: invest in the high-DOF substrate (S1) next."
-        )
+        lines.append("")
+        lines.append("K=0 violations (config, arm, reason):")
+        lines.append("")
+        for config_label, arm_name, reason in k0.get("violations", []):
+            lines.append(f"- {config_label} / {arm_name}: {reason}")
+        lines.append("")
+        if addendum_md is not None:
+            lines.append(
+                "The 'Diagnosis addendum' section at the end of this document carries the "
+                "post-diagnosis interpretation."
+            )
+        else:
+            lines.append(
+                "No diagnosis addendum is attached to this render; once the diagnosis is "
+                "written, re-run analyze with `--addendum <file>` to inject it."
+            )
     else:
-        fired = []
-        if g1_positive:
-            fired.append("G1 (structure dose-response)")
-        if g2a_positive:
-            fired.append("G2a (forced-segment quality curve)")
-        if bool(g2b_pooled.get("positive")):
-            fired.append("G2b (halting-vs-depth correlation)")
-        not_fired = [g for g in ("G1", "G2a", "G2b") if not any(g in f for f in fired)]
-        lines.append(
-            f"Mixed result: {', '.join(fired)} came back positive, while "
-            f"{', '.join(not_fired) if not_fired else 'no other gate'} did not. This is not the "
-            "clean all-tie the G3 architecture-agnostic text describes, nor the clean all-positive "
-            "hierarchy-thesis-lives text -- the honest reading is partial signal: at least one "
-            "mechanism (structure and/or iterative compute) shows a real, statistically-supported "
-            "effect on this substrate, but not every pre-registered gate agrees. This warrants "
-            "targeted follow-up on the SPECIFIC gate(s) that fired (e.g. a scaled-arm addendum "
-            "focused on the positive arm/mechanism) before either closing the architecture chapter "
-            "or fully committing to the high-DOF substrate."
-        )
+        g2b_positive = bool(g2b_pooled.get("positive"))
+        all_negative = (not g1_positive) and (not g2a_positive) and (not g2b_positive)
+        if all_negative:
+            lines.append(
+                "All three gates (G1 dose-response, G2a forced-segment curves, G2b halting-vs-depth) "
+                "came back negative or insufficient: every structured arm tied the MLP control, forced "
+                "compute depth did not improve quality, and learned halting showed no depth-sensitivity "
+                "(or a constant/degenerate channel). G0-H passed (the substrate has real, measured "
+                "oracle headroom) and the I/O contract exposes genuine sequence/graph/product-graph "
+                "structure to every arm identically -- so this is not an I/O-starvation or "
+                "headroom-absence artifact. Per the pre-registered G3 text: 'learned planning heuristics "
+                "are architecture-agnostic' graduates to a strong publishable claim on this substrate. "
+                "The architecture chapter of this program is closed; the next thrust is the "
+                "transfer+integration paper."
+            )
+        elif g1_positive and g2a_positive and g2b_positive:
+            lines.append(
+                "All three gates came back positive: >=1 structured arm beats the MLP control with a "
+                "monotone, statistically-separated dose-response in mission depth (G1); forced compute "
+                "depth improves quality monotonically with a clear k=1-vs-k=8 separation (G2a); and "
+                "learned halting correlates positively with mission depth at q < 0.05 (G2b). The "
+                "hierarchy/iterative-compute thesis lives on this substrate -- structure is not "
+                "architecture-agnostic here, and depth-of-compute is a real, learned mechanism, not "
+                "noise. Per the decision rule: invest in the high-DOF substrate (S1) next."
+            )
+        else:
+            fired = []
+            if g1_positive:
+                fired.append("G1 (structure dose-response)")
+            if g2a_positive:
+                fired.append("G2a (forced-segment quality curve)")
+            if g2b_positive:
+                fired.append("G2b (halting-vs-depth correlation)")
+            not_fired = [g for g in ("G1", "G2a", "G2b") if not any(g in f for f in fired)]
+            lines.append(
+                f"Mixed result: {', '.join(fired)} came back positive, while "
+                f"{', '.join(not_fired) if not_fired else 'no other gate'} did not. This is not the "
+                "clean all-tie the G3 architecture-agnostic text describes, nor the clean all-positive "
+                "hierarchy-thesis-lives text -- the honest reading is partial signal: at least one "
+                "mechanism (structure and/or iterative compute) shows a real, statistically-supported "
+                "effect on this substrate, but not every pre-registered gate agrees. This warrants "
+                "targeted follow-up on the SPECIFIC gate(s) that fired (e.g. a scaled-arm addendum "
+                "focused on the positive arm/mechanism) before either closing the architecture chapter "
+                "or fully committing to the high-DOF substrate."
+            )
     lines.append("")
 
     # -- Caveats (standing list, requirement 4).
@@ -3179,6 +3236,15 @@ def write_results_doc(g1_analysis: dict, k0: dict, g1: dict, g2: dict, g2b: dict
         "any learned arm is expected to reach."
     )
     lines.append("")
+
+    # -- Diagnosis addendum (optional, VERBATIM): the injection point for
+    # the hand-authored post-diagnosis interpretation -- this writer never
+    # generates its content, only hosts it (see the docstring).
+    if addendum_md is not None:
+        lines.append("## Diagnosis addendum")
+        lines.append("")
+        lines.append(addendum_md)
+        lines.append("")
 
     out_path = Path(path)
     C.ensure_dir(out_path.parent)
@@ -3288,30 +3354,42 @@ def _assemble_analysis(out_dir: str, cfg: C11MissionConfig) -> dict:
     meta = {
         "date": time.strftime("%Y-%m-%d"),
         "branch": _current_git_branch(),
-        "spec_path": "docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md",
-        "plan_path": "docs/superpowers/plans/2026-07-07-c11-mission.md",
+        "spec_path": "docs/experiments/continuous/c11/design/2026-07-07-c11-compositional-mission-design.md",
+        "plan_path": "docs/experiments/continuous/c11/plans/2026-07-07-c11-mission.md",
         "param_counts": _manifest_param_counts(out_path),
     }
 
     return {"g1_analysis": g1_analysis, "k0": k0, "g1": g1, "g2": g2, "g2a": g2a, "g2b": g2b, "meta": meta}
 
 
-def run_analyze(out_dir: str, cfg: Optional[C11MissionConfig] = None) -> dict:
+def run_analyze(out_dir: str, cfg: Optional[C11MissionConfig] = None,
+                addendum_path: Optional[str] = None) -> dict:
     """Assembles the full analysis (`_assemble_analysis`) and writes
     `write_results_doc(...)` to `{out_dir}/C11_RESULTS.md` (an
     out_dir-scoped path -- NEVER the canonical repo path; only the CLI's
     `--canonical-results` flag writes there, via a SEPARATE explicit call
     after this one, per requirement 4/the probe's clobber lesson). Prints
     the three gate verdict lines (K=0 continuity / G1 / G2a+G2b) and
-    returns `{"k0": k0, "g1": g1, "g2a": g2a, "g2b": g2b}`."""
+    returns `{"k0": k0, "g1": g1, "g2a": g2a, "g2b": g2b}`.
+
+    `addendum_path` (optional; the CLI's `--addendum`): path to a
+    hand-authored markdown file whose CONTENT is injected verbatim as the
+    doc's final `## Diagnosis addendum` section (see `write_results_doc`).
+    A nonexistent path raises loudly (FileNotFoundError) -- silently
+    skipping a requested addendum would be the clobber-lesson class of
+    bug in reverse (a doc of record missing the interpretation the caller
+    explicitly asked to attach)."""
     cfg = cfg or C11MissionConfig()
     out_path = Path(out_dir)
+
+    addendum_md = Path(addendum_path).read_text(encoding="utf-8") if addendum_path else None
 
     a = _assemble_analysis(out_dir, cfg)
     k0, g1, g2, g2a, g2b = a["k0"], a["g1"], a["g2"], a["g2a"], a["g2b"]
 
     results_path = out_path / "C11_RESULTS.md"
-    write_results_doc(a["g1_analysis"], k0, g1, g2, g2b, a["meta"], str(results_path))
+    write_results_doc(a["g1_analysis"], k0, g1, g2, g2b, a["meta"], str(results_path),
+                       addendum_md=addendum_md)
 
     k0_line = f"[c11-mission analyze] K=0 continuity: {'PASS' if k0['pass'] else 'FAIL'}"
     g1_line = f"[c11-mission analyze] G1 verdict: {'positive' if g1['positive'] else 'negative'}"
@@ -3403,7 +3481,8 @@ except ImportError:
 def run_full(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: Sequence[int],
              cfg: Optional[C11MissionConfig] = None, n_train_worlds: Optional[int] = None,
              n_test_worlds: Optional[int] = None, epochs: Optional[int] = None,
-             budgets: Optional[Sequence[int]] = None) -> None:
+             budgets: Optional[Sequence[int]] = None,
+             addendum_path: Optional[str] = None) -> None:
     """Collect (implicit) -> `run_train` -> `run_eval` -> `run_analyze`, all
     resume-friendly (every stage's own existing skip logic: `run_train`
     skips a (arm, cell, seed) whose checkpoint already exists; `run_eval`
@@ -3430,14 +3509,17 @@ def run_full(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: Se
     Writes everything `run_train`/`run_eval`/`run_analyze` write, under
     `out_dir`; the results doc is `{out_dir}/C11_RESULTS.md` -- NEVER the
     canonical repo path (that is exclusively the CLI's `--canonical-results`
-    flag's job, applied as a SEPARATE call after this function returns)."""
+    flag's job, applied as a SEPARATE call after this function returns).
+    `addendum_path` is threaded straight to `run_analyze` (same contract),
+    so `--mode full --addendum <file>` attaches the addendum to the
+    out_dir copy too, not only the flag-gated canonical one."""
     cfg = cfg or C11MissionConfig()
 
     run_train(out_dir, arms=arms, cells=cells, seeds=seeds, cfg=cfg,
                n_train_worlds=n_train_worlds, epochs=epochs)
     run_eval(out_dir, cells=cells, cfg=cfg, n_test_worlds=n_test_worlds,
               budgets=budgets, arms=None)
-    run_analyze(out_dir, cfg)
+    run_analyze(out_dir, cfg, addendum_path=addendum_path)
 
 
 # ---------------------------------------------------------------------------
@@ -3445,7 +3527,7 @@ def run_full(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: Se
 # ---------------------------------------------------------------------------
 #
 # `--mode train|eval|analyze|full`; `--canonical-results` (analyze/full
-# only -- writes ADDITIONALLY to the module-dir-anchored canonical
+# only -- writes ADDITIONALLY to the canonical experiment-documentation
 # `C11_RESULTS.md`, never in place of the out_dir copy); `--scale-preset
 # smoke|local` (train/full only -- overrides n_train_worlds/n_test_worlds/
 # epochs/budgets/cells/arms with the pre-registered small or full grid,
@@ -3537,9 +3619,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--scale-preset", choices=["smoke", "local"], default=None)
     parser.add_argument(
         "--canonical-results", action="store_true",
-        help="Additionally write C11_RESULTS.md to the canonical module-dir path "
-             "(hrm-cloud/continuous_prm/C11_RESULTS.md). ONLY this flag ever writes "
+        help="Additionally write C11_RESULTS.md to the canonical documentation path "
+             "(docs/experiments/continuous/c11/results/C11_RESULTS.md). ONLY this flag ever writes "
              "there -- analyze/full otherwise write exclusively under --out-dir.",
+    )
+    parser.add_argument(
+        "--addendum", default=None,
+        help="Path to a hand-authored markdown file injected VERBATIM as a final "
+             "'## Diagnosis addendum' section of C11_RESULTS.md (analyze/full modes; "
+             "applies to the out_dir copy AND, with --canonical-results, the canonical "
+             "copy). The intended carrier for the post-diagnosis interpretation after "
+             "a K=0 continuity failure.",
     )
     args = parser.parse_args(argv)
 
@@ -3586,20 +3676,29 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         run_eval(args.out_dir, cells=cells, cfg=cfg, n_test_worlds=n_test_worlds,
                   budgets=budgets, arms=arms)
     elif args.mode == "analyze":
-        run_analyze(args.out_dir, cfg)
+        run_analyze(args.out_dir, cfg, addendum_path=args.addendum)
         if args.canonical_results:
-            canonical_path = Path(__file__).resolve().parent / "C11_RESULTS.md"
-            _rerun_write_results_doc_at(args.out_dir, cfg, str(canonical_path))
+            canonical_path = (
+                Path(__file__).resolve().parents[2]
+                / "docs" / "experiments" / "continuous" / "c11" / "results" / "C11_RESULTS.md"
+            )
+            _rerun_write_results_doc_at(args.out_dir, cfg, str(canonical_path),
+                                         addendum_path=args.addendum)
     elif args.mode == "full":
         run_full(args.out_dir, arms=arms, cells=cells, seeds=seeds, cfg=cfg,
                   n_train_worlds=n_train_worlds, n_test_worlds=n_test_worlds,
-                  epochs=epochs, budgets=budgets)
+                  epochs=epochs, budgets=budgets, addendum_path=args.addendum)
         if args.canonical_results:
-            canonical_path = Path(__file__).resolve().parent / "C11_RESULTS.md"
-            _rerun_write_results_doc_at(args.out_dir, cfg, str(canonical_path))
+            canonical_path = (
+                Path(__file__).resolve().parents[2]
+                / "docs" / "experiments" / "continuous" / "c11" / "results" / "C11_RESULTS.md"
+            )
+            _rerun_write_results_doc_at(args.out_dir, cfg, str(canonical_path),
+                                         addendum_path=args.addendum)
 
 
-def _rerun_write_results_doc_at(out_dir: str, cfg: C11MissionConfig, path: str) -> None:
+def _rerun_write_results_doc_at(out_dir: str, cfg: C11MissionConfig, path: str,
+                                 addendum_path: Optional[str] = None) -> None:
     """Regenerate the results doc at an ADDITIONAL `path` from the SAME
     already-written `out_dir` artifacts `run_analyze` just produced, via
     the shared `_assemble_analysis` core (byte-identical analysis to what
@@ -3611,9 +3710,13 @@ def _rerun_write_results_doc_at(out_dir: str, cfg: C11MissionConfig, path: str) 
     keeping the CANONICAL-path write behind ITS OWN explicit call site
     here, one level up, guarded by `--canonical-results` alone -- the same
     two-call-site split `main`'s own `--probe` branch uses for
-    `run_probe`)."""
+    `run_probe`). `addendum_path`: same contract as `run_analyze`'s (the
+    CLI passes the SAME `--addendum` to both call sites, so the canonical
+    copy and the out_dir copy carry the same addendum)."""
+    addendum_md = Path(addendum_path).read_text(encoding="utf-8") if addendum_path else None
     a = _assemble_analysis(out_dir, cfg)
-    write_results_doc(a["g1_analysis"], a["k0"], a["g1"], a["g2"], a["g2b"], a["meta"], path)
+    write_results_doc(a["g1_analysis"], a["k0"], a["g1"], a["g2"], a["g2b"], a["meta"], path,
+                       addendum_md=addendum_md)
     print(f"[c11-mission analyze] wrote canonical results doc: {path}", flush=True)
 
 
