@@ -940,6 +940,65 @@ _HRM_TRACE_HIDDEN = 224
 _ONLSTM_TRACE_HIDDEN = 256
 
 # ---------------------------------------------------------------------------
+# Task 10: scaled-addendum big arms (`unet_film_big` / `hrm_trace_big`).
+#
+# Per the C11_RESULTS.md diagnosis addendum's "Provenance" paragraph: the
+# scaled addendum (T10) re-runs the BEST (unet_film) and WORST (hrm_trace)
+# matched-scale arms at ~10-20M params, on config A at K in {2, 8}, 3 seeds,
+# to test whether scale (a) changes the shallow-K ranking or (b) escapes
+# the hrm_trace training-collapse attractor observed at matched scale (A8/
+# C8 collapsed to constant cap-predictions -- see the addendum's Finding 2).
+#
+# BOTH big arms are registered as FIRST-CLASS arm names -- own tuple
+# `BIG_ARM_NAMES` (kept SEPARATE from `ARM_NAMES`, deliberately NOT
+# appended to it: `ARM_NAMES` backs `_default_full_arms()`, which
+# `--scale-preset local`/the CLI's default `--arms` both consume, and the
+# `_big` arms must NEVER leak into the matched grid) -- dispatched inside
+# `build_arm`/`_forward_arm_batch` by an explicit `arm_name ==
+# "..._big"`/`in (..., "..._big")` branch alongside the 5 matched natives'
+# own branches. Training rides `_resolve_trainer`'s EXISTING fallback path
+# for free: `arm_name in ARM_NAMES` is False for a `_big` name and
+# `PROVIDER_BUILDERS.get(arm_name)` is also `None` (big arms are not
+# registry entries), so `_resolve_trainer` already returns `train_arm`
+# unchanged via its final "unknown name -- let train_arm/build_arm raise"
+# branch -- and `train_arm` itself only ever calls `build_arm(arm_name,
+# cfg)` internally, which DOES know these two names. No edit to
+# `_resolve_trainer`/`ARM_NAMES` itself was needed or made.
+#
+# This shape -- new arm NAMES, not a `C11MissionConfig.arm_scale` flag
+# threaded through `build_arm` -- was chosen because `_ckpt_key`'s format
+# string (`{arm}__{config_label}{K}__s{seed}`) already derives its
+# checkpoint/manifest key purely from `arm_name`, so a `_big`-suffixed NAME
+# gives the spec's required distinct, non-colliding key for free -- no
+# separate suffix-injection parameter to keep in sync across
+# `run_train`/`run_eval`/the manifest schema, and `build_arm(name)`'s
+# signature stays unchanged. The ONLY two arms with a big variant are
+# unet_film and hrm_trace (spec: "ONLY these two arms support 'big'"); any
+# other `*_big` name (e.g. `mlp_big`) falls straight through to
+# `build_arm`'s existing "unknown arm name" ValueError -- no special
+# rejection branch is needed, since these names were simply never wired in.
+#
+# unet_film_big: `base=64` (same FiLM structure as the matched arm, just a
+# wider `UNetFiLMField.base` -- spec's literal "base=96" example overshoots
+# the [10e6, 20e6] band by ~67% (33.3M params measured directly); base=64
+# lands mid-band at 14,824,161 params, verified by
+# `test_big_arm_constructors_and_param_counts`).
+#
+# hrm_trace_big: `hidden_dim=512` (BackboneConfig), `head_hidden=512`
+# (scaled up from the matched arm's 256 in step with hidden_dim -- an
+# unscaled 256-wide head would be a bottleneck relative to a 512-wide
+# backbone), `num_layers=2` unchanged per spec ("num_layers stays 2").
+# Spec's literal "start H=640" also overshoots the band (23.2M measured);
+# H=512 lands mid-band at 15,015,937 params -- both big arms land within
+# ~200K params of each other, a deliberately close pairing so the T10
+# scaled comparison isn't confounded by one arm getting a much bigger
+# compute/capacity budget than the other.
+BIG_ARM_NAMES: Tuple[str, ...] = ("unet_film_big", "hrm_trace_big")
+_UNET_FILM_BIG_BASE = 64
+_HRM_TRACE_BIG_HIDDEN = 512
+_HRM_TRACE_BIG_HEAD_HIDDEN = 512
+
+# ---------------------------------------------------------------------------
 # Task 4: provider registry (defined here, ahead of `build_arm`, so
 # `build_arm` itself can fall back to it -- see `build_arm`'s final branch).
 # ---------------------------------------------------------------------------
@@ -1063,10 +1122,26 @@ def build_arm(name: str, cfg: C11MissionConfig) -> nn.Module:
             num_layers=2, chunk_size=8, head_hidden=256,
         )
         return C.ContinuousHeuristicModel(backbone_cfg, token_dim=cfg.token_dim, max_norm_residual=cfg.residual_cap)
+    if name == "unet_film_big":
+        # Task 10 scaled addendum -- same FiLM structure as "unet_film",
+        # just a wider base (see BIG_ARM_NAMES block above for the exact
+        # param-count derivation).
+        return UNetFiLMField(cfg, base=_UNET_FILM_BIG_BASE)
+    if name == "hrm_trace_big":
+        # Task 10 scaled addendum -- same hrm backbone_type/num_layers=2 as
+        # "hrm_trace", raised hidden_dim (+ head_hidden scaled in step).
+        backbone_cfg = C.BackboneConfig(
+            name="hrm_trace_big", backbone_type="hrm", hidden_dim=_HRM_TRACE_BIG_HIDDEN,
+            num_layers=2, k_step=2, num_heads=4, chunk_size=8, head_hidden=_HRM_TRACE_BIG_HEAD_HIDDEN,
+        )
+        return C.ContinuousHeuristicModel(backbone_cfg, token_dim=cfg.token_dim, max_norm_residual=cfg.residual_cap)
     entry = PROVIDER_BUILDERS.get(name)
     if entry is not None:
         return entry["build"](cfg)
-    raise ValueError(f"unknown arm name {name!r}; expected one of {ARM_NAMES} or a registered provider builder")
+    raise ValueError(
+        f"unknown arm name {name!r}; expected one of {ARM_NAMES}, {BIG_ARM_NAMES}, "
+        f"or a registered provider builder"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1215,9 +1290,20 @@ def _forward_arm_batch(arm_name: str, model: nn.Module, bundle: WorldBundle,
     branch that makes the registry contract hold END-TO-END: without it,
     `make_provider`'s reconstruction succeeds but the returned provider
     crashes here on its first bundle (T4-review Important 1)."""
-    if arm_name in ("mlp", "hrm_trace", "onlstm_trace"):
+    if arm_name in ("mlp", "hrm_trace", "onlstm_trace", "hrm_trace_big"):
+        # hrm_trace_big (Task 10) is, like hrm_trace/onlstm_trace, a
+        # ContinuousHeuristicModel fed the padded trace sequence directly --
+        # `_forward_mlp_or_trace`'s trace-token branch (its final 3 lines,
+        # reached whenever arm_name != "mlp") is already architecture-
+        # generic, so no new branch is needed inside that helper itself.
         return _forward_mlp_or_trace(arm_name, model, bundle, states, cfg, device)
-    if arm_name == "unet_film":
+    if arm_name in ("unet_film", "unet_film_big"):
+        # unet_film_big (Task 10) reuses the SAME `_forward_unet_film` path
+        # (its own signature is architecture-generic -- it only calls
+        # `model(grids_t, stage_ids_t)`, which works identically for a
+        # wider-`base` UNetFiLMField) and the SAME post-gather clamp
+        # convention as the matched arm (see this function's own docstring
+        # on why the clamp lives here, not inside UNetFiLMField.forward).
         raw = _forward_unet_film(model, bundle, states, cfg, device)
         return _softplus_clamp(raw, cap=cfg.residual_cap)
     if arm_name == "gnn":
@@ -1225,7 +1311,10 @@ def _forward_arm_batch(arm_name: str, model: nn.Module, bundle: WorldBundle,
     entry = PROVIDER_BUILDERS.get(arm_name)
     if entry is not None:
         return entry["forward_batch"](model, bundle, states, cfg, device)
-    raise ValueError(f"unknown arm name {arm_name!r}; expected one of {ARM_NAMES} or a registered provider builder")
+    raise ValueError(
+        f"unknown arm name {arm_name!r}; expected one of {ARM_NAMES}, {BIG_ARM_NAMES}, "
+        f"or a registered provider builder"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3283,6 +3372,32 @@ def _read_csv_rows(path: Path) -> List[dict]:
         return list(csv.DictReader(f))
 
 
+def _is_g1_eligible_arm(arm_name: str) -> bool:
+    """True iff `arm_name` is allowed to reach `analyze`/G1 (the
+    pre-registered BH family). Excludes two DISTINCT arm families, both of
+    which exist to ride the SAME eval CSV as the G1 arms without diluting
+    G1's own statistics:
+
+      - forced-k HRM-v2 diagnostics (`hrmv2_act_k1`/`_k2`/`_k4`/`_k8`,
+        prefix `"hrmv2_act_k"`) -- G2-only, per `G1_STRUCTURED_ARM_NAMES`'s
+        own docstring.
+      - Task 10 scaled-addendum arms (`unet_film_big`/`hrm_trace_big`,
+        suffix `"_big"`) -- an addendum comparing scale within EACH of
+        those two arms, never new participants in the matched-scale G1
+        dose-response family (`G1_STRUCTURED_ARM_NAMES` never contains
+        either name -- see that tuple's own big-arm exclusion note).
+
+    A single shared predicate (rather than two separate `not
+    ...startswith(...)` / `not ...endswith(...)` clauses inlined at every
+    call site) so a future third excluded family only needs ONE edit."""
+    name = str(arm_name)
+    if name.startswith("hrmv2_act_k"):
+        return False
+    if name.endswith("_big"):
+        return False
+    return True
+
+
 def _assemble_analysis(out_dir: str, cfg: C11MissionConfig) -> dict:
     """Shared read+analyze core for `run_analyze` and the CLI's
     `--canonical-results` re-write path (`_rerun_write_results_doc_at`) --
@@ -3305,11 +3420,15 @@ def _assemble_analysis(out_dir: str, cfg: C11MissionConfig) -> dict:
     `g2_analysis` never do this themselves (per their own docstrings).
 
     BH-family scoping (review-derived integration requirement 1, MANDATORY):
-    filters `records` to `g1_records = [r for r in records if not
-    str(r["arm"]).startswith("hrmv2_act_k")]` BEFORE calling `analyze` --
-    the forced-k diagnostic rows would otherwise dilute the pre-registered
-    BH family from 5 structured arms to 9. The UNFILTERED `records` (forced-
-    k rows included) go to `g2_analysis`, which is their only consumer.
+    filters `records` to `g1_records = [r for r in records if
+    _is_g1_eligible_arm(r["arm"])]` BEFORE calling `analyze` -- the
+    forced-k diagnostic rows would otherwise dilute the pre-registered BH
+    family from 5 structured arms to 9, and (Task 10) the scaled-addendum
+    `*_big` rows would otherwise inject 2 NEW arms the pre-registered G1
+    family never accounted for. The UNFILTERED `records` (forced-k AND
+    `_big` rows included) go to `g2_analysis`/every other consumer --
+    `_is_g1_eligible_arm` scopes ONLY the analyze/G1 call below, per
+    `_is_g1_eligible_arm`'s own docstring.
 
     Returns `{"g1_analysis", "k0", "g1", "g2", "g2a", "g2b", "meta"}` --
     everything `write_results_doc` needs, plus the meta dict (date/branch/
@@ -3330,8 +3449,10 @@ def _assemble_analysis(out_dir: str, cfg: C11MissionConfig) -> dict:
     mae_path = out_path / "results" / "c11_state_mae.csv"
     mae_rows = _read_csv_rows(mae_path) if mae_path.exists() else []
 
-    # -- Requirement 1: forced-k rows NEVER reach analyze/G1.
-    g1_records = [r for r in records if not str(r["arm"]).startswith("hrmv2_act_k")]
+    # -- Requirement 1 (+ Task 10 extension): forced-k rows AND `_big`
+    # scaled-addendum rows NEVER reach analyze/G1 -- see
+    # `_is_g1_eligible_arm`'s own docstring for both excluded families.
+    g1_records = [r for r in records if _is_g1_eligible_arm(r["arm"])]
 
     g1_analysis = analyze(g1_records, binding, cfg)
     k0 = k0_continuity(g1_analysis)
@@ -3529,10 +3650,11 @@ def run_full(out_dir: str, arms: Sequence[str], cells: Sequence[dict], seeds: Se
 # `--mode train|eval|analyze|full`; `--canonical-results` (analyze/full
 # only -- writes ADDITIONALLY to the canonical experiment-documentation
 # `C11_RESULTS.md`, never in place of the out_dir copy); `--scale-preset
-# smoke|local` (train/full only -- overrides n_train_worlds/n_test_worlds/
-# epochs/budgets/cells/arms with the pre-registered small or full grid,
-# each individually still overridable by an explicit flag of the same
-# name, per `_resolve_scale_preset`'s own "explicit flag wins" contract).
+# smoke|local|big` (train/full only -- overrides n_train_worlds/
+# n_test_worlds/epochs/budgets/cells/arms with the pre-registered small,
+# full, or Task-10-scaled-addendum grid, each individually still
+# overridable by an explicit flag of the same name, per
+# `_resolve_scale_preset`'s own "explicit flag wins" contract).
 
 def _parse_csv_arg(s: str) -> List[str]:
     return [t.strip() for t in str(s).split(",") if t.strip()]
@@ -3568,7 +3690,7 @@ def _default_full_arms() -> Tuple[str, ...]:
 
 
 def _resolve_scale_preset(name: str, cfg: Optional[C11MissionConfig] = None) -> dict:
-    """Resolve `--scale-preset smoke|local` into a dict of run-parameter
+    """Resolve `--scale-preset smoke|local|big` into a dict of run-parameter
     overrides: `{"n_train_worlds", "n_test_worlds", "epochs", "budgets",
     "arms", "cells"}`.
 
@@ -3580,7 +3702,23 @@ def _resolve_scale_preset(name: str, cfg: Optional[C11MissionConfig] = None) -> 
     `local`: the full pre-registered grid -- every field pulled straight
     from `cfg` (`n_train_worlds`, `n_test_worlds`, `epochs`,
     `budgets_grid`), `cells` = the full 11-cell `build_cell_grid()`, `arms`
-    = `_default_full_arms()` (5 natives + `hrmv2_act` if registered)."""
+    = `_default_full_arms()` (5 natives + `hrmv2_act` if registered).
+
+    `big` (Task 10 scaled addendum): cells restricted to config A at K in
+    {2, 8} ONLY (the two pre-registered addendum cells -- a shallow-K cell
+    (K=2) and the collapse cell (K=8, where hrm_trace collapsed to constant
+    cap-predictions at matched scale, per the diagnosis addendum's Finding
+    2), arms = `BIG_ARM_NAMES` (`unet_film_big`, `hrm_trace_big`) ONLY --
+    NEVER blended with the matched natives (the matched arms already have
+    their own results; this preset exists to answer "does scale change the
+    ranking/escape the collapse" for exactly these two arms, at exactly
+    these two cells). `n_train_worlds`/`n_test_worlds`/`epochs`/`budgets`
+    are the FULL pre-registered values from `cfg` (same recipe scale as
+    `local` -- only the arm width/depth and the arm+cell selection differ,
+    per the task spec: 'same recipe, same TEST cells'). Seeds are NOT part
+    of this dict (as with `smoke`/`local`) -- the CLI's own `--seeds`
+    default (`0,1,2`) already matches the addendum's pre-registered 3
+    seeds, so no preset-level override is needed."""
     cfg = cfg or C11MissionConfig()
     if name == "smoke":
         smoke_cells = [c for c in build_cell_grid(cfg) if c["config_label"] == "A" and c["K"] in (0, 2)]
@@ -3601,7 +3739,17 @@ def _resolve_scale_preset(name: str, cfg: Optional[C11MissionConfig] = None) -> 
             "arms": _default_full_arms(),
             "cells": build_cell_grid(cfg),
         }
-    raise ValueError(f"unknown scale preset {name!r}; expected 'smoke' or 'local'")
+    if name == "big":
+        big_cells = [c for c in build_cell_grid(cfg) if c["config_label"] == "A" and c["K"] in (2, 8)]
+        return {
+            "n_train_worlds": cfg.n_train_worlds,
+            "n_test_worlds": cfg.n_test_worlds,
+            "epochs": cfg.epochs,
+            "budgets": tuple(cfg.budgets_grid),
+            "arms": BIG_ARM_NAMES,
+            "cells": big_cells,
+        }
+    raise ValueError(f"unknown scale preset {name!r}; expected 'smoke', 'local', or 'big'")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
@@ -3616,7 +3764,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument("--n-train-worlds", type=int, default=None)
     parser.add_argument("--n-test-worlds", type=int, default=None)
     parser.add_argument("--budgets", default=None)
-    parser.add_argument("--scale-preset", choices=["smoke", "local"], default=None)
+    parser.add_argument("--scale-preset", choices=["smoke", "local", "big"], default=None)
     parser.add_argument(
         "--canonical-results", action="store_true",
         help="Additionally write C11_RESULTS.md to the canonical documentation path "

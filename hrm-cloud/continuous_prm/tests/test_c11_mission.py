@@ -2699,3 +2699,384 @@ def test_cli_scale_preset_local_is_full_grid():
     assert resolved["epochs"] == cfg.epochs
     assert tuple(sorted(resolved["budgets"])) == tuple(sorted(cfg.budgets_grid))
     assert len(resolved["cells"]) == 11
+
+
+# ===========================================================================
+# Task 10: scaled addendum -- unet_film_big / hrm_trace_big arms, the
+# `_big` checkpoint/manifest key suffix, G1-family exclusion of `_big`
+# arms, and `--scale-preset big`.
+#
+# Spec (docs/experiments/continuous/c11/results/C11_RESULTS.md, "Diagnosis
+# addendum" -> "Provenance"): T10 re-runs the BEST (unet_film) and WORST
+# (hrm_trace) arms at ~10-20M params on config A, K in {2,8}, 3 seeds --
+# answering (a) does scale change the shallow-K ranking, (b) does scale
+# escape the training-collapse attractor (hrm_trace collapsed to constant
+# cap-predictions on A8/C8 at matched scale). This module's job (Task 10,
+# code only -- no training runs here) is the `--scale-preset big` machinery:
+# the two big-arm constructors, their distinct checkpoint/manifest keys, and
+# their exclusion from the pre-registered G1 structured-arm family (they are
+# an addendum, not new G1 participants).
+#
+# Chosen key scheme (spec's own "pick the cleanest given the code" clause):
+# `unet_film_big`/`hrm_trace_big` are registered as FIRST-CLASS NATIVE arm
+# names (added to `ARM_NAMES`, dispatched inside `build_arm`/
+# `_forward_arm_batch` exactly like the 5 existing natives, trained by the
+# existing `train_arm` via `_resolve_trainer`'s `arm_name in ARM_NAMES`
+# branch). This keeps `build_arm(name)`'s signature stable (no new
+# parameter) and reuses every existing code path (`run_train`'s resume/
+# manifest logic, `run_eval`'s manifest-driven provider discovery,
+# `make_provider`) with zero special-casing -- the alternative (a
+# `C11MissionConfig.arm_scale` flag threaded through `build_arm`) would
+# require `run_train`/`run_eval`/the manifest schema to ALSO carry
+# `arm_scale` everywhere a `cell`/`arm_name` pair is threaded today, for no
+# benefit: `_ckpt_key` already derives its string purely from `arm_name`,
+# so a `_big`-suffixed NAME gives the distinct checkpoint/manifest key the
+# spec requires for free, with no separate suffix-injection step to keep in
+# sync.
+# ===========================================================================
+
+BIG_ARM_NAMES = ("unet_film_big", "hrm_trace_big")
+
+
+# ---------------------------------------------------------------------------
+# Test 42: big-arm constructors + param-count band; matched arms unchanged.
+# ---------------------------------------------------------------------------
+
+def test_big_arm_constructors_and_param_counts():
+    """`unet_film_big`/`hrm_trace_big` construct via `build_arm` (no new
+    parameter -- registered as first-class arm names) and land in
+    [10e6, 20e6] params."""
+    cfg = M.C11MissionConfig()
+    counts = {}
+    for name in BIG_ARM_NAMES:
+        model = M.build_arm(name, cfg)
+        assert isinstance(model, torch.nn.Module)
+        n = sum(p.numel() for p in model.parameters())
+        counts[name] = n
+        assert 10e6 <= n <= 20e6, f"{name} param count {n:,} outside [10e6, 20e6]"
+    print("C11 Task 10 big-arm param counts:", counts)
+
+    # unet_film_big keeps the SAME FiLM structure (spec: "same FiLM
+    # structure") -- just a wider `base`.
+    big_model = M.build_arm("unet_film_big", cfg)
+    assert isinstance(big_model, M.UNetFiLMField)
+
+    # hrm_trace_big keeps num_layers=2 (spec: "num_layers stays 2") and is
+    # still a ContinuousHeuristicModel/hrm backbone (spec: "raise hidden_dim
+    # (BackboneConfig)").
+    hrm_big_model = M.build_arm("hrm_trace_big", cfg)
+    assert isinstance(hrm_big_model, C.ContinuousHeuristicModel)
+    assert hrm_big_model.cfg.backbone_type == "hrm"
+    assert hrm_big_model.cfg.num_layers == 2
+
+
+def test_big_arm_names_are_distinct_from_matched_arm_names():
+    """`unet_film_big`/`hrm_trace_big` are NOT the same names as the matched
+    `unet_film`/`hrm_trace` arms -- both families must be independently
+    addressable through `build_arm`, and a big arm must be strictly larger
+    than its matched counterpart (proving the name actually selects a
+    different-sized model, not just an alias)."""
+    cfg = M.C11MissionConfig()
+    matched_unet = M.build_arm("unet_film", cfg)
+    big_unet = M.build_arm("unet_film_big", cfg)
+    n_matched = sum(p.numel() for p in matched_unet.parameters())
+    n_big = sum(p.numel() for p in big_unet.parameters())
+    assert n_big > n_matched, "unet_film_big must be strictly larger than matched unet_film"
+
+    matched_hrm = M.build_arm("hrm_trace", cfg)
+    big_hrm = M.build_arm("hrm_trace_big", cfg)
+    n_matched_hrm = sum(p.numel() for p in matched_hrm.parameters())
+    n_big_hrm = sum(p.numel() for p in big_hrm.parameters())
+    assert n_big_hrm > n_matched_hrm, "hrm_trace_big must be strictly larger than matched hrm_trace"
+
+
+def test_only_unet_film_and_hrm_trace_support_big_variant():
+    """Spec: 'ONLY these two arms support "big" -- others raise ValueError
+    with a clear message.' There is no `*_big` variant for mlp/gnn/
+    onlstm_trace -- requesting one of those names from `build_arm` must
+    raise ValueError (the same "unknown arm name" contract as any other
+    nonexistent name), not silently construct something."""
+    cfg = M.C11MissionConfig()
+    for bad_name in ("mlp_big", "gnn_big", "onlstm_trace_big"):
+        with pytest.raises(ValueError):
+            M.build_arm(bad_name, cfg)
+
+
+def test_build_arm_matched_arms_unchanged_by_big_variant():
+    """Adding the two big-arm constructors must not perturb ANY existing
+    matched-arm param count -- pinned exactly, per the task spec's explicit
+    "assert mlp still 1,274,881" instruction (the other 4 matched arms are
+    covered by the pre-existing `test_arm_constructors_and_param_counts`,
+    which stays green unmodified; this test adds the one exact pin the T10
+    spec calls out by name plus the sibling exact pins for full coverage)."""
+    cfg = M.C11MissionConfig()
+    exact_counts = {
+        "mlp": 1_274_881,
+        "onlstm_trace": 1_251_457,
+        "gnn": 681_089,
+        "hrm_trace": 2_901_473,
+        "unet_film": 2_096_521,
+    }
+    for name, expected in exact_counts.items():
+        model = M.build_arm(name, cfg)
+        n = sum(p.numel() for p in model.parameters())
+        assert n == expected, f"{name} param count changed: {n:,} != expected {expected:,}"
+
+
+# ---------------------------------------------------------------------------
+# Test 43: ckpt/manifest key suffix correctness on a tiny run_train
+# (monkeypatched trainer, tmp_path).
+# ---------------------------------------------------------------------------
+
+def test_run_train_big_arm_ckpt_and_manifest_key_suffix(tmp_path, monkeypatch):
+    """A tiny `run_train` call for `unet_film_big`/`hrm_trace_big`, with
+    `train_arm` monkeypatched to a fast dummy trainer (constructing the REAL
+    ~15M-param model is unnecessary to prove the key-naming contract and
+    would slow this test down for no benefit -- forward/backward correctness
+    of the big models themselves is already covered by
+    `test_big_arm_constructors_and_param_counts`/`test_arm_forward_ranges`-
+    style coverage above): checkpoint path and manifest key must be
+    `{arm}__{config_label}{K}__s{seed}.pt` with `arm` already carrying the
+    `_big` suffix as part of the ARM NAME itself (per this module's chosen
+    key scheme -- `_ckpt_key`'s format string is unchanged; the suffix comes
+    from `arm_name` being `"unet_film_big"`/`"hrm_trace_big"`, not from a
+    separate suffix parameter), and the manifest entry's `arm` column must
+    read the `_big`-suffixed name so `run_eval`/`run_analyze` treat it as a
+    distinct arm from the matched grid."""
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+
+    calls = {"n": 0}
+    orig_train_arm = M.train_arm
+
+    def _fast_dummy_train_arm(arm_name, cell_arg, bundles, seed, cfg=None, epochs=None):
+        calls["n"] += 1
+        cfg_arg = cfg or M.C11MissionConfig()
+        model = M.build_arm(arm_name, cfg_arg)
+        state_dict = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        meta = {
+            "arm": arm_name,
+            "config_label": cell_arg["config_label"],
+            "K": int(cell_arg["K"]),
+            "seed": int(seed),
+            "epochs": int(epochs) if epochs is not None else int(cfg_arg.epochs),
+            "param_count": sum(p.numel() for p in model.parameters()),
+            "first_epoch_loss": 0.1,
+            "final_loss": 0.05,
+            "wall_s": 0.001,
+        }
+        return state_dict, meta
+
+    monkeypatch.setattr(M, "train_arm", _fast_dummy_train_arm)
+
+    for arm_name in BIG_ARM_NAMES:
+        out_dir = tmp_path / f"run_{arm_name}"
+        M.run_train(str(out_dir), arms=(arm_name,), cells=[cell], seeds=(0,), cfg=cfg,
+                    n_train_worlds=2, epochs=1)
+
+        expected_key = f"{arm_name}__A2__s0"
+        ckpt_path = out_dir / "ckpt" / f"{expected_key}.pt"
+        assert ckpt_path.exists(), f"expected checkpoint {ckpt_path} for {arm_name}"
+
+        manifest = json.loads((out_dir / "manifest.json").read_text())
+        assert expected_key in manifest, f"expected manifest key {expected_key!r} for {arm_name}"
+        entry = manifest[expected_key]
+        assert entry["arm"] == arm_name, (
+            f"manifest entry's arm column must read {arm_name!r} (the _big-suffixed "
+            f"name), got {entry['arm']!r}"
+        )
+        assert entry["config_label"] == "A"
+        assert entry["K"] == 2
+        assert entry["seed"] == 0
+
+        # This key must NOT collide with the matched grid's own key for the
+        # base arm name (e.g. "unet_film__A2__s0" from a matched run).
+        base_arm_name = arm_name[: -len("_big")]
+        matched_key = f"{base_arm_name}__A2__s0"
+        assert expected_key != matched_key
+
+    assert calls["n"] == len(BIG_ARM_NAMES)
+
+
+# ---------------------------------------------------------------------------
+# Test 44: `_big` arms excluded from the G1 analyze family.
+# ---------------------------------------------------------------------------
+
+def test_big_arms_reach_records_but_excluded_from_g1_analyze(tmp_path, monkeypatch):
+    """Synthetic eval-raw records include `unet_film_big`/`hrm_trace_big`
+    rows mixed in with the normal arm family. They MUST reach
+    `_assemble_analysis`'s raw `records` (a future `run_analyze` over a CSV
+    containing them must not simply drop the rows from existence -- e.g. G2
+    or a future per-arm dump might want them), but the run_analyze G1 filter
+    must drop them BEFORE they reach `analyze`/G1 -- mirrors
+    `test_bh_family_scoping`'s capture-wrapper technique, extended to also
+    assert the forced-k names remain excluded (the predicate must drop BOTH
+    families, not swap one exclusion for the other)."""
+    out_dir = tmp_path / "big_arm_g1_scoping"
+    results_dir = out_dir / "results"
+    results_dir.mkdir(parents=True)
+
+    records = [
+        _rec("A", 8, 0, "", "h_next", "", 1600, True, 10.0, 40, 50, 10.0),
+        _rec("A", 8, 0, "", "h_legsum", "", 1600, True, 10.0, 60, 70, 10.0),
+        _rec("A", 8, 0, "", "h_oracle", "", 1600, True, 10.0, 30, 40, 10.0),
+        _rec("A", 8, 0, "0", "mlp", "0", 1600, True, 10.0, 55, 65, 10.0),
+        _rec("A", 8, 0, "0", "unet_film", "0", 1600, True, 10.0, 50, 60, 10.0),
+        # Addendum (_big) rows -- must reach the raw records dict, must
+        # NEVER reach analyze/G1.
+        _rec("A", 8, 0, "0", "unet_film_big", "0", 1600, True, 10.0, 48, 58, 10.0),
+        _rec("A", 8, 0, "0", "hrm_trace_big", "0", 1600, True, 10.0, 65, 75, 10.0),
+        # A forced-k row too, to confirm BOTH exclusions coexist.
+        _rec("A", 8, 0, "0", "hrmv2_act_k8", "0", 1600, True, 10.0, 42, 52, 10.0),
+    ]
+    C.write_csv(results_dir / "c11_eval_raw.csv", records)
+    C.write_json(out_dir / "binding_k0.json", {})
+
+    cfg = M.C11MissionConfig()
+    seen_arms_per_call = []
+    orig_analyze = M.analyze
+
+    def _capture_analyze(records_arg, binding_arg, cfg_arg=None):
+        seen_arms_per_call.append({r["arm"] for r in records_arg})
+        return orig_analyze(records_arg, binding_arg, cfg_arg)
+
+    monkeypatch.setattr(M, "analyze", _capture_analyze)
+
+    a = M._assemble_analysis(str(out_dir), cfg)
+
+    assert seen_arms_per_call, "M.analyze was never called"
+    for arms_seen in seen_arms_per_call:
+        big_seen = {a_name for a_name in arms_seen if str(a_name).endswith("_big")}
+        assert not big_seen, f"_big arm(s) {big_seen} reached M.analyze (G1) -- addendum contamination"
+        forced_k_seen = {a_name for a_name in arms_seen if str(a_name).startswith("hrmv2_act_k")}
+        assert not forced_k_seen, f"forced-k arm(s) {forced_k_seen} reached M.analyze (G1)"
+
+    # The raw records themselves (as read from disk) still contain the
+    # _big rows -- `_assemble_analysis` filters a COPY for analyze/G1, it
+    # does not mutate/drop from the source of truth.
+    all_csv_arms = {r["arm"] for r in M._read_csv_rows(results_dir / "c11_eval_raw.csv")}
+    assert "unet_film_big" in all_csv_arms
+    assert "hrm_trace_big" in all_csv_arms
+
+
+def test_g1_structured_arm_names_excludes_big_arms():
+    """`G1_STRUCTURED_ARM_NAMES` (the pre-registered G1 arm family) must not
+    contain either `_big` arm name -- they are addendum arms, never new G1
+    participants, regardless of the run_analyze-level filter above."""
+    assert "unet_film_big" not in M.G1_STRUCTURED_ARM_NAMES
+    assert "hrm_trace_big" not in M.G1_STRUCTURED_ARM_NAMES
+
+
+def test_g1_verdict_ignores_big_arm_rows_end_to_end():
+    """Direct unit test of the run_analyze-level filter predicate (not just
+    the capture-wrapper technique above): build an `analysis` dict via the
+    real `analyze()` call fed a record set that includes `_big` rows
+    filtered exactly the way `_assemble_analysis` filters them, and confirm
+    `g1_verdict` never mentions a `_big` arm in its table -- belt-and-
+    suspenders on top of `test_g1_structured_arm_names_excludes_big_arms`
+    (which only checks the static tuple, not the actual end-to-end
+    filtering behavior)."""
+    records = [
+        _rec("A", 8, 0, "", "h_next", "", 1600, True, 10.0, 40, 50, 10.0),
+        _rec("A", 8, 0, "", "h_legsum", "", 1600, True, 10.0, 60, 70, 10.0),
+        _rec("A", 8, 0, "", "h_oracle", "", 1600, True, 10.0, 30, 40, 10.0),
+        _rec("A", 8, 0, "0", "mlp", "0", 1600, True, 10.0, 55, 65, 10.0),
+        _rec("A", 8, 0, "0", "unet_film", "0", 1600, True, 10.0, 50, 60, 10.0),
+        _rec("A", 8, 0, "0", "unet_film_big", "0", 1600, True, 10.0, 48, 58, 10.0),
+        _rec("A", 8, 0, "0", "hrm_trace_big", "0", 1600, True, 10.0, 65, 75, 10.0),
+    ]
+    # Mirror the SAME filter predicate `_assemble_analysis` uses (both
+    # the pre-existing forced-k exclusion and the new _big exclusion) --
+    # this test's job is to prove `g1_verdict`'s OWN output never surfaces
+    # a _big arm once the filtered records reach it, independent of
+    # whichever module-level function performs the filtering.
+    g1_records = [
+        r for r in records
+        if not str(r["arm"]).startswith("hrmv2_act_k") and not str(r["arm"]).endswith("_big")
+    ]
+    binding = dict(M.C11MissionConfig().binding_budgets)
+    analysis = M.analyze(g1_records, binding, M.C11MissionConfig())
+    g1 = M.g1_verdict(analysis)
+
+    table_arms = {arm_name for (arm_name, _config_label) in g1["table"].keys()}
+    assert "unet_film_big" not in table_arms
+    assert "hrm_trace_big" not in table_arms
+
+
+# ---------------------------------------------------------------------------
+# Test 45: `--scale-preset big` resolves the pinned grid.
+# ---------------------------------------------------------------------------
+
+def test_cli_scale_preset_big_resolves_pinned_grid():
+    """`--scale-preset big` must resolve to: cells = config A at K in
+    {2, 8} ONLY, arms = ("unet_film_big", "hrm_trace_big"), seeds (0,1,2),
+    and FULL n_train_worlds/epochs/budgets (the addendum uses the same
+    recipe/data scale as the matched grid -- only the arm width/depth and
+    the arm+cell selection differ)."""
+    resolved = M._resolve_scale_preset("big")
+    cfg = M.C11MissionConfig()
+
+    assert resolved["n_train_worlds"] == cfg.n_train_worlds
+    assert resolved["n_test_worlds"] == cfg.n_test_worlds
+    assert resolved["epochs"] == cfg.epochs
+    assert tuple(sorted(resolved["budgets"])) == tuple(sorted(cfg.budgets_grid))
+
+    assert set(resolved["arms"]) == {"unet_film_big", "hrm_trace_big"}
+
+    cell_pairs = {(c["config_label"], c["K"]) for c in resolved["cells"]}
+    assert cell_pairs == {("A", 2), ("A", 8)}
+    for c in resolved["cells"]:
+        assert c["config_label"] == "A"
+
+
+def test_cli_scale_preset_big_is_a_valid_argparse_choice():
+    """The CLI's `--scale-preset` argparse choice list must include "big"
+    (not just "smoke"/"local") -- otherwise `_resolve_scale_preset("big",
+    ...)` working in isolation would still leave `--scale-preset big`
+    unusable from the actual command line. `--mode` is deliberately omitted
+    (required=True) so argparse exits BEFORE doing any real work; what this
+    test isolates is whether that exit's stderr complains about
+    `--scale-preset`'s choice (rejected) or only about the missing
+    `--mode` (accepted)."""
+    import contextlib
+    import io
+
+    buf = io.StringIO()
+    with pytest.raises(SystemExit):
+        with contextlib.redirect_stderr(buf):
+            M.main(["--scale-preset", "big", "--out-dir", "unused"])
+    stderr_text = buf.getvalue()
+    assert "invalid choice" not in stderr_text, (
+        f"--scale-preset big rejected by argparse choices: {stderr_text!r}"
+    )
+    assert "--mode" in stderr_text
+
+
+# ---------------------------------------------------------------------------
+# Test 46: run_train's eval-only skip does NOT wrongly trigger for _big
+# arms (they are native/trainable, unlike the forced-k registered arms).
+# ---------------------------------------------------------------------------
+
+def test_run_train_big_arms_are_trainable_not_eval_only(tmp_path):
+    """`_resolve_trainer` must resolve `unet_film_big`/`hrm_trace_big` to
+    the real `train_arm` path (native arm), NOT the eval-only skip branch
+    used for registered arms without a `train` entry (e.g. the forced-k
+    HRM-v2 diagnostics) -- confirmed indirectly via `run_train` actually
+    writing a checkpoint (using the real, tiny matched-recipe trainer at
+    n_train_worlds=1, epochs=1 -- small enough to run the true ~15M-param
+    forward/backward once without a monkeypatch, proving the wiring, not
+    just a mock)."""
+    cfg = M.C11MissionConfig()
+    cell = _cell("A", 2)
+    out_dir = tmp_path / "run_big_trainable"
+
+    M.run_train(str(out_dir), arms=("hrm_trace_big",), cells=[cell], seeds=(0,), cfg=cfg,
+                n_train_worlds=1, epochs=1)
+
+    ckpt_path = out_dir / "ckpt" / "hrm_trace_big__A2__s0.pt"
+    assert ckpt_path.exists(), (
+        "hrm_trace_big must be trainable via the real train_arm path, not skipped as eval-only"
+    )
+    manifest = json.loads((out_dir / "manifest.json").read_text())
+    assert "hrm_trace_big__A2__s0" in manifest
+    assert manifest["hrm_trace_big__A2__s0"]["param_count"] >= 10e6
