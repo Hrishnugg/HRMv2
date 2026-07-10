@@ -2562,20 +2562,36 @@ def test_results_doc_writer_addendum_injection(tmp_path):
 def test_canonical_results_tripwire():
     """The repo-level canonical results doc must NEVER be created or
     modified by the test suite -- ONLY the CLI's `--canonical-results`
-    flag writes there (documentation-tree anchored, per requirement 4). Asserts
-    non-existence NOW (this phase has not yet run its canonical local
-    validation pass -- Task 9); if a future run legitimately commits this
-    file, this assertion should be revisited to instead checksum-compare
-    against a known-good committed version (mirroring the probe's own
-    `test_smoke_probe_does_not_clobber_canonical_doc` convention) rather
-    than deleted outright."""
-    canonical_path = (
-        Path(__file__).resolve().parents[3]
-        / "docs" / "experiments" / "continuous" / "c11" / "results" / "C11_RESULTS.md"
+    flag writes there (documentation-tree anchored, per requirement 4).
+
+    Second form (the original docstring's own planned transition, activated
+    once Task 9 legitimately committed the doc at 58ef74c): the working-tree
+    copy must be byte-identical to the committed HEAD version -- any test
+    that writes the canonical path makes them diverge and fails here. Falls
+    back to the original non-existence assert on checkouts where the doc is
+    not yet in HEAD."""
+    import subprocess
+    repo_root = Path(__file__).resolve().parents[3]
+    rel = "docs/experiments/continuous/c11/results/C11_RESULTS.md"
+    canonical_path = repo_root / rel
+    in_head = subprocess.run(
+        ["git", "cat-file", "-e", f"HEAD:{rel}"],
+        cwd=str(repo_root), capture_output=True,
+    ).returncode == 0
+    if not in_head:
+        assert not canonical_path.exists(), (
+            f"{canonical_path} exists but is not in HEAD -- the test suite (or a "
+            f"prior run this session) wrote to the canonical path instead of an "
+            f"out_dir-scoped one"
+        )
+        return
+    diff = subprocess.run(
+        ["git", "diff", "--quiet", "HEAD", "--", rel],
+        cwd=str(repo_root), capture_output=True,
     )
-    assert not canonical_path.exists(), (
-        f"{canonical_path} exists -- the test suite (or some prior run in this "
-        f"session) wrote to the canonical path instead of an out_dir-scoped one"
+    assert diff.returncode == 0, (
+        f"{rel} differs from HEAD -- something in the test suite modified the "
+        f"canonical results doc (only the CLI --canonical-results flag may write it)"
     )
 
 
