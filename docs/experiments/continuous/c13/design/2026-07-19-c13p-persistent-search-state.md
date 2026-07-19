@@ -155,7 +155,7 @@ The teacher is the frozen C13-M static method:
 - one radius-0.20 local Bellman backup;
 - alpha `1.50`;
 - direct no-reopen A* ordering; and
-- deterministic existing adjacency and node-id tie behavior.
+- deterministic existing `(g + rank, g, node_id)` heap ordering.
 
 The teacher is run to a valid returned path. Its priority vector is static
 within a world. Graph shortest-path values are not read during trace generation.
@@ -337,8 +337,8 @@ Development teacher traces are evaluated with:
 
 - `c13p_persistent`;
 - `c13p_reset`, using the identical checkpoint; and
-- `c13m_base_rank`, which ranks the same recorded open set by frozen C13-M
-  `g + rank` with node-id tie-breaking.
+- `c13m_base_rank`, which ranks the same recorded open set by the frozen C13-M
+  tuple `(g + rank, g, node_id)`.
 
 Metrics are frontier cross-entropy, mean reciprocal rank (MRR), top-1 accuracy,
 and positive-node rank percentile. Event metrics are first aggregated within a
@@ -356,7 +356,7 @@ For `persistent` and `reset`:
 4. score every currently open node in one vectorized call;
 5. rebuild the priority queue from those logits; and
 6. pop the maximum-logit node, breaking exact ties by lower frozen C13-M
-   `g + rank` and then lower node id.
+   `g + rank`, then lower `g`, then lower node id.
 
 The queue is rebuilt after every expansion, so no candidate retains a score
 from an older history. Candidate enumeration order cannot influence carry or
