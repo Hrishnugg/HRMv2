@@ -52,7 +52,8 @@ following occurs:
 3. expansion gains require path-quality regressions beyond the locked margins;
 4. the apparent gain depends on forbidden future, full-map, or shortest-path
    information; or
-5. the result is not deterministic under an exact duplicate evaluation.
+5. decision and result fields are not deterministic under a duplicate
+   evaluation.
 
 ## 3. Claim and information boundaries
 
@@ -382,7 +383,8 @@ G0-P passes only if:
 - model-input leakage checks pass;
 - all expected training, validation, and development worlds are present once;
 - both carry modes load the identical checkpoint;
-- duplicate official evaluation produces identical rows; and
+- duplicate official evaluation produces identical decision/result rows after
+  excluding descriptive wall-clock timing fields; and
 - all returned paths are valid.
 
 G0-P failure yields `c13p_invalid_no_mechanism_verdict` and stops all claims.
@@ -475,7 +477,8 @@ The focused suite must cover at least:
     endpoints;
 16. exact source/cache/fingerprint refusal on drift;
 17. resumable training accepts only an identical fingerprint; and
-18. duplicate trace/evaluation artifact equality.
+18. duplicate trace byte equality, duplicate evaluation equality for all
+    deterministic decision/result fields, and finite nonnegative timing fields.
 
 The implementation must also pass the existing C13-N/O focused tests and
 compile without warnings attributable to C13-P.
