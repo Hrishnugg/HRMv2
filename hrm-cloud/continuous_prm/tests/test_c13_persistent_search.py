@@ -912,7 +912,7 @@ def test_overall_verdict_has_frozen_precedence() -> None:
 
 def test_task6_review_empty_open_updates_and_scores_zero_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
     model = P.PersistentSearchHRM(); prepared = _prepared_search_world(2, graph=[[(1, 1.0)], []]); calls: list[int] = []
-    monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: (calls.append(len(embeddings)), torch.empty((len(embeddings),)))[1])
+    monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: (calls.append(len(embeddings)), torch.zeros((len(embeddings),)))[1])
     result = P.dynamic_best_first([[(1, 1.0)], []], prepared, 0, 1, model, "persistent", P.resolve_paths(Path.cwd()))
     assert result.valid and calls == [1]
     empty = P.dynamic_best_first([[], []], _prepared_search_world(2, graph=[[], []]), 0, 1, model, "reset", P.resolve_paths(Path.cwd()))
