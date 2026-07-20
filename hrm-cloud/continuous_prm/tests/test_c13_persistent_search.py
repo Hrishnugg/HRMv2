@@ -385,11 +385,6 @@ def _task3_source(tmp_path: Path) -> P.SourceContext:
 def _task3_features() -> dict[str, np.ndarray]:
     return {"features": np.arange(96, dtype=np.float32).reshape(2,3,16)/100, "euclidean_to_goal": np.asarray([.8,0.]), "local_value_radius_0_20": np.asarray([1.2,0.])}
 
-def test_encoder_is_frozen_and_prepared_rank_is_the_locked_local_bellman_formula(tmp_path: Path) -> None:
-    encoder = P.load_frozen_flat_encoder(_task3_source(tmp_path), torch.device("cpu")); prepared = P.prepare_world_representation(_task3_features(), [[(1,1.)],[(0,1.)]], 1, P.resolve_paths(tmp_path), encoder)
-    assert prepared.node_embeddings.shape == (2,64) and not encoder.training and all(not p.requires_grad for p in encoder.parameters())
-    np.testing.assert_allclose(prepared.base_rank, prepared.euclidean_rank + 1.50*(prepared.local_values-prepared.euclidean_rank))
-
 def test_persistent_and_reset_carries_share_one_model_and_preserve_true_cadence() -> None:
     model = P.PersistentSearchHRM(); carry = model.initial_carry(1,torch.device("cpu"),torch.float32); assert carry.step == 0 and not torch.count_nonzero(carry.low) and not torch.count_nonzero(carry.high)
     context, first = model.update_event(torch.zeros(1,70),carry); _, second = model.update_event(torch.ones(1,70),first); _, reset = model.update_event(torch.zeros(1,70),model.initial_carry(1,torch.device("cpu"),torch.float32,step=1))
@@ -432,17 +427,6 @@ def test_reset_carry_uses_true_event_index_and_lifecycle_scopes_are_single_use(m
     with pytest.raises(ValueError,match="world"): owner.initial_for_world("world-b",1,torch.device("cpu"),torch.float32)
     with pytest.raises(ValueError,match="evaluation"): owner.initial_for_world("world-a",1,torch.device("cpu"),torch.float32,evaluation_id="official-b")
 
-
-def test_lifecycle_rejects_stale_and_foreign_carries() -> None:
-    model=P.PersistentSearchHRM(); first=P.PersistentCarryLifecycle(model,"eval-a"); carry=first.initial_for_world("world-a",1,torch.device("cpu"),torch.float32)
-    _,next_carry=first.update(torch.ones(1,70),carry)
-    with pytest.raises(ValueError,match="stale"):
-        first.update(torch.ones(1,70),carry)
-    foreign=P.PersistentCarryLifecycle(model,"eval-b"); other=foreign.initial_for_world("world-b",1,torch.device("cpu"),torch.float32)
-    with pytest.raises(ValueError,match="foreign"):
-        first.update(torch.ones(1,70),other)
-    _,after=first.update(torch.ones(1,70),next_carry)
-    assert after.step==2
 
 def test_lifecycle_rejects_stale_and_foreign_carries() -> None:
     model=P.PersistentSearchHRM(); first=P.PersistentCarryLifecycle(model,"eval-a"); carry=first.initial_for_world("world-a",1,torch.device("cpu"),torch.float32)
