@@ -607,28 +607,27 @@ def _offline_trace(world_index: int, suite: str, event_count: int) -> P.TeacherT
 
 def _g1_world_metrics(mrr_delta: float, top1_delta: float, positive_suites: int = 6) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
-    for world_index in range(P.DEVELOPMENT_WORLDS):
-        suite = f"suite-{world_index % 6}"
-        suite_delta = mrr_delta if world_index % 6 < positive_suites else -mrr_delta
-        for arm, mrr, top1 in (
-            ("c13p_persistent", 0.50 + suite_delta, 0.40 + top1_delta),
-            ("c13p_reset", 0.50, 0.40),
-            ("c13m_base_rank", 0.25, 0.20),
-        ):
-            rows.append({
-                "aggregation_level": "world", "world_id": f"development/{suite}/{world_index}",
-                "suite": suite, "world_index": world_index, "arm": arm,
-                "reciprocal_rank": mrr, "top1": top1,
-            })
+    for record in _expected_development_registry():
+        suite_index = int(record["suite"].split("-")[1]); suite_delta = mrr_delta if suite_index < positive_suites else -mrr_delta
+        for arm, mrr, top1 in (("c13p_persistent", 0.50 + suite_delta, 0.40 + top1_delta), ("c13p_reset", 0.50, 0.40), ("c13m_base_rank", 0.25, 0.20)):
+            rows.append({**record, "aggregation_level": "world", "world_id": f"development/{record['suite']}/{record['world_index']}", "arm": arm, "reciprocal_rank": mrr, "top1": top1})
     return pd.DataFrame(rows)
 
 
+def _official_offline_traces(event_count: int = 2, long_tail: bool = False) -> tuple[P.TeacherTrace, ...]:
+    traces: list[P.TeacherTrace] = []
+    for ordinal, record in enumerate(_expected_development_registry()):
+        trace = _offline_trace(int(record["world_index"]), str(record["suite"]), 3 if long_tail and ordinal else event_count)
+        traces.append(replace(trace, world_seed=int(record["world_seed"]), roadmap_seed=int(record["roadmap_seed"]), feature_cache_path=str(record["feature_cache_path"]), feature_cache_sha256=str(record["feature_cache_sha256"])))
+    return tuple(traces)
+
+
 def test_offline_arms_use_matched_recorded_frontiers_and_shared_model_audit() -> None:
-    traces = (_offline_trace(0, "alpha", 2), _offline_trace(1, "beta", 3))
+    traces = _official_offline_traces()
     prepared = {P._trace_world_id(trace): _prepared_training_world() for trace in traces}
     model = P.PersistentSearchHRM()
 
-    events, summary = P.evaluate_offline_arms(traces, prepared, model, "a" * 64, P.resolve_paths(Path.cwd()))
+    events, summary = P.evaluate_offline_arms(traces, prepared, model, "a" * 64, P.resolve_paths(Path.cwd()), expected_development=_expected_development_registry())
 
     assert P.OFFLINE_ARMS == ("c13p_persistent", "c13p_reset", "c13m_base_rank")
     assert set(events["arm"]) == set(P.OFFLINE_ARMS)
@@ -645,9 +644,9 @@ def test_offline_arms_use_matched_recorded_frontiers_and_shared_model_audit() ->
 
 
 def test_offline_base_rank_orders_frozen_tuple_and_world_macro_beats_trace_length() -> None:
-    traces = (_offline_trace(0, "alpha", 1), _offline_trace(1, "alpha", 3))
+    traces = _official_offline_traces(event_count=1, long_tail=True)
     prepared = {P._trace_world_id(trace): _prepared_training_world() for trace in traces}
-    events, summary = P.evaluate_offline_arms(traces, prepared, P.PersistentSearchHRM(), "b" * 64, P.resolve_paths(Path.cwd()))
+    events, summary = P.evaluate_offline_arms(traces, prepared, P.PersistentSearchHRM(), "b" * 64, P.resolve_paths(Path.cwd()), expected_development=_expected_development_registry())
 
     base = events[(events["arm"] == "c13m_base_rank") & (events["event_index"] == 0)]
     assert set(base["positive_rank"]) == {1}
@@ -657,24 +656,22 @@ def test_offline_base_rank_orders_frozen_tuple_and_world_macro_beats_trace_lengt
 
 
 def test_world_clustered_bootstrap_samples_only_exactly_twenty_four_paired_worlds() -> None:
-    paired = pd.DataFrame({"world_id": [f"w-{index}" for index in range(24)], "mrr_delta": np.linspace(-0.1, 0.2, 24)})
-    first = P.world_clustered_bootstrap(paired, "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
-    second = P.world_clustered_bootstrap(paired, "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
-
-    assert first == second
-    assert first["n_worlds"] == 24
-    assert first["sample_shape"] == (200, 24)
-    with pytest.raises(ValueError, match="24"):
-        P.world_clustered_bootstrap(paired.iloc[:-1], "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
+    registry = _expected_development_registry()
+    paired = P._g1_paired_world_rows(_g1_world_metrics(0.10, 0.02), expected_development=registry)
+    first = P.world_clustered_bootstrap(paired, "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)
+    second = P.world_clustered_bootstrap(paired, "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)
+    assert first == second and first["n_worlds"] == 24 and first["sample_shape"] == (200, 24)
+    with pytest.raises(ValueError, match="24|identity"):
+        P.world_clustered_bootstrap(paired.iloc[:-1], "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)
     with pytest.raises(ValueError, match="unique"):
-        P.world_clustered_bootstrap(pd.concat((paired, paired.iloc[[0]]), ignore_index=True), "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
+        P.world_clustered_bootstrap(pd.concat((paired, paired.iloc[[0]]), ignore_index=True), "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)
 
 
 def test_g1_boundaries_use_unrounded_paired_world_metrics() -> None:
-    zero = P.g1_verdict(_g1_world_metrics(0.0, 0.02), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
-    below = P.g1_verdict(_g1_world_metrics(0.10, 0.019), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
-    boundary = P.g1_verdict(_g1_world_metrics(0.10, 0.02), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
-    suite_failure = P.g1_verdict(_g1_world_metrics(0.10, 0.02, positive_suites=3), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
+    zero = P.g1_verdict(_g1_world_metrics(0.0, 0.02), P.BOOTSTRAP_SEEDS["g1_mrr"], 200, expected_development=_expected_development_registry())
+    below = P.g1_verdict(_g1_world_metrics(0.10, 0.019), P.BOOTSTRAP_SEEDS["g1_mrr"], 200, expected_development=_expected_development_registry())
+    boundary = P.g1_verdict(_g1_world_metrics(0.10, 0.02), P.BOOTSTRAP_SEEDS["g1_mrr"], 200, expected_development=_expected_development_registry())
+    suite_failure = P.g1_verdict(_g1_world_metrics(0.10, 0.02, positive_suites=3), P.BOOTSTRAP_SEEDS["g1_mrr"], 200, expected_development=_expected_development_registry())
 
     assert zero["pooled_mrr_ci_low"] == 0.0 and zero["verdict"] == "c13p_no_persistent_ranking_signal"
     assert below["pooled_top1_delta"] < 0.02 and below["verdict"] == "c13p_no_persistent_ranking_signal"
@@ -690,4 +687,73 @@ def test_g1_rejects_missing_duplicate_or_unpaired_world_arm_identities() -> None
         metrics.assign(arm=metrics["arm"].replace({"c13m_base_rank": "unexpected"})),
     ):
         with pytest.raises(ValueError, match="pair|arm|unique|complete"):
-            P.g1_verdict(malformed, P.BOOTSTRAP_SEEDS["g1_mrr"], 20)
+            P.g1_verdict(malformed, P.BOOTSTRAP_SEEDS["g1_mrr"], 20, expected_development=_expected_development_registry())
+
+
+def _expected_development_registry() -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for suite_index in range(6):
+        suite = f"suite-{suite_index}"
+        for world_index in range(4):
+            ordinal = suite_index * 4 + world_index
+            records.append({
+                "split": "development", "suite": suite, "world_index": world_index,
+                "world_seed": 1000 + ordinal, "roadmap_seed": 2000 + ordinal,
+                "feature_cache_sha256": f"{ordinal + 1:064x}", "node_count": 2,
+                "edge_count": 1, "feature_cache_path": f"cache-{ordinal}.npz",
+            })
+    return records
+
+
+def test_offline_identity_registry_rejects_noncanonical_duplicate_and_source_drift() -> None:
+    registry = _expected_development_registry()
+    assert len(P.validate_expected_development_registry(registry)) == 24
+    malformed = [
+        registry[:-1],
+        [*registry, dict(registry[0])],
+        [dict(record, split="train") if index == 0 else record for index, record in enumerate(registry)],
+        [dict(record, world_index=9) if index == 0 else record for index, record in enumerate(registry)],
+    ]
+    for candidate in malformed:
+        with pytest.raises(ValueError, match="development|duplicate|24|canonical|suite"):
+            P.validate_expected_development_registry(candidate)
+
+
+def test_offline_summary_rejects_missing_arm_event_and_cross_arm_identity_drift() -> None:
+    registry = _expected_development_registry()
+    rows: list[dict[str, object]] = []
+    for record in registry:
+        for arm in P.OFFLINE_ARMS:
+            rows.append({
+                **record, "world_id": f"development/{record['suite']}/{record['world_index']}",
+                "event_index": 0, "arm": arm, "positive_node": 0, "candidate_count": 2,
+                "candidate_nodes": (0, 1), "checkpoint_sha256": "a" * 64,
+                "model_state_sha256": "b" * 64, "cross_entropy": 1.0,
+                "positive_rank": 1.0, "reciprocal_rank": 1.0, "top1": 1.0,
+                "rank_percentile": 0.0,
+            })
+    events = pd.DataFrame(rows)
+    assert set(P._offline_summary(events, expected_development=registry)["aggregation_level"]) == {"world", "suite", "pooled"}
+    with pytest.raises(ValueError, match="cross-product|arms"):
+        P._offline_summary(events.iloc[:-1], expected_development=registry)
+    drifted = events.copy(); drifted.loc[drifted.index[1], "feature_cache_sha256"] = "c" * 64
+    with pytest.raises(ValueError, match="identity|audit"):
+        P._offline_summary(drifted, expected_development=registry)
+
+
+def test_g1_and_bootstrap_require_the_audited_development_identity_registry() -> None:
+    registry = _expected_development_registry()
+    metrics = _g1_world_metrics(0.10, 0.02)
+    for ordinal, record in enumerate(registry):
+        mask = metrics["world_id"] == f"development/{record['suite']}/{record['world_index']}"
+        metrics.loc[mask, ["world_seed", "roadmap_seed", "feature_cache_sha256", "node_count", "edge_count", "feature_cache_path"]] = (
+            record["world_seed"], record["roadmap_seed"], record["feature_cache_sha256"], record["node_count"], record["edge_count"], record["feature_cache_path"],
+        )
+    assert P.g1_verdict(metrics, P.BOOTSTRAP_SEEDS["g1_mrr"], 100, expected_development=registry)["verdict"] == "c13p_g1_passed"
+    paired = P._g1_paired_world_rows(metrics, expected_development=registry)
+    assert P.world_clustered_bootstrap(paired, "mrr_delta", 100, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)["n_worlds"] == 24
+    arbitrary = paired.copy(); arbitrary["world_id"] = [f"w-{index}" for index in range(24)]
+    wrong_seed = paired.copy(); wrong_seed.loc[0, "world_seed"] = -1
+    for malformed in (arbitrary, wrong_seed):
+        with pytest.raises(ValueError, match="identity|canonical|registry|development"):
+            P.world_clustered_bootstrap(malformed, "mrr_delta", 20, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)

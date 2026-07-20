@@ -1137,6 +1137,66 @@ def evaluate_stationary_split(traces: Sequence[TeacherTrace], prepared_worlds: M
 
 OFFLINE_ARMS = ("c13p_persistent", "c13p_reset", "c13m_base_rank")
 _OFFLINE_METRICS = ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile")
+_DEVELOPMENT_IDENTITY_FIELDS = ("split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_sha256", "node_count", "edge_count", "feature_cache_path")
+
+
+def validate_expected_development_registry(expected_development: Sequence[Mapping[str, object]] | None) -> dict[str, dict[str, object]]:
+    """Normalize the frozen 24-world development identity registry."""
+    if not isinstance(expected_development, Sequence) or isinstance(expected_development, (str, bytes)) or len(expected_development) != DEVELOPMENT_WORLDS:
+        raise ValueError("expected development registry requires exactly 24 records")
+    normalized: dict[str, dict[str, object]] = {}
+    suite_counts: dict[str, int] = {}
+    for raw in expected_development:
+        if not isinstance(raw, Mapping) or raw.get("split") != "development":
+            raise ValueError("expected development registry split is invalid")
+        suite = raw.get("suite")
+        if not isinstance(suite, str) or not suite:
+            raise ValueError("expected development registry suite is invalid")
+        world_index = _integer(raw.get("world_index"), "expected development world_index")
+        cache_sha256 = raw.get("feature_cache_sha256", raw.get("cache_sha256"))
+        cache_path = raw.get("feature_cache_path", raw.get("cache"))
+        node_count = raw.get("node_count", raw.get("nodes"))
+        edge_count = raw.get("edge_count", raw.get("edges"))
+        if not _is_sha256(cache_sha256) or not isinstance(cache_path, str) or not cache_path:
+            raise ValueError("expected development registry cache identity is invalid")
+        identity = {
+            "split": "development", "suite": suite, "world_index": world_index,
+            "world_seed": _integer(raw.get("world_seed"), "expected development world_seed"),
+            "roadmap_seed": _integer(raw.get("roadmap_seed"), "expected development roadmap_seed"),
+            "feature_cache_sha256": cache_sha256, "node_count": _integer(node_count, "expected development node_count"),
+            "edge_count": _integer(edge_count, "expected development edge_count"), "feature_cache_path": cache_path,
+        }
+        if identity["node_count"] <= 0 or identity["edge_count"] < 0:
+            raise ValueError("expected development registry graph identity is invalid")
+        world_id = f"development/{suite}/{world_index}"
+        if raw.get("world_id", world_id) != world_id or world_id in normalized:
+            raise ValueError("expected development registry canonical world identity is duplicate or invalid")
+        normalized[world_id] = identity
+        suite_counts[suite] = suite_counts.get(suite, 0) + 1
+    if len(suite_counts) != 6 or any(count != 4 for count in suite_counts.values()) or any(sorted(record["world_index"] for record in normalized.values() if record["suite"] == suite) != list(range(4)) for suite in suite_counts):
+        raise ValueError("expected development registry requires six suites with four worlds each")
+    return normalized
+
+
+def expected_development_registry(source: SourceContext) -> dict[str, dict[str, object]]:
+    """Build the official development identity registry from audited source records."""
+    return validate_expected_development_registry(source.cohort_records.get("development"))
+
+
+def _validate_development_identity_rows(rows: pd.DataFrame, expected_development: Sequence[Mapping[str, object]] | None) -> dict[str, dict[str, object]]:
+    registry = validate_expected_development_registry(expected_development)
+    if not set(("world_id", *_DEVELOPMENT_IDENTITY_FIELDS)).issubset(rows.columns):
+        raise ValueError("development identity rows are incomplete")
+    observed = rows.loc[:, ["world_id", *_DEVELOPMENT_IDENTITY_FIELDS]].drop_duplicates()
+    if observed.duplicated("world_id").any() or set(observed["world_id"]) != set(registry):
+        raise ValueError("development identity rows do not match the expected registry")
+    for record in observed.to_dict("records"):
+        world_id = record.pop("world_id")
+        if record != registry[world_id]:
+            raise ValueError("development identity row does not match the expected registry")
+    return registry
+
+
 
 
 def _model_state_sha256(model: PersistentSearchHRM) -> str:
@@ -1155,6 +1215,12 @@ def _offline_metric_row(trace: TeacherTrace, event: TraceEvent, logits: torch.Te
     row = _event_metric_row(trace, event, logits, candidate_nodes, tie_keys, arm)
     row.update({
         "world_index": trace.world_index,
+        "world_seed": trace.world_seed,
+        "roadmap_seed": trace.roadmap_seed,
+        "feature_cache_sha256": trace.feature_cache_sha256,
+        "node_count": trace.node_count,
+        "edge_count": trace.edge_count,
+        "feature_cache_path": trace.feature_cache_path,
         "positive_node": event.positive_node,
         "candidate_nodes": tuple(candidate_nodes),
         "checkpoint_sha256": checkpoint_sha256,
@@ -1166,38 +1232,34 @@ def _offline_metric_row(trace: TeacherTrace, event: TraceEvent, logits: torch.Te
     return row
 
 
-def _offline_summary(event_rows: pd.DataFrame) -> pd.DataFrame:
-    required = {"world_id", "split", "suite", "world_index", "arm", *_OFFLINE_METRICS}
-    if event_rows.empty or not required.issubset(event_rows.columns):
-        raise ValueError("offline event rows are incomplete")
-    if set(event_rows["arm"].unique()) != set(OFFLINE_ARMS):
-        raise ValueError("offline event arms are incomplete")
-    if event_rows.duplicated(["world_id", "arm", "event_index"]).any():
-        raise ValueError("offline event identities are not unique")
-    if not all(np.isfinite(event_rows[column].to_numpy(dtype=float)).all() for column in _OFFLINE_METRICS):
-        raise ValueError("offline event metrics must be finite")
-    world = event_rows.groupby(["world_id", "split", "suite", "world_index", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean()
-    world["aggregation_level"] = "world"
-    suite = world.groupby(["split", "suite", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean()
-    suite["aggregation_level"] = "suite"
-    suite["world_id"] = None
-    suite["world_index"] = np.nan
-    pooled = world.groupby(["split", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean()
-    pooled["aggregation_level"] = "pooled"
-    pooled["world_id"] = None
-    pooled["suite"] = None
-    pooled["world_index"] = np.nan
-    columns = ["aggregation_level", "world_id", "split", "suite", "world_index", "arm", *_OFFLINE_METRICS]
+def _offline_summary(event_rows: pd.DataFrame, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> pd.DataFrame:
+    required = {"world_id", "event_index", "arm", *_DEVELOPMENT_IDENTITY_FIELDS, "positive_node", "candidate_count", "candidate_nodes", "checkpoint_sha256", "model_state_sha256", *_OFFLINE_METRICS}
+    if event_rows.empty or not required.issubset(event_rows.columns): raise ValueError("offline event rows are incomplete")
+    _validate_development_identity_rows(event_rows, expected_development)
+    identity = ["split", "suite", "world_index", "world_id", "event_index"]; audit = [*_DEVELOPMENT_IDENTITY_FIELDS, "positive_node", "candidate_count", "candidate_nodes", "checkpoint_sha256", "model_state_sha256"]
+    for _, group in event_rows.groupby(identity, sort=True, dropna=False):
+        if len(group) != len(OFFLINE_ARMS) or set(group["arm"]) != set(OFFLINE_ARMS): raise ValueError("offline event arm cross-product is incomplete")
+        if any(group[field].nunique(dropna=False) != 1 for field in audit): raise ValueError("offline event identity or audit fields drifted across arms")
+    keys = ["world_id", *_DEVELOPMENT_IDENTITY_FIELDS, "checkpoint_sha256", "model_state_sha256", "arm"]
+    world = event_rows.groupby(keys, sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean(); world["aggregation_level"] = "world"
+    suite = world.groupby(["split", "suite", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean(); suite["aggregation_level"] = "suite"
+    pooled = world.groupby(["split", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean(); pooled["aggregation_level"] = "pooled"
+    columns = ["aggregation_level", "world_id", *_DEVELOPMENT_IDENTITY_FIELDS, "checkpoint_sha256", "model_state_sha256", "arm", *_OFFLINE_METRICS]
+    for frame in (suite, pooled):
+        for column in columns:
+            if column not in frame: frame[column] = None
     return pd.concat((world[columns], suite[columns], pooled[columns]), ignore_index=True)
 
 
-def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, checkpoint_sha256: str, cfg: PersistentSearchConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, checkpoint_sha256: str, cfg: PersistentSearchConfig, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Score identical recorded frontiers with persistent, reset, and frozen base order."""
-    if not traces or not _is_sha256(checkpoint_sha256):
-        raise ValueError("offline traces or checkpoint hash are invalid")
-    world_ids = tuple(_trace_world_id(trace) for trace in traces)
-    if len(set(world_ids)) != len(world_ids):
-        raise ValueError("offline trace world identities must be unique")
+    registry = validate_expected_development_registry(expected_development)
+    if not traces or not _is_sha256(checkpoint_sha256): raise ValueError("offline traces or checkpoint hash are invalid")
+    trace_by_id = {_trace_world_id(trace): trace for trace in traces}
+    if len(trace_by_id) != len(traces) or set(trace_by_id) != set(registry): raise ValueError("offline traces do not match the expected development registry")
+    for world_id, trace in trace_by_id.items():
+        identity = {"split": trace.split, "suite": trace.suite, "world_index": trace.world_index, "world_seed": trace.world_seed, "roadmap_seed": trace.roadmap_seed, "feature_cache_sha256": trace.feature_cache_sha256, "node_count": trace.node_count, "edge_count": trace.edge_count, "feature_cache_path": trace.feature_cache_path}
+        if identity != registry[world_id]: raise ValueError("offline trace identity does not match the expected development registry")
     device = next(model.parameters()).device
     state_sha256 = _model_state_sha256(model)
     was_training = model.training
@@ -1229,86 +1291,48 @@ def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mappi
         if was_training:
             model.train()
     events = pd.DataFrame(rows)
-    return events, _offline_summary(events)
+    return events, _offline_summary(events, expected_development=expected_development)
 
 
-def world_clustered_bootstrap(paired_world_rows: pd.DataFrame, value_column: str, resamples: int, seed: int) -> dict[str, float | int | tuple[int, int]]:
-    """Bootstrap only one already-paired value per official development world."""
-    if not isinstance(paired_world_rows, pd.DataFrame) or not isinstance(value_column, str) or not value_column:
-        raise ValueError("paired world bootstrap inputs are invalid")
-    if not isinstance(resamples, int) or resamples <= 0 or not isinstance(seed, int):
-        raise ValueError("paired world bootstrap configuration is invalid")
-    required = {"world_id", value_column}
-    if not required.issubset(paired_world_rows.columns):
-        raise ValueError("paired world bootstrap rows are incomplete")
-    rows = paired_world_rows.loc[:, ["world_id", value_column]].copy()
-    if len(rows) != DEVELOPMENT_WORLDS:
-        raise ValueError("paired world bootstrap requires exactly 24 unique worlds")
-    if rows["world_id"].isna().any() or rows["world_id"].duplicated().any():
-        raise ValueError("paired world bootstrap world identifiers must be unique")
-    if any(not isinstance(value, str) or not value for value in rows["world_id"]):
-        raise ValueError("paired world bootstrap world identifiers are invalid")
-    rows = rows.sort_values("world_id", kind="stable")
-    values = rows[value_column].to_numpy(dtype=float)
-    if not np.all(np.isfinite(values)):
-        raise ValueError("paired world bootstrap values must be finite")
-    indices = np.random.default_rng(seed).integers(0, DEVELOPMENT_WORLDS, size=(resamples, DEVELOPMENT_WORLDS))
-    means = values[indices].mean(axis=1)
+def world_clustered_bootstrap(paired_world_rows: pd.DataFrame, value_column: str, resamples: int, seed: int, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> dict[str, float | int | tuple[int, int]]:
+    if not isinstance(paired_world_rows, pd.DataFrame) or not isinstance(value_column, str) or not value_column: raise ValueError("paired world bootstrap inputs are invalid")
+    if not isinstance(resamples, int) or resamples <= 0 or not isinstance(seed, int): raise ValueError("paired world bootstrap configuration is invalid")
+    if value_column not in paired_world_rows.columns: raise ValueError("paired world bootstrap rows are incomplete")
+    _validate_development_identity_rows(paired_world_rows, expected_development)
+    if paired_world_rows.duplicated("world_id").any(): raise ValueError("paired world bootstrap world identifiers must be unique")
+    rows = paired_world_rows.loc[:, ["world_id", *_DEVELOPMENT_IDENTITY_FIELDS, value_column]].drop_duplicates()
+    if len(rows) != DEVELOPMENT_WORLDS or rows.duplicated("world_id").any(): raise ValueError("paired world bootstrap requires exactly 24 unique worlds")
+    rows = rows.sort_values("world_id", kind="stable"); values = rows[value_column].to_numpy(dtype=float)
+    if not np.all(np.isfinite(values)): raise ValueError("paired world bootstrap values must be finite")
+    indices = np.random.default_rng(seed).integers(0, DEVELOPMENT_WORLDS, size=(resamples, DEVELOPMENT_WORLDS)); means = values[indices].mean(axis=1)
     low, high = np.quantile(means, [0.025, 0.975], method="linear")
     return {"point_estimate": float(values.mean()), "ci_low": float(low), "ci_high": float(high), "n_worlds": DEVELOPMENT_WORLDS, "sample_shape": (resamples, DEVELOPMENT_WORLDS)}
 
 
-def _g1_paired_world_rows(world_metrics: pd.DataFrame) -> pd.DataFrame:
-    required = {"world_id", "suite", "world_index", "arm", "reciprocal_rank", "top1"}
-    if not isinstance(world_metrics, pd.DataFrame) or not required.issubset(world_metrics.columns):
-        raise ValueError("G1 world metrics are incomplete")
+def _g1_paired_world_rows(world_metrics: pd.DataFrame, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> pd.DataFrame:
+    required = {"world_id", "arm", "reciprocal_rank", "top1", *_DEVELOPMENT_IDENTITY_FIELDS}
+    if not isinstance(world_metrics, pd.DataFrame) or not required.issubset(world_metrics.columns): raise ValueError("G1 world metrics are incomplete")
     rows = world_metrics.copy()
-    if "aggregation_level" in rows:
-        rows = rows.loc[rows["aggregation_level"] == "world"].copy()
-    if len(rows) != DEVELOPMENT_WORLDS * len(OFFLINE_ARMS):
-        raise ValueError("G1 paired world rows are incomplete")
-    if set(rows["arm"].unique()) != set(OFFLINE_ARMS):
-        raise ValueError("G1 paired world arms are invalid")
-    if rows.duplicated(["world_id", "suite", "world_index", "arm"]).any() or rows.duplicated(["world_id", "arm"]).any():
-        raise ValueError("G1 paired world identities must be unique")
-    identity = rows.groupby("world_id", sort=True).agg(suite=("suite", "nunique"), world_index=("world_index", "nunique"), arms=("arm", "nunique"))
-    if len(identity) != DEVELOPMENT_WORLDS or not (identity["suite"] == 1).all() or not (identity["world_index"] == 1).all() or not (identity["arms"] == len(OFFLINE_ARMS)).all():
-        raise ValueError("G1 paired world identities are incomplete")
-    if rows["suite"].nunique() != 6:
-        raise ValueError("G1 requires six suites")
-    if not all(np.isfinite(rows[column].to_numpy(dtype=float)).all() for column in ("reciprocal_rank", "top1")):
-        raise ValueError("G1 paired world metrics must be finite")
+    if "aggregation_level" in rows: rows = rows.loc[rows["aggregation_level"] == "world"].copy()
+    _validate_development_identity_rows(rows, expected_development)
+    if len(rows) != DEVELOPMENT_WORLDS * len(OFFLINE_ARMS) or set(rows["arm"].unique()) != set(OFFLINE_ARMS): raise ValueError("G1 paired world arms are incomplete")
+    if rows.duplicated(["world_id", "arm"]).any(): raise ValueError("G1 paired world identities must be unique")
+    if not all(np.isfinite(rows[column].to_numpy(dtype=float)).all() for column in ("reciprocal_rank", "top1")): raise ValueError("G1 paired world metrics must be finite")
     pivot = rows.pivot(index=["world_id", "suite", "world_index"], columns="arm", values=["reciprocal_rank", "top1"])
-    if pivot.shape[0] != DEVELOPMENT_WORLDS or pivot.isna().any().any():
-        raise ValueError("G1 paired world pivot is incomplete")
-    paired = pivot.reset_index()
-    paired.columns = ["world_id", "suite", "world_index", "base_mrr", "persistent_mrr", "reset_mrr", "base_top1", "persistent_top1", "reset_top1"]
-    paired["mrr_delta"] = paired["persistent_mrr"] - paired["reset_mrr"]
-    paired["top1_delta"] = paired["persistent_top1"] - paired["reset_top1"]
+    if pivot.shape[0] != DEVELOPMENT_WORLDS or pivot.isna().any().any(): raise ValueError("G1 paired world pivot is incomplete")
+    paired = pd.DataFrame({"persistent_mrr": pivot[("reciprocal_rank", "c13p_persistent")], "reset_mrr": pivot[("reciprocal_rank", "c13p_reset")], "base_mrr": pivot[("reciprocal_rank", "c13m_base_rank")], "persistent_top1": pivot[("top1", "c13p_persistent")], "reset_top1": pivot[("top1", "c13p_reset")], "base_top1": pivot[("top1", "c13m_base_rank")] }).reset_index()
+    metadata = rows.loc[:, ["world_id", *_DEVELOPMENT_IDENTITY_FIELDS]].drop_duplicates("world_id")
+    paired = paired.merge(metadata, on=["world_id", "suite", "world_index"], validate="one_to_one")
+    paired["mrr_delta"] = paired["persistent_mrr"] - paired["reset_mrr"]; paired["top1_delta"] = paired["persistent_top1"] - paired["reset_top1"]
     return paired
 
 
-def g1_verdict(world_metrics: pd.DataFrame, bootstrap_seed: int, resamples: int) -> dict[str, object]:
-    """Apply the frozen paired-world persistent-minus-reset ranking gate."""
-    paired = _g1_paired_world_rows(world_metrics)
-    bootstrap = world_clustered_bootstrap(paired, "mrr_delta", resamples, bootstrap_seed)
-    suite_deltas = paired.groupby("suite", sort=True)["mrr_delta"].mean()
-    pooled_top1_delta = float(paired["top1_delta"].mean())
-    suites_with_positive_mrr = int((suite_deltas > 0.0).sum())
-    pooled_mrr_ci_low = float(bootstrap["ci_low"])
+def g1_verdict(world_metrics: pd.DataFrame, bootstrap_seed: int, resamples: int, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> dict[str, object]:
+    paired = _g1_paired_world_rows(world_metrics, expected_development=expected_development)
+    bootstrap = world_clustered_bootstrap(paired, "mrr_delta", resamples, bootstrap_seed, expected_development=expected_development)
+    suite_deltas = paired.groupby("suite", sort=True)["mrr_delta"].mean(); pooled_top1_delta = float(paired["top1_delta"].mean()); suites_with_positive_mrr = int((suite_deltas > 0.0).sum()); pooled_mrr_ci_low = float(bootstrap["ci_low"])
     passes = pooled_mrr_ci_low > 0.0 and pooled_top1_delta >= 0.02 and suites_with_positive_mrr >= 4
-    return {
-        "comparison": "c13p_persistent_minus_c13p_reset",
-        "pooled_mrr_delta": float(paired["mrr_delta"].mean()),
-        "pooled_mrr_ci_low": pooled_mrr_ci_low,
-        "pooled_mrr_ci_high": float(bootstrap["ci_high"]),
-        "pooled_top1_delta": pooled_top1_delta,
-        "suite_mrr_deltas": {str(suite): float(delta) for suite, delta in suite_deltas.items()},
-        "suites_with_positive_mrr": suites_with_positive_mrr,
-        "bootstrap": bootstrap,
-        "passes": passes,
-        "verdict": "c13p_g1_passed" if passes else "c13p_no_persistent_ranking_signal",
-    }
+    return {"comparison": "c13p_persistent_minus_c13p_reset", "pooled_mrr_delta": float(paired["mrr_delta"].mean()), "pooled_mrr_ci_low": pooled_mrr_ci_low, "pooled_mrr_ci_high": float(bootstrap["ci_high"]), "pooled_top1_delta": pooled_top1_delta, "suite_mrr_deltas": {str(suite): float(delta) for suite, delta in suite_deltas.items()}, "suites_with_positive_mrr": suites_with_positive_mrr, "bootstrap": bootstrap, "passes": passes, "verdict": "c13p_g1_passed" if passes else "c13p_no_persistent_ranking_signal"}
 
 
 def _binding_error(reason: str) -> ValueError:
