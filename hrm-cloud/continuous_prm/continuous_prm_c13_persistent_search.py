@@ -839,7 +839,7 @@ def read_trace_shard(path: Path, expected_fingerprint: str) -> Sequence[TeacherT
 class PreparedWorld:
     node_tokens: np.ndarray; node_embeddings: np.ndarray; euclidean_rank: np.ndarray; local_values: np.ndarray; base_rank: np.ndarray
     world_id: str; split: str; suite: str; world_index: int; world_seed: int; roadmap_seed: int
-    feature_cache_path: str; feature_cache_sha256: str; node_count: int; edge_count: int
+    feature_cache_path: str; feature_cache_sha256: str; node_count: int; edge_count: int; side_len: float
     start_idx: int; goal_idx: int; graph_sha256: str; provenance_fingerprint: str
     array_sha256: Mapping[str, str]; encoder_checkpoint_sha256: str; encoder_state_sha256: str
     encoder_token_shape: tuple[int, int]
@@ -866,7 +866,7 @@ def _canonical_graph_sha256(graph: Sequence[Sequence[tuple[int, float]]]) -> str
     return hashlib.sha256(canonical_json_bytes([[[int(node), float(weight)] for node, weight in outgoing] for outgoing in graph])).hexdigest()
 
 
-def _prepared_world_provenance(identity: Mapping[str, object] | None, graph: Sequence[Sequence[tuple[int, float]]], start_idx: int, goal_idx: int, cache_path: str, cache_sha256: str) -> dict[str, object]:
+def _prepared_world_provenance(identity: Mapping[str, object] | None, graph: Sequence[Sequence[tuple[int, float]]], start_idx: int, goal_idx: int, side_len: float, cache_path: str, cache_sha256: str) -> dict[str, object]:
     if not isinstance(identity, Mapping): raise ValueError("prepared world audited provenance is required")
     required = {"split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count"}
     split = identity.get("split")
@@ -874,10 +874,12 @@ def _prepared_world_provenance(identity: Mapping[str, object] | None, graph: Seq
     suite = identity.get("suite"); world_index = _integer(identity.get("world_index"), "prepared world_index")
     if not isinstance(suite, str) or not suite or start_idx != 0 or goal_idx != 1: raise ValueError("prepared world identity or canonical endpoints are invalid")
     count = len(graph); edge_count = sum(len(outgoing) for outgoing in graph)
+    actual_side_len = _finite_float(side_len, "prepared side_len")
+    if actual_side_len <= 0: raise ValueError("prepared side_len must be positive")
     canonical = {
         "world_id": f"{split}/{suite}/{world_index}", "split": split, "suite": suite, "world_index": world_index,
         "world_seed": _integer(identity.get("world_seed"), "prepared world_seed"), "roadmap_seed": _integer(identity.get("roadmap_seed"), "prepared roadmap_seed"),
-        "feature_cache_path": cache_path, "feature_cache_sha256": cache_sha256, "node_count": count, "edge_count": edge_count,
+        "feature_cache_path": cache_path, "feature_cache_sha256": cache_sha256, "node_count": count, "edge_count": edge_count, "side_len": actual_side_len,
         "start_idx": start_idx, "goal_idx": goal_idx, "graph_sha256": _canonical_graph_sha256(graph),
     }
     if identity.get("world_id", canonical["world_id"]) != canonical["world_id"] or identity.get("feature_cache_path") != cache_path or identity.get("feature_cache_sha256") != cache_sha256 or _integer(identity.get("node_count"), "prepared node_count") != count or _integer(identity.get("edge_count"), "prepared edge_count") != edge_count:
@@ -907,7 +909,7 @@ def _vector(cache: Mapping[str, np.ndarray], key: str, n: int) -> np.ndarray:
     if result.shape != (n,) or not np.all(np.isfinite(result)): raise ValueError(f"{key} is invalid")
     return result
 
-def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph: Sequence[Sequence[tuple[int, float]]], goal_idx: int, cfg: PersistentSearchConfig, encoder: nn.Module, *, audited_identity: Mapping[str, object] | None = None, start_idx: int = 0) -> PreparedWorld:
+def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph: Sequence[Sequence[tuple[int, float]]], goal_idx: int, cfg: PersistentSearchConfig, encoder: nn.Module, *, side_len: float, audited_identity: Mapping[str, object] | None = None, start_idx: int = 0) -> PreparedWorld:
     tokens = feature_cache.get("features")
     if not isinstance(tokens, np.ndarray) or tokens.ndim != 3 or tuple(tokens.shape[1:]) != getattr(encoder, "c13p_token_shape", None) or not np.all(np.isfinite(tokens)): raise ValueError("feature cache token shape changed")
     path, digest = feature_cache.get("cache_path", feature_cache.get("feature_cache_path")), feature_cache.get("cache_sha256", feature_cache.get("feature_cache_sha256"))
@@ -915,7 +917,7 @@ def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph:
     if not isinstance(path, (str, Path)) or not isinstance(digest, str) or sha256_file(Path(path)) != digest: raise ValueError("feature cache hash mismatch")
     if float(cfg.local_alpha) != LOCAL_ALPHA: raise ValueError("frozen local alpha changed")
     if len(graph) != len(tokens) or not isinstance(goal_idx, int) or not 0 <= goal_idx < len(tokens) or encoder.training or any(p.requires_grad for p in encoder.parameters()): raise ValueError("world or frozen encoder invalid")
-    _validated_graph(graph, np.zeros(len(tokens), dtype=np.float64)); provenance = _prepared_world_provenance(audited_identity, graph, start_idx, goal_idx, str(Path(path)), digest)
+    _validated_graph(graph, np.zeros(len(tokens), dtype=np.float64)); provenance = _prepared_world_provenance(audited_identity, graph, start_idx, goal_idx, side_len, str(Path(path)), digest)
     euclid, local = _vector(feature_cache, "euclidean_to_goal", len(tokens)), _vector(feature_cache, "local_value_radius_0_20", len(tokens))
     with torch.no_grad(): embedding = encoder(torch.as_tensor(tokens.astype(np.float32, copy=False), device=next(encoder.parameters()).device).flatten(1))
     if tuple(embedding.shape) != (len(tokens), HIDDEN_DIM): raise ValueError("encoder output width changed")
@@ -1093,11 +1095,6 @@ def _event_causal(event: TraceEvent) -> Mapping[str, object]:
         "open_nodes": event.open_nodes, "open_g": event.open_g, "open_base_rank": event.open_base_rank,
     }
 
-def _trace_side_len(trace: TeacherTrace) -> float:
-    # The trace contains node-local quantities only; this fixed normalizer is not a map-wide feature.
-    return float(max(1, int(math.ceil(math.sqrt(trace.node_count)))))
-
-
 def _event_tensors(event: TraceEvent, prepared: PreparedWorld, device: torch.device) -> tuple[Mapping[str, object], torch.Tensor, torch.Tensor, torch.Tensor, Sequence[int]]:
     causal = _event_causal(event)
     embeddings = torch.tensor(prepared.node_embeddings, dtype=torch.float32, device=device)
@@ -1108,8 +1105,9 @@ def _event_tensors(event: TraceEvent, prepared: PreparedWorld, device: torch.dev
 
 
 def _trace_side_len_from_prepared(prepared: PreparedWorld) -> float:
-    # C13-J's square-world side is not embedded in the trace; node count is the frozen available scale.
-    return float(max(1, int(math.ceil(math.sqrt(len(prepared.node_embeddings))))))
+    side_len = _finite_float(prepared.side_len, "prepared side_len")
+    if side_len <= 0: raise ValueError("prepared side_len must be positive")
+    return side_len
 
 
 def _event_metric_row(trace: TeacherTrace, event: TraceEvent, logits: torch.Tensor, candidate_nodes: Sequence[int], tie_keys: np.ndarray, arm: str) -> dict[str, object]:
@@ -1333,7 +1331,7 @@ def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mappi
                     reset_context, _ = model.update_event(event_features, reset_carry)
                     reset_logits = model.score_candidates(candidate_embeddings, reset_context, candidate_scalars)
                     rows.append(_offline_metric_row(trace, event, reset_logits, candidate_nodes, tie_keys, OFFLINE_ARMS[1], checkpoint_sha256, state_sha256))
-                    base_logits = -torch.as_tensor(np.asarray(event.open_g) + np.asarray(event.open_base_rank), dtype=torch.float32, device=device)
+                    base_logits = -torch.as_tensor(np.asarray(event.open_g) + np.asarray(event.open_base_rank), dtype=torch.float32, device=device) / _trace_side_len_from_prepared(prepared)
                     rows.append(_offline_metric_row(trace, event, base_logits, candidate_nodes, tie_keys, OFFLINE_ARMS[2], checkpoint_sha256, state_sha256))
     finally:
         if was_training:
@@ -1671,7 +1669,7 @@ def train_stationary_model(train_traces: Sequence[TeacherTrace], validation_trac
         completed = load_training_checkpoint(latest, model, optimizer, binding)
         if not history_path.is_file():
             raise ValueError("partial output history is missing; new output directory required")
-        history = pd.read_csv(history_path)
+        history = _read_canonical_frame(history_path)
         if history.empty or int(history["epoch"].max()) != completed:
             raise ValueError("partial output history disagrees with checkpoint; new output directory required")
         epochs = [int(value) for value in history.sort_values("epoch", kind="stable")["epoch"]]
@@ -1742,7 +1740,7 @@ def validate_prepared_world(prepared: PreparedWorld, graph: Sequence[Sequence[tu
     count = prepared.node_count
     if not isinstance(count, int) or count <= 0 or arrays["node_tokens"].ndim != 3 or arrays["node_tokens"].shape[0] != count or arrays["node_embeddings"].shape != (count, HIDDEN_DIM) or any(arrays[name].shape != (count,) for name in ("euclidean_rank", "local_values", "base_rank")): raise ValueError("prepared array shape drifted")
     if not _is_sha256(prepared.encoder_checkpoint_sha256) or not _is_sha256(prepared.encoder_state_sha256) or tuple(prepared.encoder_token_shape) != tuple(arrays["node_tokens"].shape[1:]): raise ValueError("prepared encoder identity drifted")
-    provenance = {field: getattr(prepared, field) for field in ("world_id", "split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count", "start_idx", "goal_idx", "graph_sha256", "array_sha256", "encoder_checkpoint_sha256", "encoder_state_sha256", "encoder_token_shape")}
+    provenance = {field: getattr(prepared, field) for field in ("world_id", "split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count", "side_len", "start_idx", "goal_idx", "graph_sha256", "array_sha256", "encoder_checkpoint_sha256", "encoder_state_sha256", "encoder_token_shape")}
     if _prepared_fingerprint(provenance) != prepared.provenance_fingerprint: raise ValueError("prepared provenance fingerprint drifted")
     if graph is not None:
         graph_count, _ = _validated_graph(graph, arrays["base_rank"])
@@ -2123,7 +2121,7 @@ def _materialize_record(cfg: PersistentSearchConfig, record: Mapping[str, object
     setattr(encoder, "c13p_checkpoint_sha256", checkpoint_sha256); setattr(encoder, "c13p_token_shape", tuple(features.shape[1:]))
     payload = {"features": features, "euclidean_to_goal": euclidean, "local_value_radius_0_20": local_values,
                "cache_path": str(cache_path), "cache_sha256": str(record["feature_cache_sha256"])}
-    prepared = prepare_world_representation(payload, roadmap.adj, 1, cfg, encoder, audited_identity=dict(record), start_idx=0)
+    prepared = prepare_world_representation(payload, roadmap.adj, 1, cfg, encoder, side_len=float(world.side_len), audited_identity=dict(record), start_idx=0)
     keys = ("world_id", "split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_sha256", "node_count", "edge_count", "feature_cache_path")
     runtime = {**{key: record[key] for key in keys}, "graph": roadmap.adj, "start_idx": 0, "goal_idx": 1, "side_len": float(world.side_len)}
     return runtime, prepared
@@ -2425,8 +2423,16 @@ def _training_binding(cfg: PersistentSearchConfig, audit: Mapping[str, object], 
             "gate_config": gate}
 
 
+def _canonical_frame_bytes(frame: pd.DataFrame) -> bytes:
+    return frame.to_csv(index=False, lineterminator="\n", float_format="%.17g").encode("utf-8")
+
+
 def _atomic_frame(path: Path, frame: pd.DataFrame) -> str:
-    atomic_write_bytes(path, frame.to_csv(index=False, lineterminator="\n").encode("utf-8")); return sha256_file(path)
+    atomic_write_bytes(path, _canonical_frame_bytes(frame)); return sha256_file(path)
+
+
+def _read_canonical_frame(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path, float_precision="round_trip")
 
 
 def _verify_train_evidence(cfg: PersistentSearchConfig) -> Mapping[str, object]:
@@ -2446,7 +2452,7 @@ def _verify_train_evidence(cfg: PersistentSearchConfig) -> Mapping[str, object]:
     if (selection.get("checkpoint_path"), selection.get("checkpoint_sha256"), selection.get("model_state_sha256")) != (
             evaluation.get("checkpoint_path"), evaluation.get("checkpoint_sha256"), evaluation.get("model_state_sha256")):
         raise ValueError("checkpoint selection disagrees with evaluation binding; new output directory required")
-    history = pd.read_csv(history_path); chosen = select_checkpoint(history)
+    history = _read_canonical_frame(history_path); chosen = select_checkpoint(history)
     if chosen.selected_epoch != selection.get("epoch") or not math.isclose(chosen.selected_validation_loss,
             float(selection.get("validation_loss")), rel_tol=0.0, abs_tol=1.e-12):
         raise ValueError("checkpoint selection cannot be reconstructed from canonical history")
@@ -2456,7 +2462,7 @@ def _verify_train_evidence(cfg: PersistentSearchConfig) -> Mapping[str, object]:
     state_history, latest = state_root / "results" / "training_history.csv", state_root / "checkpoints" / "latest.pt"
     if not state_history.is_file() or not latest.is_file():
         raise ValueError("canonical training-state history or latest checkpoint is missing")
-    state_frame = pd.read_csv(state_history).sort_values("epoch", kind="stable").reset_index(drop=True)
+    state_frame = _read_canonical_frame(state_history).sort_values("epoch", kind="stable").reset_index(drop=True)
     if not state_frame.equals(history.sort_values("epoch", kind="stable").reset_index(drop=True)):
         raise ValueError("canonical history drifted from durable training-state")
     latest_payload = torch.load(latest, map_location="cpu", weights_only=False)
@@ -2497,7 +2503,7 @@ def run_train_stage(cfg: PersistentSearchConfig) -> None:
     state_cfg = replace(cfg, out_dir=Path(cfg.out_dir) / ".training-state")
     selection = train_stationary_model(train_traces, validation_traces, prepared, state_cfg, training_binding)
     selected_path = Path(cfg.out_dir) / "checkpoints" / "selected.pt"; atomic_write_bytes(selected_path, selection.checkpoint_path.read_bytes())
-    history = pd.read_csv(Path(state_cfg.out_dir) / "results" / "training_history.csv").sort_values("epoch", kind="stable").reset_index(drop=True)
+    history = _read_canonical_frame(Path(state_cfg.out_dir) / "results" / "training_history.csv").sort_values("epoch", kind="stable").reset_index(drop=True)
     history_path = Path(cfg.out_dir) / "results" / "training_history.csv"; _atomic_frame(history_path, history)
     selected_payload = torch.load(selected_path, map_location="cpu", weights_only=False); model = PersistentSearchHRM()
     model.load_state_dict(selected_payload["model"], strict=True); model.eval()
@@ -2519,7 +2525,7 @@ def run_train_stage(cfg: PersistentSearchConfig) -> None:
 
 
 def _frame_projection_bytes(frame: pd.DataFrame) -> bytes:
-    return deterministic_result_projection(frame).to_csv(index=False, lineterminator="\n").encode("utf-8")
+    return _canonical_frame_bytes(deterministic_result_projection(frame))
 
 
 def _json_safe(value: object) -> object:
@@ -2597,7 +2603,7 @@ def _independent_raw_reanalysis_aggregate(cfg: PersistentSearchConfig, ranking_o
                                 seeds_override: Mapping[str, int] | None = None,
                                 thresholds_override: Mapping[str, object] | None = None) -> dict[str, object]:
     root = Path(cfg.out_dir); ranking_path = root / "results" / "development_ranking_raw.csv"; search_path = root / "results" / "development_search_raw.csv"
-    ranking, search = (pd.read_csv(ranking_path) if ranking_override is None else ranking_override.copy()), (pd.read_csv(search_path) if search_override is None else search_override.copy()); resamples = cfg.bootstrap_resamples if resamples_override is None else resamples_override
+    ranking, search = (_read_canonical_frame(ranking_path) if ranking_override is None else ranking_override.copy()), (_read_canonical_frame(search_path) if search_override is None else search_override.copy()); resamples = cfg.bootstrap_resamples if resamples_override is None else resamples_override
     seeds = BOOTSTRAP_SEEDS if seeds_override is None else seeds_override
     if not isinstance(resamples, int) or resamples <= 0: raise ValueError("independent reanalysis bootstrap count is invalid")
     thresholds = _GATE_PAYLOAD if thresholds_override is None else thresholds_override
@@ -2789,7 +2795,7 @@ def _independent_validate_paths(search: pd.DataFrame, graphs: Mapping[str, Seque
 _independent_raw_reanalysis_v1 = _independent_raw_reanalysis_aggregate
 def _independent_raw_reanalysis(cfg: PersistentSearchConfig, evaluation: Mapping[str, object] | None = None, *, test_resamples: int | None = None, graphs: Mapping[str, Sequence[Sequence[tuple[int, float]]]] | None = None) -> dict[str, object]:
     root = Path(cfg.out_dir); ranking_path = root / "results" / "development_ranking_raw.csv"; search_path = root / "results" / "development_search_raw.csv"; trace_path = root / "traces" / "development" / "traces.json"
-    ranking, search = pd.read_csv(ranking_path), pd.read_csv(search_path)
+    ranking, search = _read_canonical_frame(ranking_path), _read_canonical_frame(search_path)
     if list(ranking.columns) != _INDEPENDENT_RANKING_COLUMNS or list(search.columns) != _INDEPENDENT_SEARCH_COLUMNS: raise ValueError("independent raw CSV schema/order drifted")
     resamples, seeds, thresholds = _independent_bound_config(cfg, evaluation, test_resamples); trace_events = _independent_trace_events(trace_path)
     if evaluation is not None:
@@ -2871,7 +2877,7 @@ def _independent_expected_bound_files(cfg: PersistentSearchConfig, audit: Mappin
 def _independent_base_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], raw: Mapping[str, object], *, graphs: Mapping[str, Sequence[Sequence[tuple[int, float]]]] | None = None) -> dict[str, object]:
     root = Path(cfg.out_dir); audit = _independent_optional_json(root / "source_audit.json"); registry = evaluation.get("development_registry") if isinstance(evaluation.get("development_registry"), Mapping) else {}
     ranking_path, search_path = root / "results" / "development_ranking_raw.csv", root / "results" / "development_search_raw.csv"
-    ranking = pd.read_csv(ranking_path); search = pd.read_csv(search_path)
+    ranking = _read_canonical_frame(ranking_path); search = _read_canonical_frame(search_path)
     source_records: dict[str, list[dict[str, object]]] = {}
     source_registry: Mapping[str, Mapping[str, object]] = {}
     source_hashes: Mapping[str, str] = {}
@@ -3172,19 +3178,22 @@ def run_develop_stage(cfg: PersistentSearchConfig) -> None:
     atomic_write_bytes(ranking_projection_first, offline_a); atomic_write_bytes(ranking_projection_second, offline_b)
     atomic_write_bytes(search_projection_first, online_a); atomic_write_bytes(search_projection_second, online_b)
     _atomic_frame(ranking_path, offline_first); _atomic_frame(search_path, online_first)
-    offline_payload = _summary_payload(offline_summary_first, ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile"), world_rows_only=True)
-    online_payload = _summary_payload(online_first, ("expansions", "cost_ratio", "scorer_calls", "candidates_scored"))
+    canonical_ranking = _read_canonical_frame(ranking_path)
+    canonical_search = _read_canonical_frame(search_path)
+    canonical_offline_summary = _offline_summary(canonical_ranking, expected_development=registry)
+    offline_payload = _summary_payload(canonical_offline_summary, ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile"), world_rows_only=True)
+    online_payload = _summary_payload(canonical_search, ("expansions", "cost_ratio", "scorer_calls", "candidates_scored"))
     offline_path, online_path = root / "results" / "offline_summary.json", root / "results" / "online_summary.json"
     _atomic_json(offline_path, _json_safe(offline_payload)); _atomic_json(online_path, _json_safe(online_payload))
-    base_g0 = _compute_g0(cfg, evaluation, registry, offline_first, online_first)
-    g1 = g1_verdict(offline_summary_first, BOOTSTRAP_SEEDS["g1_mrr"], cfg.bootstrap_resamples, expected_development=registry)
-    g2 = g2_verdict(online_first, {"g2_exp_reset": BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": BOOTSTRAP_SEEDS["g2_exp_c13m"]},
+    base_g0 = _compute_g0(cfg, evaluation, registry, canonical_ranking, canonical_search)
+    g1 = g1_verdict(canonical_offline_summary, BOOTSTRAP_SEEDS["g1_mrr"], cfg.bootstrap_resamples, expected_development=registry)
+    g2 = g2_verdict(canonical_search, {"g2_exp_reset": BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": BOOTSTRAP_SEEDS["g2_exp_c13m"]},
                     cfg.bootstrap_resamples, expected_development=registry)
     provisional_gate = _gate_verdict_payload(base_g0, g1, g2)
     independent = _independent_reanalysis_payload(cfg, evaluation, provisional_gate, base_g0)
     g0, gate = _independent_finalize_gate(base_g0, g1, g2, independent)
     verification = _development_verification_payload(cfg, evaluation, g0, registry, len(traces),
-                                                       sum(len(trace.events) for trace in traces), len(online_first), independent)
+                                                       sum(len(trace.events) for trace in traces), len(canonical_search), independent)
     gate_path, verification_path = root / "results" / "gate_verdict.json", root / "results" / "verification.json"
     _atomic_json(gate_path, gate); _atomic_json(verification_path, verification)
     _write_stage_marker(cfg, "develop", binding, ((development_path, SCHEMA_VERSION), (ranking_path, "c13p-ranking-raw-v1"),
@@ -3304,8 +3313,8 @@ def verify_integrity(cfg: PersistentSearchConfig) -> None:
 def _verify_development_evidence(cfg: PersistentSearchConfig) -> None:
     root = Path(cfg.out_dir); evaluation = verify_evaluation_binding(cfg)
     registry = validate_expected_development_registry(evaluation.get("development_registry"))
-    ranking = pd.read_csv(root / "results" / "development_ranking_raw.csv")
-    search = pd.read_csv(root / "results" / "development_search_raw.csv")
+    ranking = _read_canonical_frame(root / "results" / "development_ranking_raw.csv")
+    search = _read_canonical_frame(root / "results" / "development_search_raw.csv")
     if len(search) != 72 or search.duplicated(["world_id", "arm"]).any(): raise ValueError("development search row count or identity drifted")
     offline_summary = _offline_summary(ranking, expected_development=registry)
     expected_offline = _json_safe(_summary_payload(offline_summary, ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile"), world_rows_only=True))

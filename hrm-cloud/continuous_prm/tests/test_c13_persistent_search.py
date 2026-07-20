@@ -394,7 +394,7 @@ def _task3_source(tmp_path: Path) -> P.SourceContext:
 def _task3_features() -> dict[str, np.ndarray]:
     return {"features": np.arange(96, dtype=np.float32).reshape(2,3,16)/100, "euclidean_to_goal": np.asarray([.8,0.]), "local_value_radius_0_20": np.asarray([1.2,0.])}
 
-def _prepared_provenance(node_count: int, *, arrays: Mapping[str, np.ndarray] | None = None, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None, start_idx: int = 0, goal_idx: int = 1) -> dict[str, object]:
+def _prepared_provenance(node_count: int, *, side_len: float = 1.0, arrays: Mapping[str, np.ndarray] | None = None, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None, start_idx: int = 0, goal_idx: int = 1) -> dict[str, object]:
     actual_graph = graph if graph is not None else tuple(() for _ in range(node_count))
     source_cache = str(Path(P.__file__))
     identity = dict(record or {"split": "development", "suite": "synthetic", "world_index": 0, "world_seed": 1, "roadmap_seed": 2, "feature_cache_path": source_cache, "feature_cache_sha256": _sha256(Path(source_cache)), "node_count": node_count, "edge_count": sum(len(edges) for edges in actual_graph)})
@@ -402,7 +402,7 @@ def _prepared_provenance(node_count: int, *, arrays: Mapping[str, np.ndarray] | 
     payload = {
         "world_id": f"development/{identity['suite']}/{identity['world_index']}", "split": identity["split"], "suite": identity["suite"], "world_index": identity["world_index"],
         "world_seed": identity["world_seed"], "roadmap_seed": identity["roadmap_seed"], "feature_cache_path": identity["feature_cache_path"], "feature_cache_sha256": identity["feature_cache_sha256"],
-        "node_count": node_count, "edge_count": sum(len(edges) for edges in actual_graph), "start_idx": start_idx, "goal_idx": goal_idx, "graph_sha256": P._canonical_graph_sha256(actual_graph),
+        "node_count": node_count, "edge_count": sum(len(edges) for edges in actual_graph), "side_len": side_len, "start_idx": start_idx, "goal_idx": goal_idx, "graph_sha256": P._canonical_graph_sha256(actual_graph),
         "array_sha256": {name: P._array_sha256(array) for name, array in arrays.items()}, "encoder_checkpoint_sha256": "0" * 64, "encoder_state_sha256": "1" * 64, "encoder_token_shape": tuple(arrays["node_tokens"].shape[1:]),
     }
     return {**payload, "provenance_fingerprint": P._prepared_fingerprint(payload)}
@@ -466,13 +466,13 @@ def test_causal_tensor_boundary_rejects_privileged_and_future_fields_before_tens
 
 def test_representation_requires_cache_binding_and_locked_alpha(tmp_path: Path) -> None:
     encoder=P.load_frozen_flat_encoder(_task3_source(tmp_path),torch.device("cpu")); cache=_task3_features()
-    with pytest.raises(ValueError,match="cache"): P.prepare_world_representation(cache,[[],[]],1,P.resolve_paths(tmp_path),encoder)
+    with pytest.raises(ValueError,match="cache"): P.prepare_world_representation(cache,[[],[]],1,P.resolve_paths(tmp_path),encoder,side_len=1.0)
     payload=tmp_path/"tokens.npz"; np.savez(payload,features=cache["features"]); cache["cache_path"]=str(payload); cache["cache_sha256"]=_sha256(payload)
     partial=dict(cache); partial.pop("cache_sha256")
-    with pytest.raises(ValueError,match="cache"): P.prepare_world_representation(partial,[[],[]],1,P.resolve_paths(tmp_path),encoder)
+    with pytest.raises(ValueError,match="cache"): P.prepare_world_representation(partial,[[],[]],1,P.resolve_paths(tmp_path),encoder,side_len=1.0)
     bad=dict(cache); bad["cache_sha256"]="0"*64
-    with pytest.raises(ValueError,match="cache"): P.prepare_world_representation(bad,[[],[]],1,P.resolve_paths(tmp_path),encoder)
-    with pytest.raises(ValueError,match="alpha"): P.prepare_world_representation(cache,[[],[]],1,P.PersistentSearchConfig(tmp_path,tmp_path,local_alpha=1.25),encoder)
+    with pytest.raises(ValueError,match="cache"): P.prepare_world_representation(bad,[[],[]],1,P.resolve_paths(tmp_path),encoder,side_len=1.0)
+    with pytest.raises(ValueError,match="alpha"): P.prepare_world_representation(cache,[[],[]],1,P.PersistentSearchConfig(tmp_path,tmp_path,local_alpha=1.25),encoder,side_len=1.0)
 
 def test_reset_carry_uses_true_event_index_and_lifecycle_scopes_are_single_use(monkeypatch: pytest.MonkeyPatch) -> None:
     model=P.PersistentSearchHRM(); calls=[]; forward=model.high_block.forward
@@ -499,7 +499,7 @@ def test_lifecycle_rejects_stale_and_foreign_carries() -> None:
 
 def test_frozen_encoder_preparation_accepts_exact_bound_cache(tmp_path: Path) -> None:
     encoder=P.load_frozen_flat_encoder(_task3_source(tmp_path),torch.device("cpu")); cache=_task3_features(); path=tmp_path/"exact-cache.npz"; np.savez(path,features=cache["features"]); cache["cache_path"]=str(path); cache["cache_sha256"]=_sha256(path)
-    prepared=P.prepare_world_representation(cache,[[(1,1.)],[(0,1.)]],1,P.resolve_paths(tmp_path),encoder,audited_identity={"split":"development","suite":"suite-0","world_index":0,"world_seed":1,"roadmap_seed":2,"feature_cache_path":str(path),"feature_cache_sha256":_sha256(path),"node_count":2,"edge_count":2})
+    prepared=P.prepare_world_representation(cache,[[(1,1.)],[(0,1.)]],1,P.resolve_paths(tmp_path),encoder,side_len=1.0,audited_identity={"split":"development","suite":"suite-0","world_index":0,"world_seed":1,"roadmap_seed":2,"feature_cache_path":str(path),"feature_cache_sha256":_sha256(path),"node_count":2,"edge_count":2})
     assert prepared.node_embeddings.shape==(2,64) and all(not p.requires_grad for p in encoder.parameters()) and not encoder.training
     np.testing.assert_allclose(prepared.base_rank,prepared.euclidean_rank+1.50*(prepared.local_values-prepared.euclidean_rank))
 
@@ -528,12 +528,26 @@ def _training_trace(event_count: int = 2, *, world_index: int = 0) -> P.TeacherT
         ))
     return P.TeacherTrace("train", "maze", world_index, 1, 2, "cache", "0" * 64, 2, 1, 0, 1, tuple(events), (0, 1), 1.0, event_count + 1, True)
 
-def _prepared_training_world() -> P.PreparedWorld:
+def _prepared_training_world(side_len: float = 1.0) -> P.PreparedWorld:
     return P.PreparedWorld(
         P._frozen_array(np.zeros((2, 3, 16), dtype=np.float32)), P._frozen_array(np.zeros((2, 64), dtype=np.float32)),
         P._frozen_array(np.array([0.0, 1.0])), P._frozen_array(np.array([0.0, 0.5])), P._frozen_array(np.array([0.0, 0.5])),
-        **_prepared_provenance(2, arrays={"node_tokens": P._frozen_array(np.zeros((2, 3, 16), dtype=np.float32)), "node_embeddings": P._frozen_array(np.zeros((2, 64), dtype=np.float32)), "euclidean_rank": P._frozen_array(np.array([0.0, 1.0])), "local_values": P._frozen_array(np.array([0.0, 0.5])), "base_rank": P._frozen_array(np.array([0.0, 0.5]))}),
+        **_prepared_provenance(2, side_len=side_len, arrays={"node_tokens": P._frozen_array(np.zeros((2, 3, 16), dtype=np.float32)), "node_embeddings": P._frozen_array(np.zeros((2, 64), dtype=np.float32)), "euclidean_rank": P._frozen_array(np.array([0.0, 1.0])), "local_values": P._frozen_array(np.array([0.0, 0.5])), "base_rank": P._frozen_array(np.array([0.0, 0.5]))}),
     )
+
+
+def test_prepared_world_uses_actual_side_len_for_frozen_scalar_features() -> None:
+    event = _training_trace(event_count=1).events[0]
+    unit_world = _prepared_training_world(side_len=1.0)
+    triple_world = _prepared_training_world(side_len=3.0)
+
+    assert P._trace_side_len_from_prepared(unit_world) == 1.0
+    assert P._trace_side_len_from_prepared(triple_world) == 3.0
+    _, unit_event, _, unit_candidates, _ = P._event_tensors(event, unit_world, torch.device("cpu"))
+    _, triple_event, _, triple_candidates, _ = P._event_tensors(event, triple_world, torch.device("cpu"))
+
+    torch.testing.assert_close(triple_event[:, 64:67], unit_event[:, 64:67] / 3.0)
+    torch.testing.assert_close(triple_candidates, unit_candidates / 3.0)
 
 
 def test_frontier_loss_ranking_and_world_macro_metrics() -> None:
@@ -738,6 +752,22 @@ def test_offline_base_rank_orders_frozen_tuple_and_world_macro_beats_trace_lengt
     pooled = summary[(summary["aggregation_level"] == "pooled") & (summary["arm"] == "c13m_base_rank")].iloc[0]
     worlds = summary[(summary["aggregation_level"] == "world") & (summary["arm"] == "c13m_base_rank")]
     assert pooled["reciprocal_rank"] == pytest.approx(worlds["reciprocal_rank"].mean())
+
+
+def test_offline_base_logits_and_cross_entropy_use_actual_side_len() -> None:
+    traces = _official_offline_traces(event_count=1)
+    prepared = {P._trace_world_id(trace): _prepared_training_world(side_len=3.0) for trace in traces}
+
+    events, _ = P.evaluate_offline_arms(traces, prepared, P.PersistentSearchHRM(), "c" * 64, P.resolve_paths(Path.cwd()), expected_development=_expected_development_registry())
+
+    base = events[events["arm"] == "c13m_base_rank"]
+    event = traces[0].events[0]
+    expected_logits = -torch.as_tensor(np.asarray(event.open_g) + np.asarray(event.open_base_rank), dtype=torch.float32) / 3.0
+    expected_raw = tuple(float(value) for value in expected_logits.tolist())
+    expected_ce = torch.nn.functional.cross_entropy(expected_logits.unsqueeze(0), torch.tensor([0])).item()
+
+    assert set(base["raw_logits"]) == {expected_raw}
+    assert base["cross_entropy"].tolist() == pytest.approx([expected_ce] * len(base))
 
 
 def test_world_clustered_bootstrap_samples_only_exactly_twenty_four_paired_worlds() -> None:
@@ -968,12 +998,12 @@ def test_task6_preparation_requires_immutable_audited_world_provenance(tmp_path:
         "node_count": 2, "edge_count": 2,
     }
     with pytest.raises(ValueError, match="provenance|identity"):
-        P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder)
-    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity=identity, start_idx=0)
+        P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, side_len=1.0)
+    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, side_len=1.0, audited_identity=identity, start_idx=0)
     assert prepared.world_id == "development/suite-0/0" and prepared.start_idx == 0 and prepared.goal_idx == 1
     assert prepared.node_count == 2 and prepared.edge_count == 2 and P._is_sha256(prepared.provenance_fingerprint)
     with pytest.raises(ValueError, match="node_count|identity|provenance"):
-        P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity={**identity, "node_count": 3}, start_idx=0)
+        P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, side_len=1.0, audited_identity={**identity, "node_count": 3}, start_idx=0)
 
 
 def test_task6_online_evaluation_requires_verified_binding_and_provenance(tmp_path: Path) -> None:
@@ -1032,7 +1062,7 @@ def test_task6_prepared_arrays_are_independent_readonly_and_search_rejects_repla
     encoder = P.load_frozen_flat_encoder(_task3_source(tmp_path), torch.device("cpu")); cache = _task3_features()
     path = tmp_path / "immutable-cache.npz"; np.savez(path, features=cache["features"]); cache["cache_path"] = str(path); cache["cache_sha256"] = _sha256(path)
     graph = [[(1, 1.0)], [(0, 1.0)]]; identity = {"split": "development", "suite": "suite-0", "world_index": 0, "world_seed": 1, "roadmap_seed": 2, "feature_cache_path": str(path), "feature_cache_sha256": _sha256(path), "node_count": 2, "edge_count": 2}
-    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity=identity)
+    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, side_len=1.0, audited_identity=identity)
     cache["features"][0, 0, 0] += 99.0
     assert all(not array.flags.writeable for array in (prepared.node_tokens, prepared.node_embeddings, prepared.euclidean_rank, prepared.local_values, prepared.base_rank))
     assert prepared.node_tokens[0, 0, 0] != cache["features"][0, 0, 0]
@@ -1215,7 +1245,7 @@ def test_task6_prepared_train_and_validation_worlds_preserve_split_identity_and_
         cache = _task3_features(); path = tmp_path / f"{split}-cache.npz"; np.savez(path, features=cache["features"])
         cache["cache_path"] = str(path); cache["cache_sha256"] = _sha256(path)
         identity = {"split": split, "suite": "maze", "world_index": index, "world_seed": 10 + index, "roadmap_seed": 20 + index, "feature_cache_path": str(path), "feature_cache_sha256": _sha256(path), "node_count": 2, "edge_count": 1}
-        prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity=identity)
+        prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, side_len=1.0, audited_identity=identity)
         trace = replace(_training_trace(world_index=index), split=split, suite="maze", world_seed=10 + index, roadmap_seed=20 + index, feature_cache_path=str(path), feature_cache_sha256=_sha256(path))
         assert prepared.world_id == f"{split}/maze/{index}" and prepared.split == split
         assert P._prepared_for_trace({prepared.world_id: prepared}, trace) is prepared
@@ -1227,14 +1257,14 @@ def test_task6_prepared_provenance_rejects_invalid_or_mismatched_split_identity(
     base = {"split": "train", "suite": "maze", "world_index": 2, "world_seed": 12, "roadmap_seed": 22, "feature_cache_path": str(path), "feature_cache_sha256": _sha256(path), "node_count": 2, "edge_count": 1}
     for identity in ({**base, "split": "test"}, {**base, "world_id": "development/maze/2"}):
         with pytest.raises(ValueError, match="split|identity|provenance"):
-            P.prepare_world_representation(cache, [[(1, 1.0)], []], 1, P.resolve_paths(tmp_path), encoder, audited_identity=identity)
+            P.prepare_world_representation(cache, [[(1, 1.0)], []], 1, P.resolve_paths(tmp_path), encoder, side_len=1.0, audited_identity=identity)
 
 
 def test_task6_prepared_validation_rejects_deleted_feature_cache(tmp_path: Path) -> None:
     encoder = P.load_frozen_flat_encoder(_task3_source(tmp_path), torch.device("cpu")); cache = _task3_features(); path = tmp_path / "deleted-cache.npz"; np.savez(path, features=cache["features"])
     cache["cache_path"] = str(path); cache["cache_sha256"] = _sha256(path)
     graph = [[(1, 1.0)], []]; identity = {"split": "train", "suite": "maze", "world_index": 1, "world_seed": 11, "roadmap_seed": 21, "feature_cache_path": str(path), "feature_cache_sha256": _sha256(path), "node_count": 2, "edge_count": 1}
-    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity=identity)
+    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, side_len=1.0, audited_identity=identity)
     path.unlink()
     with pytest.raises(ValueError, match="cache|prepared"):
         P.static_c13m_search(graph, prepared, 0, 1, P.resolve_paths(tmp_path))
@@ -1631,6 +1661,28 @@ def test_task7_rereview_atomic_failure_cleans_owned_temp_and_preserves_siblings(
     assert destination.read_bytes() == b"original" and sibling.read_bytes() == b"sibling"
     assert sorted(path.name for path in tmp_path.iterdir()) == ["artifact.json", "sibling.tmp"]
     monkeypatch.setattr(P.os, "replace", real_replace); monkeypatch.setattr(P.os, "fsync", real_fsync)
+
+
+def test_canonical_frame_round_trips_binary64_exactly(tmp_path: Path) -> None:
+    frame = pd.DataFrame({
+        "metric": [1.0 / 12.0, 1.4006099517579467, 0.0434777343795551],
+        "arm": ["persistent", "reset", "base"],
+    })
+    path = tmp_path / "raw.csv"
+
+    P._atomic_frame(path, frame)
+    restored = P._read_canonical_frame(path)
+
+    assert restored["metric"].tolist() == frame["metric"].tolist()
+    assert restored["arm"].tolist() == frame["arm"].tolist()
+
+
+def test_develop_derives_evidence_from_promoted_canonical_frames() -> None:
+    source = inspect.getsource(P.run_develop_stage)
+    write = source.index("_atomic_frame(ranking_path")
+    read = source.index("_read_canonical_frame(ranking_path")
+    assert write < read < source.index("offline_payload")
+    assert source.index("_read_canonical_frame(search_path") < source.index("online_payload")
 
 
 def test_task7_rereview_partial_stage_conflict_hard_fails_after_binding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
