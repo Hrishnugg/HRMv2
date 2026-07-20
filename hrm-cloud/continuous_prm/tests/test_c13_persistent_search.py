@@ -392,15 +392,17 @@ def _task3_source(tmp_path: Path) -> P.SourceContext:
 def _task3_features() -> dict[str, np.ndarray]:
     return {"features": np.arange(96, dtype=np.float32).reshape(2,3,16)/100, "euclidean_to_goal": np.asarray([.8,0.]), "local_value_radius_0_20": np.asarray([1.2,0.])}
 
-def _prepared_provenance(node_count: int, *, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None) -> dict[str, object]:
+def _prepared_provenance(node_count: int, *, arrays: Mapping[str, np.ndarray] | None = None, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None) -> dict[str, object]:
     actual_graph = graph if graph is not None else tuple(() for _ in range(node_count))
     identity = dict(record or {"split": "development", "suite": "synthetic", "world_index": 0, "world_seed": 1, "roadmap_seed": 2, "feature_cache_path": "synthetic-cache", "feature_cache_sha256": "0" * 64, "node_count": node_count, "edge_count": sum(len(edges) for edges in actual_graph)})
+    arrays = arrays or {"node_tokens": np.zeros((node_count, 3, 16), dtype=np.float32), "node_embeddings": np.zeros((node_count, 64), dtype=np.float32), "euclidean_rank": np.zeros(node_count), "local_values": np.zeros(node_count), "base_rank": np.zeros(node_count)}
     payload = {
         "world_id": f"development/{identity['suite']}/{identity['world_index']}", "split": identity["split"], "suite": identity["suite"], "world_index": identity["world_index"],
         "world_seed": identity["world_seed"], "roadmap_seed": identity["roadmap_seed"], "feature_cache_path": identity["feature_cache_path"], "feature_cache_sha256": identity["feature_cache_sha256"],
         "node_count": node_count, "edge_count": sum(len(edges) for edges in actual_graph), "start_idx": 0, "goal_idx": 1, "graph_sha256": P._canonical_graph_sha256(actual_graph),
+        "array_sha256": {name: P._array_sha256(array) for name, array in arrays.items()}, "encoder_checkpoint_sha256": "0" * 64, "encoder_state_sha256": "1" * 64, "encoder_token_shape": tuple(arrays["node_tokens"].shape[1:]),
     }
-    return {**payload, "provenance_fingerprint": hashlib.sha256(P.canonical_json_bytes(payload)).hexdigest()}
+    return {**payload, "provenance_fingerprint": P._prepared_fingerprint(payload)}
 
 
 def test_first_teacher_event_is_start_expansion_and_first_hrm_update(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -525,9 +527,9 @@ def _training_trace(event_count: int = 2, *, world_index: int = 0) -> P.TeacherT
 
 def _prepared_training_world() -> P.PreparedWorld:
     return P.PreparedWorld(
-        np.zeros((2, 3, 16), dtype=np.float32), np.zeros((2, 64), dtype=np.float32),
-        np.array([0.0, 1.0]), np.array([0.0, 0.5]), np.array([0.0, 0.5]),
-        **_prepared_provenance(2),
+        P._frozen_array(np.zeros((2, 3, 16), dtype=np.float32)), P._frozen_array(np.zeros((2, 64), dtype=np.float32)),
+        P._frozen_array(np.array([0.0, 1.0])), P._frozen_array(np.array([0.0, 0.5])), P._frozen_array(np.array([0.0, 0.5])),
+        **_prepared_provenance(2, arrays={"node_tokens": P._frozen_array(np.zeros((2, 3, 16), dtype=np.float32)), "node_embeddings": P._frozen_array(np.zeros((2, 64), dtype=np.float32)), "euclidean_rank": P._frozen_array(np.array([0.0, 1.0])), "local_values": P._frozen_array(np.array([0.0, 0.5])), "base_rank": P._frozen_array(np.array([0.0, 0.5]))}),
     )
 
 
@@ -824,12 +826,13 @@ def test_registry_mapping_from_sourcecontext_integrates_with_bootstrap_and_rejec
         P.world_clustered_bootstrap(paired, "mrr_delta", 20, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=corrupt)
 
 
-def _prepared_search_world(node_count: int, *, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None) -> P.PreparedWorld:
-    embeddings = np.zeros((node_count, 64), dtype=np.float32)
-    embeddings[:, 0] = np.arange(node_count, dtype=np.float32)
+def _prepared_search_world(node_count: int, *, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None, base_rank: np.ndarray | None = None) -> P.PreparedWorld:
+    token = P._frozen_array(np.zeros((node_count, 3, 16), dtype=np.float32)); embeddings = np.zeros((node_count, 64), dtype=np.float32)
+    embeddings[:, 0] = np.arange(node_count, dtype=np.float32); embeddings = P._frozen_array(embeddings)
+    euclid = P._frozen_array(np.arange(node_count, dtype=float)); local = P._frozen_array(np.zeros(node_count)); base = P._frozen_array(np.arange(node_count, dtype=float) if base_rank is None else base_rank)
+    arrays = {"node_tokens": token, "node_embeddings": embeddings, "euclidean_rank": euclid, "local_values": local, "base_rank": base}
     return P.PreparedWorld(
-        np.zeros((node_count, 3, 16), dtype=np.float32), embeddings,
-        np.arange(node_count, dtype=float), np.zeros(node_count), np.arange(node_count, dtype=float), **_prepared_provenance(node_count, record=record, graph=graph),
+        token, embeddings, euclid, local, base, **_prepared_provenance(node_count, arrays=arrays, record=record, graph=graph),
     )
 
 
@@ -843,11 +846,12 @@ def test_dynamic_search_rescores_the_entire_open_set_after_each_post_relaxation_
         return context, P.HRMCarry(context, context, carry.step + 1)
 
     def score(embeddings: torch.Tensor, context: torch.Tensor, scalars: torch.Tensor) -> torch.Tensor:
+
         nodes = tuple(int(value) for value in embeddings[:, 0].tolist()); score_nodes.append(nodes)
         return -embeddings[:, 0] if int(context[0, 0].item()) == 1 else embeddings[:, 0]
 
     monkeypatch.setattr(model, "update_event", update); monkeypatch.setattr(model, "score_candidates", score)
-    result = P.dynamic_best_first(graph, _prepared_search_world(5), 0, 4, model, "persistent", P.resolve_paths(Path.cwd()))
+    result = P.dynamic_best_first(graph, _prepared_search_world(5, graph=graph), 0, 4, model, "persistent", P.resolve_paths(Path.cwd()))
 
     assert result.valid and result.path == (0, 1, 3, 4)
     assert result.expanded_nodes == (0, 1, 3, 4) and result.expansions == 4
@@ -859,8 +863,7 @@ def test_dynamic_search_rescores_the_entire_open_set_after_each_post_relaxation_
 
 def test_dynamic_search_ties_and_reset_carry_are_deterministic(monkeypatch: pytest.MonkeyPatch) -> None:
     graph = [[(1, 1.0), (2, 1.0), (3, 1.0)], [(4, 1.0)], [(4, 1.0)], [(4, 1.0)], []]
-    prepared = _prepared_search_world(5)
-    prepared = replace(prepared, base_rank=np.array([0.0, 2.0, 1.0, 1.0, 0.0]))
+    prepared = _prepared_search_world(5, graph=graph, base_rank=np.array([0.0, 2.0, 1.0, 1.0, 0.0]))
     model = P.PersistentSearchHRM(); reset_steps: list[int] = []
     monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: torch.zeros(len(embeddings)))
     original_reset = P.reset_carry_for_event
@@ -905,11 +908,11 @@ def test_overall_verdict_has_frozen_precedence() -> None:
 
 
 def test_task6_review_empty_open_updates_and_scores_zero_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
-    model = P.PersistentSearchHRM(); prepared = _prepared_search_world(2); calls: list[int] = []
+    model = P.PersistentSearchHRM(); prepared = _prepared_search_world(2, graph=[[(1, 1.0)], []]); calls: list[int] = []
     monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: (calls.append(len(embeddings)), torch.empty((len(embeddings),)))[1])
     result = P.dynamic_best_first([[(1, 1.0)], []], prepared, 0, 1, model, "persistent", P.resolve_paths(Path.cwd()))
     assert result.valid and calls == [1]
-    empty = P.dynamic_best_first([[], []], prepared, 0, 1, model, "reset", P.resolve_paths(Path.cwd()))
+    empty = P.dynamic_best_first([[], []], _prepared_search_world(2, graph=[[], []]), 0, 1, model, "reset", P.resolve_paths(Path.cwd()))
     assert not empty.valid and empty.scorer_calls == 1 and empty.candidates_scored == 0 and calls[-1] == 0
 
 
@@ -962,7 +965,7 @@ def test_task6_online_evaluation_requires_verified_binding_and_provenance(tmp_pa
 
 def test_task6_static_c13m_exactly_matches_frozen_c7_astar_and_no_reentry(monkeypatch: pytest.MonkeyPatch) -> None:
     graph = [[(2, 1.0), (3, 5.0)], [], [(3, 1.0)], [(2, 0.5), (1, 1.0)]]
-    prepared = _prepared_search_world(4)
+    prepared = _prepared_search_world(4, graph=graph)
     static = P.static_c13m_search(graph, prepared, 0, 1, P.resolve_paths(Path.cwd()))
     reference = L.astar_with_path(graph, prepared.base_rank, P.MAX_EXPANSIONS, 0, 1)
     assert static.valid == reference["found"] and static.path == tuple(reference["path"]) and static.cost == reference["cost"] and static.expansions == reference["expansions"]
@@ -974,7 +977,8 @@ def test_task6_static_c13m_exactly_matches_frozen_c7_astar_and_no_reentry(monkey
 def test_task6_dynamic_search_honors_exact_192_expansion_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
     graph = [[] for _ in range(193)]; graph[0] = [(2, 1.0)]
     for node in range(2, 192): graph[node] = [(node + 1, 1.0)]
-    prepared = _prepared_search_world(193); model = P.PersistentSearchHRM()
+    graph[191] = [(192, 1.0)]
+    prepared = _prepared_search_world(193, graph=graph); model = P.PersistentSearchHRM()
     monkeypatch.setattr(model, "update_event", lambda event, carry: (torch.zeros((1, 64)), P.HRMCarry(carry.low, carry.high, carry.step + 1)))
     monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: torch.zeros(len(embeddings)))
     result = P.dynamic_best_first(graph, prepared, 0, 1, model, "persistent", P.resolve_paths(Path.cwd()))
@@ -988,3 +992,194 @@ def test_task6_g2_invalid_infinity_is_a_false_bool_and_nan_is_rejected() -> None
     malformed = invalid.copy(); malformed.loc[0, "cost_ratio"] = math.nan
     with pytest.raises(ValueError, match="malformed"):
         P.g2_verdict(malformed, {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}, 20, expected_development=registry)
+
+
+def test_task6_g2_requires_finite_quality_for_each_side_of_each_margin() -> None:
+    registry = _expected_development_registry(); seeds = {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}
+    for persistent_ratio, base_ratio in ((math.inf, math.inf), (math.inf, 1.1), (1.1, math.inf)):
+        rows = _g2_search_rows(-1.0)
+        rows.loc[rows["arm"] == "c13p_persistent", "cost_ratio"] = persistent_ratio
+        rows.loc[rows["arm"] == "c13m_base", "cost_ratio"] = base_ratio
+        verdict = P.g2_verdict(rows, seeds, 20, expected_development=registry)
+        assert verdict["quality_mean_passes"] is False and verdict["quality_max_passes"] is False and verdict["passes"] is False
+
+
+def test_task6_prepared_arrays_are_independent_readonly_and_search_rejects_replacement(tmp_path: Path) -> None:
+    encoder = P.load_frozen_flat_encoder(_task3_source(tmp_path), torch.device("cpu")); cache = _task3_features()
+    path = tmp_path / "immutable-cache.npz"; np.savez(path, features=cache["features"]); cache["cache_path"] = str(path); cache["cache_sha256"] = _sha256(path)
+    graph = [[(1, 1.0)], [(0, 1.0)]]; identity = {"split": "development", "suite": "suite-0", "world_index": 0, "world_seed": 1, "roadmap_seed": 2, "feature_cache_path": str(path), "feature_cache_sha256": _sha256(path), "node_count": 2, "edge_count": 2}
+    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity=identity)
+    cache["features"][0, 0, 0] += 99.0
+    assert all(not array.flags.writeable for array in (prepared.node_tokens, prepared.node_embeddings, prepared.euclidean_rank, prepared.local_values, prepared.base_rank))
+    assert prepared.node_tokens[0, 0, 0] != cache["features"][0, 0, 0]
+    with pytest.raises(ValueError, match="prepared|provenance|hash"):
+        P.static_c13m_search(graph, replace(prepared, node_embeddings=prepared.node_embeddings.copy()), 0, 1, P.resolve_paths(tmp_path))
+
+
+def test_task6_search_result_zero_denominator_contract_is_explicit() -> None:
+    zero = P._make_search_result("arm", [[(1, 0.0)], []], [None, 0], [0.0, 0.0], 0, 1, [0, 1], 0, 0, 0.0, 0.0, 0.0)
+    positive = P._make_search_result("arm", [[(1, 0.0)], []], [None, 0], [0.0, 1.0], 0, 1, [0, 1], 0, 0, 0.0, 0.0, 0.0)
+    assert zero.cost_ratio == 1.0 and positive.cost_ratio == math.inf
+
+
+def _task6_live_online_fixture(tmp_path: Path) -> tuple[list[dict[str, object]], dict[str, P.PreparedWorld], P.PersistentSearchHRM, P.EvaluationBinding]:
+    graph = [[(1, 1.0)], []]
+    registry = _expected_development_registry()
+    worlds: list[dict[str, object]] = []
+    prepared: dict[str, P.PreparedWorld] = {}
+    for ordinal, record in enumerate(registry):
+        cache_path = tmp_path / f"live-cache-{ordinal}.bin"
+        cache_path.write_bytes(f"cache-{ordinal}".encode("ascii"))
+        current = {**record, "feature_cache_path": str(cache_path), "feature_cache_sha256": _sha256(cache_path)}
+        worlds.append({**current, "graph": graph, "start_idx": 0, "goal_idx": 1})
+        prepared[f"development/{current['suite']}/{current['world_index']}"] = _prepared_search_world(2, record=current, graph=graph)
+    model = P.PersistentSearchHRM()
+    checkpoint = tmp_path / "live-evaluation.pt"
+    torch.save({"model": model.state_dict()}, checkpoint)
+    return worlds, prepared, model, P.build_evaluation_binding(checkpoint, model, worlds, _sha256(Path(P.__file__)))
+
+
+def test_task6_live_feature_cache_file_drift_is_rejected_before_online_evaluation(tmp_path: Path) -> None:
+    worlds, prepared, model, binding = _task6_live_online_fixture(tmp_path)
+    Path(worlds[0]["feature_cache_path"]).write_bytes(b"changed-after-preparation")
+    with pytest.raises(ValueError, match="cache|prepared|provenance"):
+        P.evaluate_online_arms(worlds, prepared, model, P.resolve_paths(tmp_path), binding=binding)
+
+
+def test_task6_deterministic_projection_removes_only_timing_and_canonically_sorts_duplicates() -> None:
+    rows = pd.DataFrame([
+        {"world_id": "z", "arm": "c13p_persistent", "decision": (2, 1), "representation_seconds": 9.0, "model_seconds": 8.0, "bookkeeping_seconds": 7.0},
+        {"world_id": "a", "arm": "c13p_persistent", "decision": (1, 2), "representation_seconds": 6.0, "model_seconds": 5.0, "bookkeeping_seconds": 4.0},
+        {"world_id": "a", "arm": "c13p_persistent", "decision": (1, 2), "representation_seconds": 3.0, "model_seconds": 2.0, "bookkeeping_seconds": 1.0},
+    ])
+    projected = P.deterministic_result_projection(rows)
+    assert list(projected.columns) == ["world_id", "arm", "decision"]
+    assert projected.equals(P.deterministic_result_projection(rows.sample(frac=1.0, random_state=3)))
+    assert len(projected) == 3 and projected.iloc[0].to_dict() == projected.iloc[1].to_dict()
+
+
+def test_task6_validate_timing_rejects_negative_nan_and_infinite_values() -> None:
+    valid = pd.DataFrame([{name: 0.0 for name in P._TIMING_COLUMNS}])
+    P.validate_timing_columns(valid)
+    for column, value in (("representation_seconds", -0.1), ("model_seconds", math.nan), ("bookkeeping_seconds", math.inf)):
+        malformed = valid.copy(); malformed.loc[0, column] = value
+        with pytest.raises(ValueError, match="timings"):
+            P.validate_timing_columns(malformed)
+
+
+def test_task6_oracle_runs_only_after_dynamic_search_decisions_and_never_changes_priority(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph = [[(1, 1.0), (2, 1.0)], [(3, 1.0)], [(3, 1.0)], []]
+    model = P.PersistentSearchHRM(); scored: list[tuple[int, ...]] = []; oracle_after: list[int] = []
+    def score(embeddings: torch.Tensor, context: torch.Tensor, scalars: torch.Tensor) -> torch.Tensor:
+        nodes = tuple(int(value) for value in embeddings[:, 0]); scored.append(nodes)
+        return torch.tensor([10.0 if node == 3 else 0.0 for node in nodes])
+    monkeypatch.setattr(model, "score_candidates", score)
+    monkeypatch.setattr(P, "_evaluation_optimal_cost", lambda *_: (oracle_after.append(len(scored)), 3.0)[1])
+    result = P.dynamic_best_first(graph, _prepared_search_world(4, graph=graph), 0, 3, model, "persistent", P.resolve_paths(Path.cwd()))
+    assert result.expanded_nodes == (0, 1, 3) and scored == [(1, 2), (2, 3)]
+    assert oracle_after == [result.scorer_calls] == [2]
+
+
+def test_task6_online_evaluation_72_row_duplicate_lifecycle_and_drift_guards(tmp_path: Path) -> None:
+    worlds, prepared, model, binding = _task6_live_online_fixture(tmp_path)
+    first = P.evaluate_online_arms(worlds, prepared, model, P.resolve_paths(tmp_path), binding=binding)
+    second = P.evaluate_online_arms(worlds, prepared, model, P.resolve_paths(tmp_path), binding=binding)
+    assert len(first) == 72 and first.groupby(["world_id", "arm"]).size().eq(1).all()
+    assert P.deterministic_result_projection(first).equals(P.deterministic_result_projection(second))
+    swapped = dict(prepared); first_id, second_id = tuple(swapped)[:2]; swapped[first_id] = prepared[second_id]
+    with pytest.raises(ValueError, match="prepared|provenance|identity"):
+        P.evaluate_online_arms(worlds, swapped, model, P.resolve_paths(tmp_path), binding=binding)
+    mutated_worlds = [dict(world) for world in worlds]; mutated_worlds[0]["graph"] = [[(1, 2.0)], []]
+    with pytest.raises(ValueError, match="graph|prepared|provenance"):
+        P.evaluate_online_arms(mutated_worlds, prepared, model, P.resolve_paths(tmp_path), binding=binding)
+    changed_checkpoint = P.PersistentSearchHRM()
+    with torch.no_grad():
+        next(changed_checkpoint.parameters()).add_(1.0)
+    torch.save({"model": changed_checkpoint.state_dict()}, Path(binding.checkpoint_path))
+    with pytest.raises(ValueError, match="checkpoint"):
+        P.evaluate_online_arms(worlds, prepared, model, P.resolve_paths(tmp_path), binding=binding)
+    torch.save({"model": model.state_dict()}, Path(binding.checkpoint_path))
+    with torch.no_grad():
+        next(model.parameters()).add_(1.0)
+    with pytest.raises(ValueError, match="model"):
+        P.evaluate_online_arms(worlds, prepared, model, P.resolve_paths(tmp_path), binding=binding)
+
+
+def test_task6_candidate_enumeration_permutation_selects_same_node_and_ties_use_g_then_node_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph_a = [[(2, 1.0), (1, 2.0), (4, 1.0), (3, 1.0)], [(5, 1.0)], [(5, 1.0)], [(5, 1.0)], [(5, 1.0)], []]
+    graph_b = [[(3, 1.0), (4, 1.0), (1, 2.0), (2, 1.0)], [(5, 1.0)], [(5, 1.0)], [(5, 1.0)], [(5, 1.0)], []]
+    base = np.array([0.0, 0.0, 1.0, 1.0, 1.0, 0.0])
+    model = P.PersistentSearchHRM(); monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: torch.zeros(len(embeddings)))
+    first = P.dynamic_best_first(graph_a, _prepared_search_world(6, graph=graph_a, base_rank=base), 0, 5, model, "persistent", P.resolve_paths(Path.cwd()))
+    second = P.dynamic_best_first(graph_b, _prepared_search_world(6, graph=graph_b, base_rank=base), 0, 5, model, "persistent", P.resolve_paths(Path.cwd()))
+    assert first.expanded_nodes[1] == second.expanded_nodes[1] == 2
+    assert first.expanded_nodes[2] == second.expanded_nodes[2] == 3
+
+
+def test_task6_goal_pop_emits_no_update_or_scorer_call_and_exact_192_counts_full_rescores(monkeypatch: pytest.MonkeyPatch) -> None:
+    goal_graph = [[(1, 1.0)], []]; model = P.PersistentSearchHRM(); updates: list[int] = []; scores: list[int] = []
+    original = model.update_event
+    monkeypatch.setattr(model, "update_event", lambda event, carry: (updates.append(int(carry.step)), original(event, carry))[1])
+    monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: (scores.append(len(embeddings)), torch.zeros(len(embeddings)))[1])
+    goal = P.dynamic_best_first(goal_graph, _prepared_search_world(2, graph=goal_graph), 0, 1, model, "persistent", P.resolve_paths(Path.cwd()))
+    assert goal.expansions == 2 and goal.scorer_calls == len(updates) == 1 and scores == [1]
+    graph = [[] for _ in range(194)]; graph[0] = [(2, 1.0)]
+    for node in range(2, 193): graph[node] = [(node + 1, 1.0)]
+    limited = P.dynamic_best_first(graph, _prepared_search_world(194, graph=graph), 0, 1, model, "reset", P.PersistentSearchConfig(Path.cwd(), Path.cwd(), max_expansions=192))
+    assert limited.expansions == limited.scorer_calls == 192 and limited.candidates_scored == 192
+
+
+def test_task6_g2_rejects_nonboolean_valid_and_global_checkpoint_model_audit_drift() -> None:
+    registry = _expected_development_registry(); seeds = {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}
+    for column, value in (("valid", 1), ("checkpoint_sha256", "c" * 64), ("model_state_sha256", "d" * 64)):
+        malformed = _g2_search_rows(-1.0)
+        if column == "valid": malformed = malformed.astype({"valid": object})
+        malformed.loc[0, column] = value
+        with pytest.raises(ValueError, match="malformed|globally|audit|verified"):
+            P.g2_verdict(malformed, seeds, 20, expected_development=registry)
+
+
+def test_task6_g2_ci_upper_zero_fails_for_reset_and_c13m() -> None:
+    registry = _expected_development_registry(); seeds = {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}
+    zero_rows = _g2_search_rows(0.0)
+    zero_rows.loc[zero_rows["arm"] == "c13m_base", "expansions"] = 10.0
+    verdict = P.g2_verdict(zero_rows, seeds, 40, expected_development=registry)
+    assert verdict["reset_ci_high"] == verdict["c13m_ci_high"] == 0.0
+    assert verdict["reset_ci_passes"] is False and verdict["c13m_ci_passes"] is False
+
+
+def test_task6_g2_suite_comparisons_require_four_of_six_for_both_arms() -> None:
+    registry = _expected_development_registry(); seeds = {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}
+    three = _g2_search_rows(-1.0)
+    three.loc[(three["arm"] == "c13p_persistent") & three["suite"].isin(["suite-0", "suite-1", "suite-2"]), "expansions"] = 11.0
+    three_verdict = P.g2_verdict(three, seeds, 20, expected_development=registry)
+    assert three_verdict["suites_negative_vs_reset"] == three_verdict["suites_negative_vs_c13m"] == 3
+    assert three_verdict["suite_reset_passes"] is False and three_verdict["suite_c13m_passes"] is False
+    four = _g2_search_rows(-1.0)
+    four.loc[(four["arm"] == "c13p_persistent") & four["suite"].isin(["suite-0", "suite-1"]), "expansions"] = 11.0
+    four_verdict = P.g2_verdict(four, seeds, 20, expected_development=registry)
+    assert four_verdict["suites_negative_vs_reset"] == four_verdict["suites_negative_vs_c13m"] == 4
+    assert four_verdict["suite_reset_passes"] is True and four_verdict["suite_c13m_passes"] is True
+
+
+def test_task6_g2_just_over_mean_and_max_quality_margins_fail() -> None:
+    registry = _expected_development_registry(); seeds = {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}
+    mean_fail = P.g2_verdict(_g2_search_rows(-1.0, cost_margin=0.005001), seeds, 20, expected_development=registry)
+    max_fail = P.g2_verdict(_g2_search_rows(-1.0, max_margin=0.020001), seeds, 20, expected_development=registry)
+    assert mean_fail["quality_mean_passes"] is False and mean_fail["quality_max_passes"] is True
+    assert max_fail["quality_mean_passes"] is True and max_fail["quality_max_passes"] is False
+
+
+def test_task6_g2_seed_payload_requires_exact_complete_distinct_frozen_values() -> None:
+    registry = _expected_development_registry(); good = {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}
+    invalid = ({}, {"g2_exp_reset": good["g2_exp_reset"]}, {**good, "extra": 1}, {"g2_exp_reset": good["g2_exp_reset"], "g2_exp_c13m": good["g2_exp_reset"]}, {"g2_exp_reset": 0, "g2_exp_c13m": good["g2_exp_c13m"]})
+    for seeds in invalid:
+        with pytest.raises(ValueError, match="seed|bound|frozen"):
+            P.g2_verdict(_g2_search_rows(-1.0), seeds, 20, expected_development=registry)
+
+
+def test_task6_overall_verdict_includes_all_pass_and_every_precedence_branch() -> None:
+    assert P.overall_verdict({"passes": False}, {"passes": False}, {"passes": False}) == "c13p_invalid_no_mechanism_verdict"
+    assert P.overall_verdict({"passes": True}, {"passes": False}, {"passes": False}) == "c13p_no_persistent_ranking_signal"
+    assert P.overall_verdict({"passes": True}, {"passes": True}, {"passes": False}) == "c13p_offline_signal_failed_free_running_search"
+    assert P.overall_verdict({"passes": True}, {"passes": True}, {"passes": True}) == "c13p_persistent_search_pilot_passed"

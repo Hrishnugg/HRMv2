@@ -840,7 +840,27 @@ class PreparedWorld:
     world_id: str; split: str; suite: str; world_index: int; world_seed: int; roadmap_seed: int
     feature_cache_path: str; feature_cache_sha256: str; node_count: int; edge_count: int
     start_idx: int; goal_idx: int; graph_sha256: str; provenance_fingerprint: str
+    array_sha256: Mapping[str, str]; encoder_checkpoint_sha256: str; encoder_state_sha256: str
+    encoder_token_shape: tuple[int, int]
 
+def _array_sha256(array: np.ndarray) -> str:
+    contiguous = np.ascontiguousarray(array)
+    digest = hashlib.sha256(); digest.update(str(contiguous.dtype).encode("ascii")); digest.update(np.asarray(contiguous.shape, dtype=np.int64).tobytes()); digest.update(contiguous.tobytes()); return digest.hexdigest()
+
+
+def _frozen_array(array: np.ndarray, dtype: object | None = None) -> np.ndarray:
+    result = np.array(array, dtype=dtype, copy=True, order="C"); result.setflags(write=False); return result
+
+
+def _module_state_sha256(module: nn.Module) -> str:
+    digest = hashlib.sha256()
+    for name, value in sorted(module.state_dict().items()):
+        tensor = value.detach().cpu().contiguous(); digest.update(name.encode("utf-8")); digest.update(str(tensor.dtype).encode("ascii")); digest.update(np.asarray(tensor.shape, dtype=np.int64).tobytes()); digest.update(tensor.numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _prepared_fingerprint(provenance: Mapping[str, object]) -> str:
+    return hashlib.sha256(canonical_json_bytes(dict(provenance))).hexdigest()
 def _canonical_graph_sha256(graph: Sequence[Sequence[tuple[int, float]]]) -> str:
     return hashlib.sha256(canonical_json_bytes([[[int(node), float(weight)] for node, weight in outgoing] for outgoing in graph])).hexdigest()
 
@@ -897,7 +917,10 @@ def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph:
     euclid, local = _vector(feature_cache, "euclidean_to_goal", len(tokens)), _vector(feature_cache, "local_value_radius_0_20", len(tokens))
     with torch.no_grad(): embedding = encoder(torch.as_tensor(tokens.astype(np.float32, copy=False), device=next(encoder.parameters()).device).flatten(1))
     if tuple(embedding.shape) != (len(tokens), HIDDEN_DIM): raise ValueError("encoder output width changed")
-    return PreparedWorld(tokens, embedding.cpu().numpy(), euclid, local, euclid + LOCAL_ALPHA * (local - euclid), **provenance)
+    prepared_arrays = {"node_tokens": _frozen_array(tokens, np.float32), "node_embeddings": _frozen_array(embedding.cpu().numpy(), np.float32), "euclidean_rank": _frozen_array(euclid, np.float64), "local_values": _frozen_array(local, np.float64), "base_rank": _frozen_array(euclid + LOCAL_ALPHA * (local - euclid), np.float64)}
+    provenance.update({"array_sha256": {name: _array_sha256(value) for name, value in prepared_arrays.items()}, "encoder_checkpoint_sha256": getattr(encoder, "c13p_checkpoint_sha256", None), "encoder_state_sha256": _module_state_sha256(encoder), "encoder_token_shape": tuple(getattr(encoder, "c13p_token_shape", ()))})
+    provenance["provenance_fingerprint"] = _prepared_fingerprint(provenance)
+    return PreparedWorld(**prepared_arrays, **provenance)
 
 @dataclass(frozen=True)
 class HRMCarry:
@@ -1051,7 +1074,8 @@ def _trace_world_id(trace: TeacherTrace) -> str:
 def _prepared_for_trace(prepared_worlds: Mapping[str, PreparedWorld], trace: TeacherTrace) -> PreparedWorld:
     world_id = _trace_world_id(trace)
     if world_id in prepared_worlds:
-        return prepared_worlds[world_id]
+        prepared = prepared_worlds[world_id]; validate_prepared_world(prepared)
+        return prepared
     raise ValueError(f"prepared representation is missing for {world_id}")
 
 
@@ -1073,7 +1097,7 @@ def _trace_side_len(trace: TeacherTrace) -> float:
 
 def _event_tensors(event: TraceEvent, prepared: PreparedWorld, device: torch.device) -> tuple[Mapping[str, object], torch.Tensor, torch.Tensor, torch.Tensor, Sequence[int]]:
     causal = _event_causal(event)
-    embeddings = torch.as_tensor(prepared.node_embeddings, dtype=torch.float32, device=device)
+    embeddings = torch.tensor(prepared.node_embeddings, dtype=torch.float32, device=device)
     side_len = _trace_side_len_from_prepared(prepared)
     event_tensor = event_tensor_from_causal(causal, embeddings, side_len, len(prepared.node_embeddings))
     candidate_embeddings, candidate_scalars, candidate_nodes = candidate_tensors_from_causal(causal, embeddings, side_len)
@@ -1368,7 +1392,7 @@ _TIMING_COLUMNS = ("representation_seconds", "model_seconds", "bookkeeping_secon
 
 
 def _search_inputs(graph: Sequence[Sequence[tuple[int, float]]], prepared: PreparedWorld, start_idx: int, goal_idx: int, cfg: PersistentSearchConfig) -> tuple[int, tuple[float, ...]]:
-    count, ranks = _validated_graph(graph, prepared.base_rank)
+    validate_prepared_world(prepared, graph); count, ranks = _validated_graph(graph, prepared.base_rank)
     if np.asarray(prepared.node_embeddings).shape != (count, HIDDEN_DIM): raise ValueError("prepared representation does not match search graph")
     if not isinstance(start_idx, int) or not isinstance(goal_idx, int) or not 0 <= start_idx < count or not 0 <= goal_idx < count: raise ValueError("search start or goal is outside the graph")
     if not isinstance(cfg.max_expansions, int) or cfg.max_expansions <= 0: raise ValueError("search expansion budget is invalid")
@@ -1405,7 +1429,7 @@ def _online_causal(event_index: int, node: int, g: Sequence[float], ranks: Seque
 def dynamic_best_first(graph: Sequence[Sequence[tuple[int, float]]], prepared: PreparedWorld, start_idx: int, goal_idx: int, model: PersistentSearchHRM, carry_mode: str, cfg: PersistentSearchConfig) -> SearchResult:
     count, ranks = _search_inputs(graph, prepared, start_idx, goal_idx, cfg)
     if carry_mode not in ("persistent", "reset"): raise ValueError("unknown learned carry mode")
-    device = next(model.parameters()).device; embeddings = torch.as_tensor(prepared.node_embeddings, dtype=torch.float32, device=device); side_len = _trace_side_len_from_prepared(prepared)
+    device = next(model.parameters()).device; embeddings = torch.tensor(prepared.node_embeddings, dtype=torch.float32, device=device); side_len = _trace_side_len_from_prepared(prepared)
     g = [math.inf] * count; parent: list[int | None] = [None] * count; g[start_idx] = 0.
     opened = {start_idx}; closed: set[int] = set(); queue: list[tuple[float, float, float, int]] = [(0., 0., 0., start_idx)]; expanded: list[int] = []; calls = candidates = 0; rep = elapsed_model = book = 0.
     was_training = model.training; model.eval(); lifecycle = PersistentCarryLifecycle(model, f"online:{carry_mode}:{id(graph)}"); carry = lifecycle.initial_for_world(f"online:{id(graph)}", 1, device, torch.float32) if carry_mode == "persistent" else None
@@ -1477,9 +1501,9 @@ def evaluate_online_arms(worlds: Sequence[Mapping[str, object]], prepared_worlds
     for world_id in sorted(registry):
         record = records[world_id]; graph = record.get("graph"); start = record.get("start_idx"); goal = record.get("goal_idx")
         if not isinstance(graph, Sequence) or isinstance(graph, (str, bytes)) or not isinstance(start, int) or not isinstance(goal, int) or start != 0 or goal != 1: raise ValueError("online world graph or canonical start/goal is invalid")
-        prepared = prepared_worlds[world_id]; count, _ = _validated_graph(graph, prepared.base_rank); edge_count = sum(len(outgoing) for outgoing in graph)
+        prepared = prepared_worlds[world_id]; validate_prepared_world(prepared, graph); count = len(graph); edge_count = sum(len(outgoing) for outgoing in graph)
         expected = {"world_id": world_id, **registry[world_id], "start_idx": start, "goal_idx": goal, "graph_sha256": _canonical_graph_sha256(graph)}
-        expected["provenance_fingerprint"] = hashlib.sha256(canonical_json_bytes(expected)).hexdigest()
+        # The full immutable fingerprint is independently verified above; compare identity fields here.
         if any(getattr(prepared, key) != value for key, value in expected.items()) or prepared.node_count != count or prepared.edge_count != edge_count or np.asarray(prepared.node_embeddings).shape != (count, HIDDEN_DIM): raise ValueError("online prepared world provenance or graph drifted")
         if record.get("feature_cache_path") != prepared.feature_cache_path or record.get("feature_cache_sha256") != prepared.feature_cache_sha256 or record.get("world_seed") != prepared.world_seed or record.get("roadmap_seed") != prepared.roadmap_seed: raise ValueError("online world metadata drifted from prepared provenance")
 
@@ -1513,7 +1537,9 @@ def _g2_seeds(payload: object) -> Mapping[str, int]:
 def g2_verdict(search_rows: pd.DataFrame, bootstrap_seed: object, resamples: int, *, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None = None) -> dict[str, object]:
     paired = _g2_paired_rows(search_rows, expected_development); seeds = _g2_seeds(bootstrap_seed); reset_bootstrap = world_clustered_bootstrap(paired, "persistent_minus_reset_expansions", resamples, seeds["g2_exp_reset"], expected_development=expected_development); c13m_bootstrap = world_clustered_bootstrap(paired, "persistent_minus_c13m_expansions", resamples, seeds["g2_exp_c13m"], expected_development=expected_development)
     reset_suites = paired.groupby("suite", sort=True)["persistent_minus_reset_expansions"].mean(); c13m_suites = paired.groupby("suite", sort=True)["persistent_minus_c13m_expansions"].mean(); reset_high = float(reset_bootstrap["ci_high"]); c13m_high = float(c13m_bootstrap["ci_high"]); mean = float(paired["persistent_cost_ratio"].mean()); c13m_mean = float(paired["c13m_cost_ratio"].mean()); maximum = float(paired["persistent_cost_ratio"].max()); c13m_max = float(paired["c13m_cost_ratio"].max()); negative_reset = int((reset_suites < 0.).sum()); negative_c13m = int((c13m_suites < 0.).sum()); valid = bool(paired["all_valid"].all())
-    mean_passes = mean <= c13m_mean + .005 or math.isclose(mean, c13m_mean + .005, rel_tol=0., abs_tol=1.e-12); maximum_passes = maximum <= c13m_max + .02 or math.isclose(maximum, c13m_max + .02, rel_tol=0., abs_tol=1.e-12); passes = valid and reset_high < 0. and c13m_high < 0. and negative_reset >= 4 and negative_c13m >= 4 and mean_passes and maximum_passes
+    mean_passes = bool(math.isfinite(mean) and math.isfinite(c13m_mean) and (mean <= c13m_mean + .005 or math.isclose(mean, c13m_mean + .005, rel_tol=0., abs_tol=1.e-12)))
+    maximum_passes = bool(math.isfinite(maximum) and math.isfinite(c13m_max) and (maximum <= c13m_max + .02 or math.isclose(maximum, c13m_max + .02, rel_tol=0., abs_tol=1.e-12)))
+    passes = bool(valid and reset_high < 0. and c13m_high < 0. and negative_reset >= 4 and negative_c13m >= 4 and mean_passes and maximum_passes)
     return {"all_valid": valid, "reset_bootstrap": reset_bootstrap, "c13m_bootstrap": c13m_bootstrap, "reset_ci_high": reset_high, "c13m_ci_high": c13m_high, "reset_ci_passes": reset_high < 0., "c13m_ci_passes": c13m_high < 0., "suite_reset_expansion_deltas": {str(k): float(v) for k, v in reset_suites.items()}, "suite_c13m_expansion_deltas": {str(k): float(v) for k, v in c13m_suites.items()}, "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m, "suite_reset_passes": negative_reset >= 4, "suite_c13m_passes": negative_c13m >= 4, "persistent_mean_cost_ratio": mean, "c13m_mean_cost_ratio": c13m_mean, "persistent_max_cost_ratio": maximum, "c13m_max_cost_ratio": c13m_max, "quality_mean_passes": bool(math.isfinite(mean) and math.isfinite(c13m_mean) and mean_passes), "quality_max_passes": bool(math.isfinite(maximum) and math.isfinite(c13m_max) and maximum_passes), "passes": passes, "verdict": "c13p_g2_passed" if passes else "c13p_offline_signal_failed_free_running_search"}
 
 
@@ -1700,3 +1726,20 @@ def build_evaluation_binding(checkpoint_path: Path, model: PersistentSearchHRM, 
     registry = validate_expected_development_registry(expected_development); payload = torch.load(path, map_location="cpu", weights_only=False); state = payload.get("model") if isinstance(payload, Mapping) else None
     if not isinstance(state, Mapping) or set(state) != set(model.state_dict()) or any(not isinstance(value, torch.Tensor) or not torch.equal(value.detach().cpu(), model.state_dict()[name].detach().cpu()) for name, value in state.items()): raise ValueError("evaluation checkpoint state does not match current model")
     return EvaluationBinding("c13p-evaluation-binding-v1", str(path.resolve()), sha256_file(path), _model_state_sha256(model), hashlib.sha256(canonical_json_bytes(registry)).hexdigest(), source_fingerprint)
+_PREPARED_ARRAY_FIELDS = ("node_tokens", "node_embeddings", "euclidean_rank", "local_values", "base_rank")
+
+
+def validate_prepared_world(prepared: PreparedWorld, graph: Sequence[Sequence[tuple[int, float]]] | None = None) -> None:
+    if not isinstance(prepared, PreparedWorld) or not isinstance(prepared.array_sha256, Mapping) or set(prepared.array_sha256) != set(_PREPARED_ARRAY_FIELDS): raise ValueError("prepared provenance is incomplete")
+    arrays = {name: getattr(prepared, name) for name in _PREPARED_ARRAY_FIELDS}
+    if any(not isinstance(array, np.ndarray) or array.flags.writeable or not np.all(np.isfinite(array)) or _array_sha256(array) != prepared.array_sha256[name] for name, array in arrays.items()): raise ValueError("prepared array hash or immutability drifted")
+    cache_path = Path(prepared.feature_cache_path)
+    if cache_path.is_file() and sha256_file(cache_path) != prepared.feature_cache_sha256: raise ValueError("prepared feature cache drifted")
+    count = prepared.node_count
+    if not isinstance(count, int) or count <= 0 or arrays["node_tokens"].ndim != 3 or arrays["node_tokens"].shape[0] != count or arrays["node_embeddings"].shape != (count, HIDDEN_DIM) or any(arrays[name].shape != (count,) for name in ("euclidean_rank", "local_values", "base_rank")): raise ValueError("prepared array shape drifted")
+    if not _is_sha256(prepared.encoder_checkpoint_sha256) or not _is_sha256(prepared.encoder_state_sha256) or tuple(prepared.encoder_token_shape) != tuple(arrays["node_tokens"].shape[1:]): raise ValueError("prepared encoder identity drifted")
+    provenance = {field: getattr(prepared, field) for field in ("world_id", "split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count", "start_idx", "goal_idx", "graph_sha256", "array_sha256", "encoder_checkpoint_sha256", "encoder_state_sha256", "encoder_token_shape")}
+    if _prepared_fingerprint(provenance) != prepared.provenance_fingerprint: raise ValueError("prepared provenance fingerprint drifted")
+    if graph is not None:
+        graph_count, _ = _validated_graph(graph, arrays["base_rank"])
+        if graph_count != count or sum(len(outgoing) for outgoing in graph) != prepared.edge_count or _canonical_graph_sha256(graph) != prepared.graph_sha256: raise ValueError("prepared graph provenance drifted")
