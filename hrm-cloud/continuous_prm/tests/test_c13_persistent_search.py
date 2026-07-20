@@ -757,3 +757,14 @@ def test_g1_and_bootstrap_require_the_audited_development_identity_registry() ->
     for malformed in (arbitrary, wrong_seed):
         with pytest.raises(ValueError, match="identity|canonical|registry|development"):
             P.world_clustered_bootstrap(malformed, "mrr_delta", 20, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)
+
+def test_registry_mapping_from_sourcecontext_integrates_with_bootstrap_and_rejects_corrupt_key(tmp_path: Path) -> None:
+    records = _expected_development_registry()
+    source = P.SourceContext(tmp_path, tmp_path, tmp_path / "design.md", tmp_path / "impl.py", {}, {}, {"development": records}, tmp_path / "checkpoint.pt", "a" * 64)
+    registry = P.expected_development_registry(source)
+    metrics = _g1_world_metrics(0.10, 0.02)
+    paired = P._g1_paired_world_rows(metrics, expected_development=registry)
+    assert P.world_clustered_bootstrap(paired, "mrr_delta", 100, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=registry)["n_worlds"] == 24
+    corrupt = dict(registry); corrupt["development/corrupt/0"] = corrupt.pop(next(iter(corrupt)))
+    with pytest.raises(ValueError, match="canonical|key|identity"):
+        P.world_clustered_bootstrap(paired, "mrr_delta", 20, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=corrupt)

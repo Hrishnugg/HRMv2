@@ -1140,41 +1140,31 @@ _OFFLINE_METRICS = ("cross_entropy", "positive_rank", "reciprocal_rank", "top1",
 _DEVELOPMENT_IDENTITY_FIELDS = ("split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_sha256", "node_count", "edge_count", "feature_cache_path")
 
 
-def validate_expected_development_registry(expected_development: Sequence[Mapping[str, object]] | None) -> dict[str, dict[str, object]]:
-    """Normalize the frozen 24-world development identity registry."""
-    if not isinstance(expected_development, Sequence) or isinstance(expected_development, (str, bytes)) or len(expected_development) != DEVELOPMENT_WORLDS:
-        raise ValueError("expected development registry requires exactly 24 records")
-    normalized: dict[str, dict[str, object]] = {}
-    suite_counts: dict[str, int] = {}
-    for raw in expected_development:
-        if not isinstance(raw, Mapping) or raw.get("split") != "development":
-            raise ValueError("expected development registry split is invalid")
+def validate_expected_development_registry(expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None) -> dict[str, dict[str, object]]:
+    """Normalize raw or canonical-mapping forms of the frozen development registry."""
+    if isinstance(expected_development, Mapping):
+        entries = list(expected_development.items())
+        if any(not isinstance(key, str) or not key or not isinstance(value, Mapping) for key, value in entries): raise ValueError("expected development registry mapping key or value is invalid")
+    elif isinstance(expected_development, Sequence) and not isinstance(expected_development, (str, bytes)):
+        entries = [(None, value) for value in expected_development]
+    else:
+        raise ValueError("expected development registry is invalid")
+    if len(entries) != DEVELOPMENT_WORLDS: raise ValueError("expected development registry requires exactly 24 records")
+    normalized: dict[str, dict[str, object]] = {}; suite_counts: dict[str, int] = {}
+    for supplied_id, raw in entries:
+        if not isinstance(raw, Mapping) or raw.get("split") != "development": raise ValueError("expected development registry split is invalid")
         suite = raw.get("suite")
-        if not isinstance(suite, str) or not suite:
-            raise ValueError("expected development registry suite is invalid")
+        if not isinstance(suite, str) or not suite: raise ValueError("expected development registry suite is invalid")
         world_index = _integer(raw.get("world_index"), "expected development world_index")
-        cache_sha256 = raw.get("feature_cache_sha256", raw.get("cache_sha256"))
-        cache_path = raw.get("feature_cache_path", raw.get("cache"))
-        node_count = raw.get("node_count", raw.get("nodes"))
-        edge_count = raw.get("edge_count", raw.get("edges"))
-        if not _is_sha256(cache_sha256) or not isinstance(cache_path, str) or not cache_path:
-            raise ValueError("expected development registry cache identity is invalid")
-        identity = {
-            "split": "development", "suite": suite, "world_index": world_index,
-            "world_seed": _integer(raw.get("world_seed"), "expected development world_seed"),
-            "roadmap_seed": _integer(raw.get("roadmap_seed"), "expected development roadmap_seed"),
-            "feature_cache_sha256": cache_sha256, "node_count": _integer(node_count, "expected development node_count"),
-            "edge_count": _integer(edge_count, "expected development edge_count"), "feature_cache_path": cache_path,
-        }
-        if identity["node_count"] <= 0 or identity["edge_count"] < 0:
-            raise ValueError("expected development registry graph identity is invalid")
+        cache_sha256 = raw.get("feature_cache_sha256", raw.get("cache_sha256")); cache_path = raw.get("feature_cache_path", raw.get("cache")); node_count = raw.get("node_count", raw.get("nodes")); edge_count = raw.get("edge_count", raw.get("edges"))
+        if not _is_sha256(cache_sha256) or not isinstance(cache_path, str) or not cache_path: raise ValueError("expected development registry cache identity is invalid")
+        identity = {"split": "development", "suite": suite, "world_index": world_index, "world_seed": _integer(raw.get("world_seed"), "expected development world_seed"), "roadmap_seed": _integer(raw.get("roadmap_seed"), "expected development roadmap_seed"), "feature_cache_sha256": cache_sha256, "node_count": _integer(node_count, "expected development node_count"), "edge_count": _integer(edge_count, "expected development edge_count"), "feature_cache_path": cache_path}
+        if identity["node_count"] <= 0 or identity["edge_count"] < 0: raise ValueError("expected development registry graph identity is invalid")
         world_id = f"development/{suite}/{world_index}"
-        if raw.get("world_id", world_id) != world_id or world_id in normalized:
-            raise ValueError("expected development registry canonical world identity is duplicate or invalid")
-        normalized[world_id] = identity
-        suite_counts[suite] = suite_counts.get(suite, 0) + 1
-    if len(suite_counts) != 6 or any(count != 4 for count in suite_counts.values()) or any(sorted(record["world_index"] for record in normalized.values() if record["suite"] == suite) != list(range(4)) for suite in suite_counts):
-        raise ValueError("expected development registry requires six suites with four worlds each")
+        if supplied_id is not None and supplied_id != world_id: raise ValueError("expected development registry mapping key is not canonical")
+        if raw.get("world_id", world_id) != world_id or world_id in normalized: raise ValueError("expected development registry canonical world identity is duplicate or invalid")
+        normalized[world_id] = identity; suite_counts[suite] = suite_counts.get(suite, 0) + 1
+    if len(suite_counts) != 6 or any(count != 4 for count in suite_counts.values()) or any(sorted(record["world_index"] for record in normalized.values() if record["suite"] == suite) != list(range(4)) for suite in suite_counts): raise ValueError("expected development registry requires six suites with four worlds each")
     return normalized
 
 
@@ -1183,7 +1173,7 @@ def expected_development_registry(source: SourceContext) -> dict[str, dict[str, 
     return validate_expected_development_registry(source.cohort_records.get("development"))
 
 
-def _validate_development_identity_rows(rows: pd.DataFrame, expected_development: Sequence[Mapping[str, object]] | None) -> dict[str, dict[str, object]]:
+def _validate_development_identity_rows(rows: pd.DataFrame, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None) -> dict[str, dict[str, object]]:
     registry = validate_expected_development_registry(expected_development)
     if not set(("world_id", *_DEVELOPMENT_IDENTITY_FIELDS)).issubset(rows.columns):
         raise ValueError("development identity rows are incomplete")
@@ -1232,7 +1222,7 @@ def _offline_metric_row(trace: TeacherTrace, event: TraceEvent, logits: torch.Te
     return row
 
 
-def _offline_summary(event_rows: pd.DataFrame, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> pd.DataFrame:
+def _offline_summary(event_rows: pd.DataFrame, *, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None = None) -> pd.DataFrame:
     required = {"world_id", "event_index", "arm", *_DEVELOPMENT_IDENTITY_FIELDS, "positive_node", "candidate_count", "candidate_nodes", "checkpoint_sha256", "model_state_sha256", *_OFFLINE_METRICS}
     if event_rows.empty or not required.issubset(event_rows.columns): raise ValueError("offline event rows are incomplete")
     _validate_development_identity_rows(event_rows, expected_development)
@@ -1251,7 +1241,7 @@ def _offline_summary(event_rows: pd.DataFrame, *, expected_development: Sequence
     return pd.concat((world[columns], suite[columns], pooled[columns]), ignore_index=True)
 
 
-def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, checkpoint_sha256: str, cfg: PersistentSearchConfig, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, checkpoint_sha256: str, cfg: PersistentSearchConfig, *, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Score identical recorded frontiers with persistent, reset, and frozen base order."""
     registry = validate_expected_development_registry(expected_development)
     if not traces or not _is_sha256(checkpoint_sha256): raise ValueError("offline traces or checkpoint hash are invalid")
@@ -1294,7 +1284,7 @@ def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mappi
     return events, _offline_summary(events, expected_development=expected_development)
 
 
-def world_clustered_bootstrap(paired_world_rows: pd.DataFrame, value_column: str, resamples: int, seed: int, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> dict[str, float | int | tuple[int, int]]:
+def world_clustered_bootstrap(paired_world_rows: pd.DataFrame, value_column: str, resamples: int, seed: int, *, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None = None) -> dict[str, float | int | tuple[int, int]]:
     if not isinstance(paired_world_rows, pd.DataFrame) or not isinstance(value_column, str) or not value_column: raise ValueError("paired world bootstrap inputs are invalid")
     if not isinstance(resamples, int) or resamples <= 0 or not isinstance(seed, int): raise ValueError("paired world bootstrap configuration is invalid")
     if value_column not in paired_world_rows.columns: raise ValueError("paired world bootstrap rows are incomplete")
@@ -1309,7 +1299,7 @@ def world_clustered_bootstrap(paired_world_rows: pd.DataFrame, value_column: str
     return {"point_estimate": float(values.mean()), "ci_low": float(low), "ci_high": float(high), "n_worlds": DEVELOPMENT_WORLDS, "sample_shape": (resamples, DEVELOPMENT_WORLDS)}
 
 
-def _g1_paired_world_rows(world_metrics: pd.DataFrame, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> pd.DataFrame:
+def _g1_paired_world_rows(world_metrics: pd.DataFrame, *, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None = None) -> pd.DataFrame:
     required = {"world_id", "arm", "reciprocal_rank", "top1", *_DEVELOPMENT_IDENTITY_FIELDS}
     if not isinstance(world_metrics, pd.DataFrame) or not required.issubset(world_metrics.columns): raise ValueError("G1 world metrics are incomplete")
     rows = world_metrics.copy()
@@ -1327,7 +1317,7 @@ def _g1_paired_world_rows(world_metrics: pd.DataFrame, *, expected_development: 
     return paired
 
 
-def g1_verdict(world_metrics: pd.DataFrame, bootstrap_seed: int, resamples: int, *, expected_development: Sequence[Mapping[str, object]] | None = None) -> dict[str, object]:
+def g1_verdict(world_metrics: pd.DataFrame, bootstrap_seed: int, resamples: int, *, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None = None) -> dict[str, object]:
     paired = _g1_paired_world_rows(world_metrics, expected_development=expected_development)
     bootstrap = world_clustered_bootstrap(paired, "mrr_delta", resamples, bootstrap_seed, expected_development=expected_development)
     suite_deltas = paired.groupby("suite", sort=True)["mrr_delta"].mean(); pooled_top1_delta = float(paired["top1_delta"].mean()); suites_with_positive_mrr = int((suite_deltas > 0.0).sum()); pooled_mrr_ci_low = float(bootstrap["ci_low"])
