@@ -10,6 +10,8 @@ These results underscore HRM’s potential as a transformative advancement towar
 
 **Repository experiment record:** See the [discrete, continuous, and cross-space documentation index](docs/experiments/README.md) for the complete experiment history, current findings, designs, plans, and generated-evidence catalogs.
 
+**Latest C13-P result:** The [persistent-state design](docs/experiments/continuous/c13/design/2026-07-19-c13p-persistent-search-state.md), [implementation plan](docs/experiments/continuous/c13/plans/2026-07-19-c13p-persistent-search-state.md), and [canonical result](docs/experiments/continuous/c13/results/C13P_PERSISTENT_SEARCH_RESULT.md) record the valid `c13p_no_persistent_ranking_signal` verdict: persistent carry did not clear the same-checkpoint reset ranking gate.
+
 **Join our Discord Community: [https://discord.gg/sapient](https://discord.gg/sapient)**
 
 ---
