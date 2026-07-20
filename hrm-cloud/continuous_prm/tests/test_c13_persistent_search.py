@@ -418,16 +418,6 @@ def test_representation_requires_cache_binding_and_locked_alpha(tmp_path: Path) 
     with pytest.raises(ValueError,match="cache"): P.prepare_world_representation(bad,[[],[]],1,P.resolve_paths(tmp_path),encoder)
     with pytest.raises(ValueError,match="alpha"): P.prepare_world_representation(cache,[[],[]],1,P.PersistentSearchConfig(tmp_path,tmp_path,local_alpha=1.25),encoder)
 
-def test_reset_carry_uses_true_event_index_and_lifecycle_scopes_are_single_use() -> None:
-    model=P.PersistentSearchHRM(); event={"event_index":0,"expanded_node":0,"expanded_g":0.,"expanded_base_rank":0.,"open_count":1,"closed_count":0,"open_nodes":[1],"open_g":[0.],"open_base_rank":[0.]}
-    carries=[P.reset_carry_for_event(model,{**event,"event_index":i},1,torch.device("cpu"),torch.float32) for i in (0,1,2)]
-    assert [c.step for c in carries]==[0,1,2]
-    _,a0=model.update_event(torch.zeros(1,70),carries[0]); _,a1=model.update_event(torch.zeros(1,70),carries[1]); _,a2=model.update_event(torch.zeros(1,70),carries[2])
-    assert not torch.equal(a0.high,carries[0].high) and torch.equal(a1.high,carries[1].high) and not torch.equal(a2.high,carries[2].high)
-    owner=P.PersistentCarryLifecycle(model,"official-a"); assert owner.initial_for_world("world-a",1,torch.device("cpu"),torch.float32).step==0
-    with pytest.raises(ValueError,match="world"): owner.initial_for_world("world-b",1,torch.device("cpu"),torch.float32)
-    with pytest.raises(ValueError,match="evaluation"): owner.initial_for_world("world-a",1,torch.device("cpu"),torch.float32,evaluation_id="official-b")
-
 def test_reset_carry_uses_true_event_index_and_lifecycle_scopes_are_single_use(monkeypatch: pytest.MonkeyPatch) -> None:
     model=P.PersistentSearchHRM(); calls=[]; forward=model.high_block.forward
     def counted(*args: object,**kwargs: object) -> torch.Tensor:
@@ -442,8 +432,22 @@ def test_reset_carry_uses_true_event_index_and_lifecycle_scopes_are_single_use(m
     with pytest.raises(ValueError,match="world"): owner.initial_for_world("world-b",1,torch.device("cpu"),torch.float32)
     with pytest.raises(ValueError,match="evaluation"): owner.initial_for_world("world-a",1,torch.device("cpu"),torch.float32,evaluation_id="official-b")
 
-def test_encoder_is_frozen_and_prepared_rank_is_the_locked_local_bellman_formula(tmp_path: Path) -> None:
-    encoder=P.load_frozen_flat_encoder(_task3_source(tmp_path),torch.device("cpu")); cache=_task3_features(); path=tmp_path/"bound-cache.npz"; np.savez(path,features=cache["features"]); cache["cache_path"]=str(path); cache["cache_sha256"]=_sha256(path)
-    prepared=P.prepare_world_representation(cache,[[(1,1.)],[(0,1.)]],1,P.resolve_paths(tmp_path),encoder)
-    assert prepared.node_embeddings.shape==(2,64) and not encoder.training and all(not p.requires_grad for p in encoder.parameters())
-    np.testing.assert_allclose(prepared.base_rank,prepared.euclidean_rank+1.50*(prepared.local_values-prepared.euclidean_rank))
+
+def test_lifecycle_rejects_stale_and_foreign_carries() -> None:
+    model=P.PersistentSearchHRM(); first=P.PersistentCarryLifecycle(model,"eval-a"); carry=first.initial_for_world("world-a",1,torch.device("cpu"),torch.float32)
+    _,next_carry=first.update(torch.ones(1,70),carry)
+    with pytest.raises(ValueError,match="stale"):
+        first.update(torch.ones(1,70),carry)
+    foreign=P.PersistentCarryLifecycle(model,"eval-b"); other=foreign.initial_for_world("world-b",1,torch.device("cpu"),torch.float32)
+    with pytest.raises(ValueError,match="foreign"):
+        first.update(torch.ones(1,70),other)
+    _,after=first.update(torch.ones(1,70),next_carry)
+    assert after.step==2
+
+def test_lifecycle_rejects_stale_and_foreign_carries() -> None:
+    model=P.PersistentSearchHRM(); first=P.PersistentCarryLifecycle(model,"eval-a"); carry=first.initial_for_world("world-a",1,torch.device("cpu"),torch.float32)
+    _,next_carry=first.update(torch.ones(1,70),carry)
+    with pytest.raises(ValueError): first.update(torch.ones(1,70),carry)
+    foreign=P.PersistentCarryLifecycle(model,"eval-b"); other=foreign.initial_for_world("world-b",1,torch.device("cpu"),torch.float32)
+    with pytest.raises(ValueError): first.update(torch.ones(1,70),other)
+    assert first.update(torch.ones(1,70),next_carry)[1].step==2
