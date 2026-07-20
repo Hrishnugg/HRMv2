@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import hashlib
 import json
 from dataclasses import replace
@@ -807,3 +808,83 @@ def test_registry_mapping_from_sourcecontext_integrates_with_bootstrap_and_rejec
     corrupt = dict(registry); corrupt["development/corrupt/0"] = corrupt.pop(next(iter(corrupt)))
     with pytest.raises(ValueError, match="canonical|key|identity"):
         P.world_clustered_bootstrap(paired, "mrr_delta", 20, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=corrupt)
+
+
+def _prepared_search_world(node_count: int) -> P.PreparedWorld:
+    embeddings = np.zeros((node_count, 64), dtype=np.float32)
+    embeddings[:, 0] = np.arange(node_count, dtype=np.float32)
+    return P.PreparedWorld(
+        np.zeros((node_count, 3, 16), dtype=np.float32), embeddings,
+        np.arange(node_count, dtype=float), np.zeros(node_count), np.arange(node_count, dtype=float),
+    )
+
+
+def test_dynamic_search_rescores_the_entire_open_set_after_each_post_relaxation_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph = [[(1, 1.0), (2, 1.0)], [(3, 1.0)], [(3, 4.0)], [(4, 1.0)], []]
+    model = P.PersistentSearchHRM(); update_events: list[tuple[int, int, int, int]] = []; score_nodes: list[tuple[int, ...]] = []
+
+    def update(event: torch.Tensor, carry: P.HRMCarry) -> tuple[torch.Tensor, P.HRMCarry]:
+        update_events.append((carry.step, int(event[0, 67].item() * 5), int(event[0, 68].item() * 5), int(event[0, 69].item() * 5)))
+        context = torch.full((1, 64), float(carry.step + 1))
+        return context, P.HRMCarry(context, context, carry.step + 1)
+
+    def score(embeddings: torch.Tensor, context: torch.Tensor, scalars: torch.Tensor) -> torch.Tensor:
+        nodes = tuple(int(value) for value in embeddings[:, 0].tolist()); score_nodes.append(nodes)
+        return -embeddings[:, 0] if int(context[0, 0].item()) == 1 else embeddings[:, 0]
+
+    monkeypatch.setattr(model, "update_event", update); monkeypatch.setattr(model, "score_candidates", score)
+    result = P.dynamic_best_first(graph, _prepared_search_world(5), 0, 4, model, "persistent", P.resolve_paths(Path.cwd()))
+
+    assert result.valid and result.path == (0, 1, 3, 4)
+    assert result.expanded_nodes == (0, 1, 3, 4) and result.expansions == 4
+    assert update_events == [(0, 2, 1, 0), (1, 2, 2, 1), (2, 2, 3, 2)]
+    assert score_nodes == [(1, 2), (2, 3), (2, 4)]
+    assert result.scorer_calls == 3 and result.candidates_scored == 6
+    assert all(math.isfinite(value) and value >= 0.0 for value in (result.representation_seconds, result.model_seconds, result.bookkeeping_seconds))
+
+
+def test_dynamic_search_ties_and_reset_carry_are_deterministic(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph = [[(1, 1.0), (2, 1.0), (3, 1.0)], [(4, 1.0)], [(4, 1.0)], [(4, 1.0)], []]
+    prepared = _prepared_search_world(5)
+    prepared = P.PreparedWorld(prepared.node_tokens, prepared.node_embeddings, prepared.euclidean_rank, prepared.local_values, np.array([0.0, 2.0, 1.0, 1.0, 0.0]))
+    model = P.PersistentSearchHRM(); reset_steps: list[int] = []
+    monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: torch.zeros(len(embeddings)))
+    original_reset = P.reset_carry_for_event
+    monkeypatch.setattr(P, "reset_carry_for_event", lambda *args, **kwargs: (reset_steps.append(int(args[1]["event_index"])), original_reset(*args, **kwargs))[1])
+    persistent = P.dynamic_best_first(graph, prepared, 0, 4, model, "persistent", P.resolve_paths(Path.cwd()))
+    reset = P.dynamic_best_first(graph, prepared, 0, 4, model, "reset", P.resolve_paths(Path.cwd()))
+
+    assert persistent.expanded_nodes[:3] == (0, 2, 3)
+    assert reset.expanded_nodes == persistent.expanded_nodes and reset.scorer_calls == persistent.scorer_calls
+    assert reset_steps == list(range(reset.scorer_calls))
+
+
+def _g2_search_rows(expansion_delta: float, *, cost_margin: float = 0.005, max_margin: float = 0.02) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for record in _expected_development_registry():
+        world_id = f"development/{record['suite']}/{record['world_index']}"
+        base_ratio = 1.10; persistent_ratio = base_ratio + (max_margin if record["world_index"] == 0 else (24 * cost_margin - 6 * max_margin) / 18)
+        # Six index-zero worlds set the max; the other eighteen preserve the exact pooled mean boundary.
+        for arm, expansions, ratio in (("c13p_persistent", 10.0 + expansion_delta, persistent_ratio), ("c13p_reset", 10.0, base_ratio), ("c13m_base", 11.0, base_ratio)):
+            rows.append({**record, "world_id": world_id, "arm": arm, "valid": True, "expansions": expansions, "cost_ratio": ratio, "checkpoint_sha256": "a" * 64, "model_state_sha256": "b" * 64})
+    return pd.DataFrame(rows)
+
+
+def test_g2_uses_two_bound_bootstrap_seeds_and_exact_gate_boundaries() -> None:
+    registry = _expected_development_registry()
+    passing = P.g2_verdict(_g2_search_rows(-1.0), P.BOOTSTRAP_SEEDS, 200, expected_development=registry)
+    zero_ci = P.g2_verdict(_g2_search_rows(0.0), P.BOOTSTRAP_SEEDS, 200, expected_development=registry)
+
+    assert P.ONLINE_ARMS == ("c13p_persistent", "c13p_reset", "c13m_base")
+    assert passing["passes"] and passing["persistent_mean_cost_ratio"] == pytest.approx(passing["c13m_mean_cost_ratio"] + 0.005)
+    assert passing["persistent_max_cost_ratio"] == pytest.approx(passing["c13m_max_cost_ratio"] + 0.02)
+    assert passing["reset_bootstrap"]["sample_shape"] == passing["c13m_bootstrap"]["sample_shape"] == (200, 24)
+    assert not zero_ci["passes"] and zero_ci["reset_ci_high"] == 0.0
+    with pytest.raises(ValueError, match="seed|bound|bootstrap"):
+        P.g2_verdict(_g2_search_rows(-1.0), {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_reset"]}, 20, expected_development=registry)
+
+
+def test_overall_verdict_has_frozen_precedence() -> None:
+    assert P.overall_verdict({"passes": False}, {"passes": True}, {"passes": True}) == "c13p_invalid_no_mechanism_verdict"
+    assert P.overall_verdict({"passes": True}, {"passes": False}, {"passes": True}) == "c13p_no_persistent_ranking_signal"
+    assert P.overall_verdict({"passes": True}, {"passes": True}, {"passes": False}) == "c13p_offline_signal_failed_free_running_search"

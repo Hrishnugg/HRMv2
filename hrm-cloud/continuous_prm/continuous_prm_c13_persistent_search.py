@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import heapq
 import json
 import math
 import random
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -1326,6 +1328,159 @@ def g1_verdict(world_metrics: pd.DataFrame, bootstrap_seed: int, resamples: int,
     passes = pooled_mrr_ci_low > 0.0 and pooled_top1_delta >= 0.02 and suites_with_positive_mrr >= 4
     return {"comparison": "c13p_persistent_minus_c13p_reset", "pooled_mrr_delta": float(paired["mrr_delta"].mean()), "pooled_mrr_ci_low": pooled_mrr_ci_low, "pooled_mrr_ci_high": float(bootstrap["ci_high"]), "pooled_top1_delta": pooled_top1_delta, "suite_mrr_deltas": {str(suite): float(delta) for suite, delta in suite_deltas.items()}, "suites_with_positive_mrr": suites_with_positive_mrr, "bootstrap": bootstrap, "passes": passes, "verdict": "c13p_g1_passed" if passes else "c13p_no_persistent_ranking_signal"}
 
+
+@dataclass(frozen=True)
+class SearchResult:
+    arm: str; path: Sequence[int]; valid: bool; cost: float; optimal_cost: float; cost_ratio: float
+    expansions: int; expanded_nodes: Sequence[int]; scorer_calls: int; candidates_scored: int
+    representation_seconds: float; model_seconds: float; bookkeeping_seconds: float
+
+
+ONLINE_ARMS = ("c13p_persistent", "c13p_reset", "c13m_base")
+_TIMING_COLUMNS = ("representation_seconds", "model_seconds", "bookkeeping_seconds")
+
+
+def _search_inputs(graph: Sequence[Sequence[tuple[int, float]]], prepared: PreparedWorld, start_idx: int, goal_idx: int, cfg: PersistentSearchConfig) -> tuple[int, tuple[float, ...]]:
+    count, ranks = _validated_graph(graph, prepared.base_rank)
+    if np.asarray(prepared.node_embeddings).shape != (count, HIDDEN_DIM): raise ValueError("prepared representation does not match search graph")
+    if not isinstance(start_idx, int) or not isinstance(goal_idx, int) or not 0 <= start_idx < count or not 0 <= goal_idx < count: raise ValueError("search start or goal is outside the graph")
+    if not isinstance(cfg.max_expansions, int) or cfg.max_expansions <= 0: raise ValueError("search expansion budget is invalid")
+    return count, ranks
+
+
+def _evaluation_optimal_cost(graph: Sequence[Sequence[tuple[int, float]]], start: int, goal: int) -> float:
+    distances = [math.inf] * len(graph); distances[start] = 0.; queue = [(0., start)]
+    while queue:
+        distance, node = heapq.heappop(queue)
+        if distance != distances[node]: continue
+        if node == goal: return float(distance)
+        for neighbor, weight in graph[node]:
+            candidate = distance + float(weight)
+            if candidate < distances[neighbor]: distances[neighbor] = candidate; heapq.heappush(queue, (candidate, neighbor))
+    return math.inf
+
+
+def _make_search_result(arm: str, graph: Sequence[Sequence[tuple[int, float]]], parent: Sequence[int | None], g: Sequence[float], start: int, goal: int, expanded: Sequence[int], calls: int, candidates: int, rep: float, model: float, book: float) -> SearchResult:
+    valid = goal in expanded; path: tuple[int, ...] = (); cost = math.inf
+    if valid:
+        try: path = _path_from_parent(parent, start, goal); cost = float(g[goal])
+        except ValueError: valid = False
+    optimum = _evaluation_optimal_cost(graph, start, goal)
+    ratio = cost / optimum if valid and optimum > 0. and math.isfinite(optimum) else (1. if valid and cost == optimum == 0. else math.nan)
+    return SearchResult(arm, path, valid, cost, optimum, ratio, len(expanded), tuple(expanded), calls, candidates, rep, model, book)
+
+
+def _online_causal(event_index: int, node: int, g: Sequence[float], ranks: Sequence[float], opened: set[int], closed: set[int]) -> dict[str, object]:
+    nodes = tuple(sorted(opened))
+    return {"event_index": event_index, "expanded_node": node, "expanded_g": float(g[node]), "expanded_base_rank": float(ranks[node]), "open_count": len(nodes), "closed_count": len(closed), "open_nodes": nodes, "open_g": tuple(float(g[n]) for n in nodes), "open_base_rank": tuple(float(ranks[n]) for n in nodes)}
+
+
+def dynamic_best_first(graph: Sequence[Sequence[tuple[int, float]]], prepared: PreparedWorld, start_idx: int, goal_idx: int, model: PersistentSearchHRM, carry_mode: str, cfg: PersistentSearchConfig) -> SearchResult:
+    count, ranks = _search_inputs(graph, prepared, start_idx, goal_idx, cfg)
+    if carry_mode not in ("persistent", "reset"): raise ValueError("unknown learned carry mode")
+    device = next(model.parameters()).device; embeddings = torch.as_tensor(prepared.node_embeddings, dtype=torch.float32, device=device); side_len = _trace_side_len_from_prepared(prepared)
+    g = [math.inf] * count; parent: list[int | None] = [None] * count; g[start_idx] = 0.
+    opened = {start_idx}; closed: set[int] = set(); queue: list[tuple[float, float, float, int]] = [(0., 0., 0., start_idx)]; expanded: list[int] = []; calls = candidates = 0; rep = elapsed_model = book = 0.
+    was_training = model.training; model.eval(); lifecycle = PersistentCarryLifecycle(model, f"online:{carry_mode}:{id(graph)}"); carry = lifecycle.initial_for_world(f"online:{id(graph)}", 1, device, torch.float32) if carry_mode == "persistent" else None
+    try:
+        with torch.no_grad():
+            while queue and len(expanded) < cfg.max_expansions:
+                started = time.perf_counter(); _, _, popped_g, node = heapq.heappop(queue)
+                if node in closed or node not in opened or popped_g != g[node]: book += time.perf_counter() - started; continue
+                opened.remove(node); closed.add(node); expanded.append(node)
+                if node == goal_idx: book += time.perf_counter() - started; break
+                for neighbor, weight in graph[node]:
+                    if neighbor in closed: continue
+                    candidate_g = g[node] + float(weight)
+                    if candidate_g < g[neighbor]: g[neighbor] = candidate_g; parent[neighbor] = node; opened.add(neighbor)
+                causal = _online_causal(len(expanded) - 1, node, g, ranks, opened, closed)
+                tick = time.perf_counter(); event_features = event_tensor_from_causal(causal, embeddings, side_len, count); rep += time.perf_counter() - tick; tick = time.perf_counter()
+                if carry_mode == "persistent":
+                    assert carry is not None; context, carry = lifecycle.update(event_features, carry)
+                else:
+                    reset = reset_carry_for_event(model, causal, 1, device, torch.float32); context, _ = model.update_event(event_features, reset)
+                elapsed_model += time.perf_counter() - tick
+                if opened:
+                    tick = time.perf_counter(); candidate_embeddings, candidate_scalars, candidate_nodes = candidate_tensors_from_causal(causal, embeddings, side_len); rep += time.perf_counter() - tick; tick = time.perf_counter(); logits = model.score_candidates(candidate_embeddings, context, candidate_scalars); elapsed_model += time.perf_counter() - tick
+                    if logits.ndim != 1 or len(logits) != len(candidate_nodes) or not bool(torch.isfinite(logits).all()): raise ValueError("online scorer logits are invalid")
+                    calls += 1; candidates += len(candidate_nodes); queue = [(-float(logit), g[candidate] + ranks[candidate], g[candidate], candidate) for candidate, logit in zip(candidate_nodes, logits.detach().cpu().tolist())]; heapq.heapify(queue)
+                book += time.perf_counter() - started
+    finally:
+        if was_training: model.train()
+    return _make_search_result("c13p_persistent" if carry_mode == "persistent" else "c13p_reset", graph, parent, g, start_idx, goal_idx, expanded, calls, candidates, rep, elapsed_model, book)
+
+
+def static_c13m_search(graph: Sequence[Sequence[tuple[int, float]]], prepared: PreparedWorld, start_idx: int, goal_idx: int, cfg: PersistentSearchConfig) -> SearchResult:
+    count, ranks = _search_inputs(graph, prepared, start_idx, goal_idx, cfg); g = [math.inf] * count; parent: list[int | None] = [None] * count; g[start_idx] = 0.; opened = {start_idx}; closed: set[int] = set(); queue = [(ranks[start_idx], 0., start_idx)]; expanded: list[int] = []; tick = time.perf_counter()
+    while queue and len(expanded) < cfg.max_expansions:
+        _, popped_g, node = heapq.heappop(queue)
+        if node in closed or node not in opened or popped_g != g[node]: continue
+        opened.remove(node); closed.add(node); expanded.append(node)
+        if node == goal_idx: break
+        for neighbor, weight in graph[node]:
+            if neighbor in closed: continue
+            candidate_g = g[node] + float(weight)
+            if candidate_g < g[neighbor]: g[neighbor] = candidate_g; parent[neighbor] = node; opened.add(neighbor); heapq.heappush(queue, (candidate_g + ranks[neighbor], candidate_g, neighbor))
+    return _make_search_result("c13m_base", graph, parent, g, start_idx, goal_idx, expanded, 0, 0, 0., 0., time.perf_counter() - tick)
+
+
+def deterministic_result_projection(rows: pd.DataFrame) -> pd.DataFrame:
+    if not isinstance(rows, pd.DataFrame): raise ValueError("result rows are invalid")
+    projected = rows.drop(columns=[column for column in _TIMING_COLUMNS if column in rows], errors="ignore").copy(); keys = projected.apply(lambda row: json.dumps(row.to_dict(), sort_keys=True, default=str, separators=(",", ":")), axis=1)
+    return projected.loc[keys.sort_values(kind="stable").index].reset_index(drop=True)
+
+
+def validate_timing_columns(rows: pd.DataFrame) -> None:
+    if not isinstance(rows, pd.DataFrame) or not set(_TIMING_COLUMNS).issubset(rows.columns): raise ValueError("result timing columns are incomplete")
+    if any(not np.all(np.isfinite(rows[column].to_numpy(dtype=float))) or np.any(rows[column].to_numpy(dtype=float) < 0.) for column in _TIMING_COLUMNS): raise ValueError("result timings must be finite and nonnegative")
+
+
+def evaluate_online_arms(worlds: Sequence[Mapping[str, object]], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, cfg: PersistentSearchConfig) -> pd.DataFrame:
+    registry = validate_expected_development_registry(worlds)
+    if set(prepared_worlds) != set(registry): raise ValueError("online prepared worlds do not match the audited registry")
+    checkpoint = getattr(model, "c13p_checkpoint_sha256", None)
+    if not _is_sha256(checkpoint): raise ValueError("online evaluation requires the bound shared checkpoint hash")
+    records = {f"development/{record['suite']}/{record['world_index']}": record for record in worlds}; rows: list[dict[str, object]] = []; state = _model_state_sha256(model)
+    for world_id in sorted(registry):
+        record = records[world_id]; graph = record.get("graph"); start = record.get("start_idx"); goal = record.get("goal_idx")
+        if not isinstance(graph, Sequence) or isinstance(graph, (str, bytes)) or not isinstance(start, int) or not isinstance(goal, int): raise ValueError("online world graph/start/goal is invalid")
+        for arm in ONLINE_ARMS:
+            result = static_c13m_search(graph, prepared_worlds[world_id], start, goal, cfg) if arm == "c13m_base" else dynamic_best_first(graph, prepared_worlds[world_id], start, goal, model, "persistent" if arm == "c13p_persistent" else "reset", cfg)
+            rows.append({**registry[world_id], "world_id": world_id, "arm": arm, "path": tuple(result.path), "valid": result.valid, "cost": result.cost, "optimal_cost": result.optimal_cost, "cost_ratio": result.cost_ratio, "expansions": result.expansions, "expanded_nodes": tuple(result.expanded_nodes), "scorer_calls": result.scorer_calls, "candidates_scored": result.candidates_scored, "representation_seconds": result.representation_seconds, "model_seconds": result.model_seconds, "bookkeeping_seconds": result.bookkeeping_seconds, "checkpoint_sha256": checkpoint, "model_state_sha256": state})
+    output = pd.DataFrame(rows); validate_timing_columns(output); return output
+
+
+def _g2_paired_rows(rows: pd.DataFrame, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None) -> pd.DataFrame:
+    required = {"world_id", "arm", "valid", "expansions", "cost_ratio", "checkpoint_sha256", "model_state_sha256", *_DEVELOPMENT_IDENTITY_FIELDS}
+    if not isinstance(rows, pd.DataFrame) or not required.issubset(rows.columns): raise ValueError("G2 search rows are incomplete")
+    rows = rows.copy(); _validate_development_identity_rows(rows, expected_development)
+    if len(rows) != 72 or set(rows["arm"].unique()) != set(ONLINE_ARMS) or rows.duplicated(["world_id", "arm"]).any(): raise ValueError("G2 requires exactly 72 unique arm-world rows")
+    if not np.all(np.isfinite(rows[["expansions", "cost_ratio"]].to_numpy(dtype=float))): raise ValueError("G2 values must be finite")
+    if rows.groupby("world_id")[["checkpoint_sha256", "model_state_sha256"]].nunique().max().max() != 1: raise ValueError("G2 arms must share model/checkpoint audit")
+    pivot = rows.pivot(index=["world_id", "suite", "world_index"], columns="arm", values=["expansions", "cost_ratio", "valid"])
+    if pivot.shape[0] != 24 or pivot.isna().any().any(): raise ValueError("G2 paired search rows are incomplete")
+    paired = pd.DataFrame({"persistent_expansions": pivot[("expansions", "c13p_persistent")], "reset_expansions": pivot[("expansions", "c13p_reset")], "c13m_expansions": pivot[("expansions", "c13m_base")], "persistent_cost_ratio": pivot[("cost_ratio", "c13p_persistent")], "c13m_cost_ratio": pivot[("cost_ratio", "c13m_base")], "all_valid": pivot["valid"].all(axis=1)}).reset_index(); metadata = rows.loc[:, ["world_id", *_DEVELOPMENT_IDENTITY_FIELDS]].drop_duplicates("world_id"); paired = paired.merge(metadata, on=["world_id", "suite", "world_index"], validate="one_to_one"); paired["persistent_minus_reset_expansions"] = paired["persistent_expansions"] - paired["reset_expansions"]; paired["persistent_minus_c13m_expansions"] = paired["persistent_expansions"] - paired["c13m_expansions"]
+    return paired
+
+
+def _g2_seeds(payload: object) -> Mapping[str, int]:
+    keys = {"g2_exp_reset", "g2_exp_c13m"}
+    if not isinstance(payload, Mapping) or not keys.issubset(payload) or any(payload[key] != BOOTSTRAP_SEEDS[key] for key in keys): raise ValueError("G2 bootstrap seeds must be the frozen bound seed payload")
+    return {key: int(payload[key]) for key in keys}
+
+
+def g2_verdict(search_rows: pd.DataFrame, bootstrap_seed: object, resamples: int, *, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None = None) -> dict[str, object]:
+    paired = _g2_paired_rows(search_rows, expected_development); seeds = _g2_seeds(bootstrap_seed); reset_bootstrap = world_clustered_bootstrap(paired, "persistent_minus_reset_expansions", resamples, seeds["g2_exp_reset"], expected_development=expected_development); c13m_bootstrap = world_clustered_bootstrap(paired, "persistent_minus_c13m_expansions", resamples, seeds["g2_exp_c13m"], expected_development=expected_development)
+    reset_suites = paired.groupby("suite", sort=True)["persistent_minus_reset_expansions"].mean(); c13m_suites = paired.groupby("suite", sort=True)["persistent_minus_c13m_expansions"].mean(); reset_high = float(reset_bootstrap["ci_high"]); c13m_high = float(c13m_bootstrap["ci_high"]); mean = float(paired["persistent_cost_ratio"].mean()); c13m_mean = float(paired["c13m_cost_ratio"].mean()); maximum = float(paired["persistent_cost_ratio"].max()); c13m_max = float(paired["c13m_cost_ratio"].max()); negative_reset = int((reset_suites < 0.).sum()); negative_c13m = int((c13m_suites < 0.).sum()); valid = bool(paired["all_valid"].all())
+    mean_passes = mean <= c13m_mean + .005 or math.isclose(mean, c13m_mean + .005, rel_tol=0., abs_tol=1.e-12); maximum_passes = maximum <= c13m_max + .02 or math.isclose(maximum, c13m_max + .02, rel_tol=0., abs_tol=1.e-12); passes = valid and reset_high < 0. and c13m_high < 0. and negative_reset >= 4 and negative_c13m >= 4 and mean_passes and maximum_passes
+    return {"all_valid": valid, "reset_bootstrap": reset_bootstrap, "c13m_bootstrap": c13m_bootstrap, "reset_ci_high": reset_high, "c13m_ci_high": c13m_high, "suite_reset_expansion_deltas": {str(k): float(v) for k, v in reset_suites.items()}, "suite_c13m_expansion_deltas": {str(k): float(v) for k, v in c13m_suites.items()}, "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m, "persistent_mean_cost_ratio": mean, "c13m_mean_cost_ratio": c13m_mean, "persistent_max_cost_ratio": maximum, "c13m_max_cost_ratio": c13m_max, "passes": passes, "verdict": "c13p_g2_passed" if passes else "c13p_offline_signal_failed_free_running_search"}
+
+
+def overall_verdict(g0: Mapping[str, object], g1: Mapping[str, object], g2: Mapping[str, object]) -> str:
+    if not bool(g0.get("passes")): return "c13p_invalid_no_mechanism_verdict"
+    if not bool(g1.get("passes")): return "c13p_no_persistent_ranking_signal"
+    if not bool(g2.get("passes")): return "c13p_offline_signal_failed_free_running_search"
+    return "c13p_persistent_search_pilot_passed"
 
 def _binding_error(reason: str) -> ValueError:
     return ValueError(f"training binding {reason}; new output directory required")
