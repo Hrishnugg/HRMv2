@@ -2726,14 +2726,14 @@ def _independent_trace_events(path: Path) -> dict[tuple[str, int], Mapping[str, 
 
 def _independent_event_metrics(row: Mapping[str, object], trace_event: Mapping[str, object]) -> dict[str, float]:
     nodes = tuple(int(value) for value in _independent_parse_sequence(row["candidate_nodes"], "candidate_nodes"))
-    logits = np.asarray([float(value) for value in _independent_parse_sequence(row["raw_logits"], "raw_logits")], dtype=float)
+    logits = np.asarray([float(value) for value in _independent_parse_sequence(row["raw_logits"], "raw_logits")], dtype=np.float32)
     open_nodes = tuple(int(value) for value in trace_event["open_nodes"]); positive = int(trace_event["positive_node"])
     if nodes != open_nodes or int(row["positive_node"]) != positive or int(row["candidate_count"]) != len(nodes) or len(nodes) != len(logits) or len(set(nodes)) != len(nodes) or not np.all(np.isfinite(logits)):
         raise ValueError("independent ranking candidates/logits do not align with the promoted trace")
     open_g = np.asarray(trace_event["open_g"], dtype=float); base = np.asarray(trace_event["open_base_rank"], dtype=float)
     order = sorted(range(len(nodes)), key=lambda index: (-float(logits[index]), float(open_g[index] + base[index]), float(open_g[index]), nodes[index]))
     positive_index = nodes.index(positive); rank = order.index(positive_index) + 1
-    shifted = logits - float(np.max(logits)); ce = float(np.log(np.exp(shifted).sum()) - shifted[positive_index])
+    ce = float(-torch.nn.functional.log_softmax(torch.from_numpy(logits), dim=0)[positive_index])
     count = len(nodes); result = {"cross_entropy": ce, "positive_rank": float(rank), "reciprocal_rank": 1.0 / rank, "top1": float(rank == 1), "rank_percentile": float((rank - 1) / max(count - 1, 1))}
     if not math.isclose(float(row["frontier_cross_entropy"]), float(row["cross_entropy"]), rel_tol=0., abs_tol=1e-12) or not math.isclose(float(row["rank"]), float(row["positive_rank"]), rel_tol=0., abs_tol=1e-12):
         raise ValueError("independent redundant ranking fields disagree")

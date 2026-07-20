@@ -1784,6 +1784,57 @@ def test_task7_pretask8_independent_raw_math_and_bound_bootstrap(tmp_path: Path,
     assert raw["recomputed_verdict"] == "c13p_persistent_search_pilot_passed"
 
 
+def test_independent_event_metrics_replay_logged_float32_cross_entropy() -> None:
+    logits = np.asarray([
+        1_093_800_663_449_600.0,
+        1_093_800_730_558_464.0,
+        1_093_800_730_558_464.0,
+    ], dtype=np.float32)
+    stored_cross_entropy = 67_108_864.0
+    row = {
+        "candidate_nodes": "(0, 1, 2)",
+        "raw_logits": repr(tuple(float(value) for value in logits)),
+        "positive_node": 0,
+        "candidate_count": 3,
+        "frontier_cross_entropy": stored_cross_entropy,
+        "cross_entropy": stored_cross_entropy,
+        "rank": 3,
+        "positive_rank": 3,
+        "reciprocal_rank": 1.0 / 3.0,
+        "top1": 0.0,
+        "rank_percentile": 1.0,
+    }
+    trace_event = {"open_nodes": (0, 1, 2), "open_g": (0.0, 0.0, 0.0), "open_base_rank": (0.0, 0.0, 0.0), "positive_node": 0}
+
+    result = P._independent_event_metrics(row, trace_event)
+
+    assert result["cross_entropy"] == stored_cross_entropy
+
+    bounded_logits = (-3.1209425926208496, -3.125441551208496, -3.126610040664673,
+                      -3.1352686882019043, -3.1357367038726807, -3.148148536682129,
+                      -3.1628317832946777, -3.182713747024536)
+    bounded_cross_entropy = 2.1002583503723145
+    bounded_row = {
+        **row,
+        "candidate_nodes": "(120, 55, 147, 67, 88, 38, 37, 160)",
+        "raw_logits": repr(bounded_logits),
+        "positive_node": 37,
+        "candidate_count": 8,
+        "frontier_cross_entropy": bounded_cross_entropy,
+        "cross_entropy": bounded_cross_entropy,
+        "rank": 7,
+        "positive_rank": 7,
+        "reciprocal_rank": 1.0 / 7.0,
+        "rank_percentile": 6.0 / 7.0,
+    }
+    bounded_trace = {"open_nodes": (120, 55, 147, 67, 88, 38, 37, 160), "open_g": (0.0,) * 8,
+                     "open_base_rank": (0.0,) * 8, "positive_node": 37}
+
+    bounded_result = P._independent_event_metrics(bounded_row, bounded_trace)
+
+    assert bounded_result["cross_entropy"] == bounded_cross_entropy
+
+
 @pytest.mark.parametrize("mutation", ["raw_hash", "primitive", "verdict", "absence"])
 def test_task7_pretask8_independent_reanalysis_mutations_fail_read_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str) -> None:
     cfg, evaluation, graphs, base_g0, artifacts = _task7_pretask8_payload(tmp_path); gate, payload = artifacts["gate"], artifacts["payload"]
