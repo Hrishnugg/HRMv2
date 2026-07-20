@@ -8,6 +8,12 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
+import numpy as np
+import torch
+from torch import nn
+
+import continuous_prm_c13_identifiability as I
+import continuous_prm_common as C
 
 
 SCHEMA_VERSION = "c13p-v1"
@@ -812,3 +818,85 @@ def read_trace_shard(path: Path, expected_fingerprint: str) -> Sequence[TeacherT
     if tuple(sorted(traces, key=lambda trace: (trace.split, trace.suite, trace.world_index))) != traces:
         raise ValueError("trace shard records are not canonical")
     return traces
+
+@dataclass(frozen=True)
+class PreparedWorld:
+    node_tokens: np.ndarray; node_embeddings: np.ndarray; euclidean_rank: np.ndarray; local_values: np.ndarray; base_rank: np.ndarray
+
+def load_frozen_flat_encoder(source: SourceContext, device: torch.device) -> nn.Module:
+    if sha256_file(source.checkpoint_path) != source.checkpoint_sha256: raise ValueError("frozen iteration-8 checkpoint hash mismatch")
+    payload = torch.load(source.checkpoint_path, map_location="cpu", weights_only=False)
+    if not isinstance(payload, Mapping) or payload.get("model_name") != "flat_mlp" or payload.get("iteration") != 8: raise ValueError("checkpoint is not flat-MLP iteration-8")
+    state, cfg, lhbl = payload.get("model"), payload.get("model_config"), payload.get("lhbl_config")
+    if not isinstance(state, Mapping) or not isinstance(cfg, Mapping) or not isinstance(lhbl, Mapping) or lhbl.get("hidden_dim") != HIDDEN_DIM: raise ValueError("checkpoint metadata changed")
+    rays, neighbors = cfg.get("num_rays"), cfg.get("max_neighbors")
+    if not isinstance(rays, int) or not isinstance(neighbors, int): raise ValueError("checkpoint token schema changed")
+    seq = 1 + rays + neighbors; model = I.FlatMLPRanker(seq, 16, HIDDEN_DIM, 4.0); wanted = model.state_dict()
+    if set(state) != set(wanted) or any(not isinstance(v, torch.Tensor) or v.shape != wanted[k].shape for k, v in state.items()): raise ValueError("checkpoint state-dict keys or shapes changed")
+    if tuple(state["encoder.0.weight"].shape) != (128, seq * 16): raise ValueError("checkpoint hidden width or token shape changed")
+    model.load_state_dict(state, strict=True); encoder = model.encoder.to(device); encoder.requires_grad_(False); encoder.eval()
+    setattr(encoder, "c13p_checkpoint_sha256", source.checkpoint_sha256); setattr(encoder, "c13p_token_shape", (seq, 16)); return encoder
+
+def _vector(cache: Mapping[str, np.ndarray], key: str, n: int) -> np.ndarray:
+    value = cache.get(key)
+    if not isinstance(value, np.ndarray): raise ValueError(f"frozen feature cache is missing {key}")
+    result = np.asarray(value, dtype=np.float64)
+    if result.shape != (n,) or not np.all(np.isfinite(result)): raise ValueError(f"{key} is invalid")
+    return result
+
+def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph: Sequence[Sequence[tuple[int, float]]], goal_idx: int, cfg: PersistentSearchConfig, encoder: nn.Module) -> PreparedWorld:
+    tokens = feature_cache.get("features")
+    if not isinstance(tokens, np.ndarray) or tokens.ndim != 3 or tuple(tokens.shape[1:]) != getattr(encoder, "c13p_token_shape", None) or not np.all(np.isfinite(tokens)): raise ValueError("feature cache token shape changed")
+    path, digest = feature_cache.get("cache_path", feature_cache.get("feature_cache_path")), feature_cache.get("cache_sha256", feature_cache.get("feature_cache_sha256"))
+    if (path is None) != (digest is None) or path is not None and (not isinstance(path, (str, Path)) or not isinstance(digest, str) or sha256_file(Path(path)) != digest): raise ValueError("feature cache hash mismatch")
+    if len(graph) != len(tokens) or not isinstance(goal_idx, int) or not 0 <= goal_idx < len(tokens) or encoder.training or any(p.requires_grad for p in encoder.parameters()): raise ValueError("world or frozen encoder invalid")
+    euclid, local = _vector(feature_cache, "euclidean_to_goal", len(tokens)), _vector(feature_cache, "local_value_radius_0_20", len(tokens))
+    with torch.no_grad(): embedding = encoder(torch.as_tensor(tokens.astype(np.float32, copy=False), device=next(encoder.parameters()).device).flatten(1))
+    if tuple(embedding.shape) != (len(tokens), HIDDEN_DIM): raise ValueError("encoder output width changed")
+    return PreparedWorld(tokens, embedding.cpu().numpy(), euclid, local, euclid + float(cfg.local_alpha) * (local - euclid))
+
+@dataclass(frozen=True)
+class HRMCarry:
+    low: torch.Tensor; high: torch.Tensor; step: int
+
+class PersistentSearchHRM(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(MODEL_SEED); self.event_projection = nn.Linear(70, 64); self.high_block = C.GatedRecurrentBlock(64, 4); self.low_block = C.GatedRecurrentBlock(64, 4); self.candidate_head = nn.Sequential(nn.Linear(131, 64), nn.GELU(), nn.Linear(64, 1))
+    @property
+    def persistent_model(self) -> "PersistentSearchHRM": return self
+    @property
+    def reset_model(self) -> "PersistentSearchHRM": return self
+    @property
+    def parameter_count(self) -> int: return sum(p.numel() for p in self.parameters())
+    def initial_carry(self, batch_size: int, device: torch.device, dtype: torch.dtype, step: int = 0) -> HRMCarry:
+        if not isinstance(batch_size, int) or batch_size <= 0 or not isinstance(step, int) or step < 0: raise ValueError("invalid carry")
+        low = torch.zeros((batch_size, 64), device=device, dtype=dtype); return HRMCarry(low, low.clone(), step)
+    def update_event(self, event_features: torch.Tensor, carry: HRMCarry) -> tuple[torch.Tensor, HRMCarry]:
+        if event_features.ndim != 2 or event_features.shape[1] != 70 or carry.low.shape != (event_features.shape[0], 64) or carry.high.shape != carry.low.shape: raise ValueError("event/carry mismatch")
+        high = self.high_block(carry.low.detach(), carry.high) if carry.step % 2 == 0 else carry.high; low = self.low_block(self.event_projection(event_features) + high, carry.low); return low, HRMCarry(low, high, carry.step + 1)
+    def score_candidates(self, candidate_embeddings: torch.Tensor, context: torch.Tensor, candidate_scalars: torch.Tensor) -> torch.Tensor:
+        if candidate_embeddings.ndim != 2 or candidate_embeddings.shape[1] != 64 or candidate_scalars.shape != (len(candidate_embeddings), 3) or context.ndim != 2 or context.shape[1] != 64 or context.shape[0] not in (1, len(candidate_embeddings)): raise ValueError("candidate inputs invalid")
+        return self.candidate_head(torch.cat((candidate_embeddings, context.expand(len(candidate_embeddings), -1), candidate_scalars), -1)).squeeze(-1)
+
+ALLOWED_EVENT_KEYS = frozenset({"event_index", "expanded_node", "expanded_g", "expanded_base_rank", "open_count", "closed_count"})
+ALLOWED_CANDIDATE_KEYS = frozenset({"open_nodes", "open_g", "open_base_rank"})
+MODEL_CAUSAL_KEYS = ALLOWED_EVENT_KEYS | ALLOWED_CANDIDATE_KEYS
+FORBIDDEN_INPUT_TOKENS = ("dist_to_goal", "dijkstra", "raster", "teacher_path", "future")
+def validate_model_causal_fields(causal_event: Mapping[str, object]) -> None:
+    if set(causal_event) != MODEL_CAUSAL_KEYS or any(token in str(key).casefold() for key in causal_event for token in FORBIDDEN_INPUT_TOKENS): raise ValueError("noncausal model input")
+def event_tensor_from_causal(causal_event: Mapping[str, object], node_embeddings: torch.Tensor, side_len: float, roadmap_nodes: int) -> torch.Tensor:
+    validate_model_causal_fields(causal_event)
+    if node_embeddings.ndim != 2 or node_embeddings.shape[1] != 64 or side_len <= 0 or roadmap_nodes <= 0: raise ValueError("event representation invalid")
+    node, step = _integer(causal_event["expanded_node"], "expanded_node"), _integer(causal_event["event_index"], "event_index")
+    if not 0 <= node < len(node_embeddings) or step < 0: raise ValueError("event node/index invalid")
+    g, rank, opened, closed = (_finite_float(causal_event[k], k) for k in ("expanded_g", "expanded_base_rank", "open_count", "closed_count"))
+    return torch.cat((node_embeddings[node:node+1], torch.as_tensor([g/side_len, rank/side_len, (g+rank)/side_len, opened/roadmap_nodes, closed/roadmap_nodes, step/roadmap_nodes], dtype=node_embeddings.dtype, device=node_embeddings.device).unsqueeze(0)), -1)
+def candidate_tensors_from_causal(causal_event: Mapping[str, object], node_embeddings: torch.Tensor, side_len: float) -> tuple[torch.Tensor, torch.Tensor, Sequence[int]]:
+    validate_model_causal_fields(causal_event); raw_nodes, raw_g, raw_rank = causal_event["open_nodes"], causal_event["open_g"], causal_event["open_base_rank"]
+    if node_embeddings.ndim != 2 or node_embeddings.shape[1] != 64 or side_len <= 0 or any(not isinstance(v, Sequence) or isinstance(v, (str, bytes)) for v in (raw_nodes, raw_g, raw_rank)) or not raw_nodes or len(raw_nodes) != len(raw_g) or len(raw_nodes) != len(raw_rank): raise ValueError("candidate representation invalid")
+    nodes = tuple(_integer(v, "open_node") for v in raw_nodes)
+    if len(set(nodes)) != len(nodes) or any(not 0 <= node < len(node_embeddings) for node in nodes): raise ValueError("open candidates invalid")
+    g, rank = [_finite_float(v, "open_g") for v in raw_g], [_finite_float(v, "open_base_rank") for v in raw_rank]
+    return node_embeddings.index_select(0, torch.as_tensor(nodes, device=node_embeddings.device)), torch.as_tensor([[a/side_len,b/side_len,(a+b)/side_len] for a,b in zip(g,rank)], dtype=node_embeddings.dtype, device=node_embeddings.device), nodes

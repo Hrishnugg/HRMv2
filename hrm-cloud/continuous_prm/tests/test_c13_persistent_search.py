@@ -9,6 +9,9 @@ import tempfile
 
 import numpy as np
 import pytest
+import torch
+
+import continuous_prm_c13_identifiability as I
 
 import continuous_prm_c13_persistent_search as P
 
@@ -374,3 +377,33 @@ def test_teacher_trace_payload_and_shard_are_byte_identical_across_duplicate_pas
         assert P.write_trace_shard(right, [second], fingerprint) == _sha256(right)
         assert left.read_bytes() == right.read_bytes()
         assert P.read_trace_shard(left, fingerprint) == (first,)
+def _task3_source(tmp_path: Path) -> P.SourceContext:
+    model = I.FlatMLPRanker(3, 16, 64, 4.0); checkpoint = tmp_path / "flat_mlp_iteration_08.pt"
+    torch.save({"model": model.state_dict(), "model_name": "flat_mlp", "iteration": 8, "lhbl_config": {"hidden_dim": 64}, "model_config": {"num_rays": 1, "max_neighbors": 1}}, checkpoint)
+    return P.SourceContext(tmp_path, tmp_path, tmp_path / "design.md", tmp_path / "impl.py", {}, {}, {}, checkpoint, _sha256(checkpoint))
+
+def _task3_features() -> dict[str, np.ndarray]:
+    return {"features": np.arange(96, dtype=np.float32).reshape(2,3,16)/100, "euclidean_to_goal": np.asarray([.8,0.]), "local_value_radius_0_20": np.asarray([1.2,0.])}
+
+def test_encoder_is_frozen_and_prepared_rank_is_the_locked_local_bellman_formula(tmp_path: Path) -> None:
+    encoder = P.load_frozen_flat_encoder(_task3_source(tmp_path), torch.device("cpu")); prepared = P.prepare_world_representation(_task3_features(), [[(1,1.)],[(0,1.)]], 1, P.resolve_paths(tmp_path), encoder)
+    assert prepared.node_embeddings.shape == (2,64) and not encoder.training and all(not p.requires_grad for p in encoder.parameters())
+    np.testing.assert_allclose(prepared.base_rank, prepared.euclidean_rank + 1.50*(prepared.local_values-prepared.euclidean_rank))
+
+def test_persistent_and_reset_carries_share_one_model_and_preserve_true_cadence() -> None:
+    model = P.PersistentSearchHRM(); carry = model.initial_carry(1,torch.device("cpu"),torch.float32); assert carry.step == 0 and not torch.count_nonzero(carry.low) and not torch.count_nonzero(carry.high)
+    context, first = model.update_event(torch.zeros(1,70),carry); _, second = model.update_event(torch.ones(1,70),first); _, reset = model.update_event(torch.zeros(1,70),model.initial_carry(1,torch.device("cpu"),torch.float32,step=1))
+    assert second.step == reset.step == 2 and not torch.equal(first.low,carry.low) and context.shape == (1,64) and model.persistent_model is model.reset_model and model.parameter_count == sum(p.numel() for p in model.parameters())
+
+def test_candidate_scoring_is_pure_and_permutation_equivariant() -> None:
+    model=P.PersistentSearchHRM(); context,carry=model.update_event(torch.randn(1,70),model.initial_carry(1,torch.device("cpu"),torch.float32)); before=(carry.low.clone(),carry.high.clone(),carry.step); embeddings=torch.randn(4,64); scalars=torch.randn(4,3); logits=model.score_candidates(embeddings,context,scalars); order=torch.tensor([2,0,3,1])
+    assert torch.equal(carry.low,before[0]) and torch.equal(carry.high,before[1]) and carry.step==before[2] and torch.equal(logits[order],model.score_candidates(embeddings[order],context,scalars[order]))
+
+def test_causal_tensor_boundary_rejects_privileged_and_future_fields_before_tensor_creation(monkeypatch: pytest.MonkeyPatch) -> None:
+    causal={"event_index":0,"expanded_node":0,"expanded_g":0.,"expanded_base_rank":.5,"open_count":1,"closed_count":0,"open_nodes":[1],"open_g":[.2],"open_base_rank":[.4]}
+    for bad in ("positive_node","open_parent","privileged_audit",*P.FORBIDDEN_INPUT_TOKENS):
+        invalid=dict(causal); invalid[bad]=0
+        with pytest.raises(ValueError): P.validate_model_causal_fields(invalid)
+    monkeypatch.setattr(P.torch,"as_tensor",lambda *args,**kwargs: (_ for _ in ()).throw(AssertionError("tensor created")))
+    invalid=dict(causal); invalid["future_open_count"]=2
+    with pytest.raises(ValueError): P.event_tensor_from_causal(invalid,torch.zeros(2,64),1.,2)
