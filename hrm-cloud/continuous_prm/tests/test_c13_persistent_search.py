@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
+import inspect
 import hashlib
 import json
 from dataclasses import replace
@@ -1257,15 +1258,14 @@ def test_task7_stage_cli_atomicity_and_immutable_binding(tmp_path: Path, monkeyp
     cfg = P.resolve_paths(tmp_path, tmp_path / "run")
     expected = P.stage_binding(cfg, "trace", {"audit": "a" * 64})
     output = cfg.out_dir / "traces/train/traces.json"; output.parent.mkdir(parents=True); output.write_bytes(b"trace\n")
-    marker = cfg.out_dir / "bindings/trace.json"; marker.parent.mkdir(parents=True)
-    marker.write_bytes(P.canonical_json_bytes({**expected, "outputs": {"traces/train/traces.json": {
-        "sha256": _sha256(output), "size": output.stat().st_size, "schema": P.SCHEMA_VERSION}}}))
+    marker = cfg.out_dir / "bindings/trace.json"; P._write_stage_marker(cfg, "trace", expected, ((output, P.SCHEMA_VERSION),))
     P.require_stage_binding(marker, expected); output.write_bytes(b"drift")
     with pytest.raises(ValueError, match="drift|required|new output directory"): P.require_stage_binding(marker, expected)
 
 
 def test_task7_audit_trace_counts_and_development_embargo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    source = _task7_source(tmp_path); cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    source = replace(_task7_source(tmp_path), c13j_root=tmp_path / "source-j", c13m_root=tmp_path / "source-m")
+    source.c13j_root.mkdir(); source.c13m_root.mkdir(); cfg = P.resolve_paths(tmp_path, tmp_path / "run")
     monkeypatch.setattr(P, "audit_sources", lambda _: source); P.run_audit_stage(cfg)
     manifest = json.loads((cfg.out_dir / "manifest.json").read_text(encoding="utf-8"))
     audit = json.loads((cfg.out_dir / "source_audit.json").read_text(encoding="utf-8"))
@@ -1284,14 +1284,16 @@ def test_task7_audit_trace_counts_and_development_embargo(tmp_path: Path, monkey
 
 def test_task7_evaluation_binding_and_drift_guard(tmp_path: Path) -> None:
     cfg = P.resolve_paths(tmp_path, tmp_path / "run")
-    checkpoint = tmp_path / "selected.pt"; checkpoint.write_bytes(b"selected")
+    checkpoint = tmp_path / "selected.pt"; selected_model = P.PersistentSearchHRM()
+    torch.save({"model": selected_model.state_dict()}, checkpoint)
+    state_hash = P._model_state_sha256(selected_model)
     source_hashes = {"implementation": _sha256(Path(P.__file__)), "checkpoint": "a" * 64,
                      "preregistration": "b" * 64}
     registry = {f"development/suite-{s}/{i}": {"split": "development", "suite": f"suite-{s}",
         "world_index": i, "world_seed": s * 10 + i, "roadmap_seed": s * 10 + i + 17,
         "feature_cache_sha256": "c" * 64, "node_count": 192, "edge_count": 768,
         "feature_cache_path": "frozen.npz"} for s in range(6) for i in range(4)}
-    binding = P.evaluation_binding_payload(cfg, checkpoint, "d" * 64, source_hashes,
+    binding = P.evaluation_binding_payload(cfg, checkpoint, state_hash, source_hashes,
                                            {"train": "e" * 64, "validation": "f" * 64}, registry)
     assert {"evaluation_implementation_sha256", "bootstrap_seeds", "gate_payload", "source_hashes",
             "trace_hashes", "registry_fingerprint", "binding_fingerprint"}.issubset(binding)
@@ -1332,3 +1334,197 @@ def test_task7_integrity_covers_frozen_design_implementation_test_and_source_che
              "checkpoint_path": str(source.checkpoint_path)}; (cfg.out_dir / "source_audit.json").write_bytes(P.canonical_json_bytes(audit))
     paths = {entry["path"] for entry in P.build_integrity_manifest(cfg)["artifacts"].values()}
     assert {str(source.preregistration.resolve()), str(Path(P.__file__).resolve()), str(source.checkpoint_path.resolve()), str(Path(P.__file__).resolve().parent / "tests" / "test_c13_persistent_search.py")} <= paths
+
+
+def test_task7_review_complete_marker_fingerprints_outputs_and_current_predecessor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = replace(_task7_source(tmp_path), c13j_root=tmp_path / "source-j", c13m_root=tmp_path / "source-m")
+    source.c13j_root.mkdir(); source.c13m_root.mkdir(); cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    monkeypatch.setattr(P, "audit_sources", lambda _: source)
+    P.run_audit_stage(cfg)
+    output = cfg.out_dir / "manifest.json"
+    marker_path = cfg.out_dir / "bindings" / "audit.json"
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert set(marker) == set(P.STAGE_MARKER_KEYS)
+    unsigned = {key: value for key, value in marker.items() if key != "marker_fingerprint"}
+    assert marker["marker_fingerprint"] == P.hash_canonical(unsigned)
+    assert marker["outputs"]["manifest.json"] == {
+        "path": "manifest.json", "sha256": _sha256(output), "size": output.stat().st_size, "schema": P.SCHEMA_VERSION
+    }
+    assert P.stage_is_complete(cfg, "audit") is True
+    manifest = json.loads(output.read_text(encoding="utf-8")); manifest["cohort_counts"]["train"] = 95
+    output.write_bytes(P.canonical_json_bytes(manifest))
+    marker["outputs"]["manifest.json"].update({"sha256": _sha256(output), "size": output.stat().st_size})
+    marker["marker_fingerprint"] = P.hash_canonical({k: v for k, v in marker.items() if k != "marker_fingerprint"})
+    marker_path.write_bytes(P.canonical_json_bytes(marker))
+    with pytest.raises(ValueError, match="recomputed|semantic|drift|new output directory"):
+        P.stage_is_complete(cfg, "audit")
+
+
+def test_task7_review_marker_rejects_extra_keys_and_predecessor_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = replace(_task7_source(tmp_path), c13j_root=tmp_path / "source-j", c13m_root=tmp_path / "source-m")
+    source.c13j_root.mkdir(); source.c13m_root.mkdir(); cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    monkeypatch.setattr(P, "audit_sources", lambda _: source)
+    P.run_audit_stage(cfg)
+    second = cfg.out_dir / "traces" / "trace_manifest.json"; second.parent.mkdir(parents=True); second.write_bytes(b"trace")
+    P._write_stage_marker(cfg, "trace", P.stage_binding(cfg, "trace", P._stage_inputs(cfg, "trace")), ((second, "test-v1"),))
+    trace_marker = cfg.out_dir / "bindings" / "trace.json"
+    payload = json.loads(trace_marker.read_text(encoding="utf-8")); payload["extra"] = True
+    trace_marker.write_bytes(P.canonical_json_bytes(payload))
+    with pytest.raises(ValueError, match="schema|keys|extra|drift"):
+        P.stage_is_complete(cfg, "trace")
+    payload.pop("extra"); trace_marker.write_bytes(P.canonical_json_bytes(payload))
+    audit_marker = cfg.out_dir / "bindings" / "audit.json"
+    audit_payload = json.loads(audit_marker.read_text(encoding="utf-8")); audit_payload["marker_fingerprint"] = "0" * 64
+    audit_marker.write_bytes(P.canonical_json_bytes(audit_payload))
+    with pytest.raises(ValueError, match="predecessor|fingerprint|drift"):
+        P.stage_is_complete(cfg, "trace")
+
+
+def test_task7_review_develop_verifies_binding_before_any_development_path_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    released = {"value": False}; observed = []
+    monkeypatch.setattr(P, "verify_evaluation_binding", lambda _cfg: (released.__setitem__("value", True), observed.append("binding"), (_ for _ in ()).throw(RuntimeError("stop-after-binding")))[2])
+    real_exists, real_stat, real_resolve = Path.exists, Path.stat, Path.resolve
+    def guard(method):
+        def wrapped(path, *args, **kwargs):
+            if "development" in str(path).lower() and not released["value"]:
+                raise AssertionError(f"development path probed before binding: {path}")
+            return method(path, *args, **kwargs)
+        return wrapped
+    monkeypatch.setattr(Path, "exists", guard(real_exists)); monkeypatch.setattr(Path, "stat", guard(real_stat)); monkeypatch.setattr(Path, "resolve", guard(real_resolve))
+    with pytest.raises(RuntimeError, match="stop-after-binding"):
+        P.run_develop_stage(cfg)
+    assert observed == ["binding"]
+
+
+def test_task7_review_arm_separated_summary_uses_world_rows_only() -> None:
+    arms = ["c13m_base", "c13p_persistent", "c13p_reset"]
+    rows = []
+    for suite in [f"suite-{i}" for i in range(6)]:
+        for arm_index, arm in enumerate(arms):
+            rows.append({"suite": suite, "arm": arm, "aggregation_level": "world", "metric": float(arm_index + 1)})
+            rows.append({"suite": suite, "arm": arm, "aggregation_level": "event", "metric": 1000.0})
+    summary = P._summary_payload(pd.DataFrame(rows), ("metric",), world_rows_only=True)
+    assert set(summary["pooled"]) == set(arms)
+    assert set(summary["suites"]) == {f"suite-{i}" for i in range(6)}
+    assert all(set(value) == set(arms) for value in summary["suites"].values())
+    assert summary["pooled"]["c13p_persistent"]["metric"] == 2.0
+    malformed = pd.DataFrame(rows).query("arm != 'c13p_reset'")
+    with pytest.raises(ValueError, match="three arms|exactly 3|arm"):
+        P._summary_payload(malformed, ("metric",), world_rows_only=True)
+
+
+def test_task7_review_duplicate_projection_artifacts_are_exact_bytes(tmp_path: Path) -> None:
+    root = tmp_path / "run"; first = root / "results" / "verification" / "ranking_projection_first.csv"
+    second = root / "results" / "verification" / "ranking_projection_second.csv"
+    first.parent.mkdir(parents=True); first.write_bytes(b"a,b\n1,2\n"); second.write_bytes(first.read_bytes())
+    evidence = P._duplicate_file_evidence(first, second)
+    assert evidence == {"first_path": str(first.resolve()), "second_path": str(second.resolve()),
+                        "first_sha256": _sha256(first), "second_sha256": _sha256(second),
+                        "byte_identical": True, "passes": True}
+    second.write_bytes(b"a,b\n2,1\n")
+    assert P._duplicate_file_evidence(first, second)["passes"] is False
+
+
+def test_task7_review_g0_pass_is_exact_conjunction_without_implicit_truth() -> None:
+    primitives = {name: {"passes": True, "evidence": name} for name in P.G0_PRIMITIVES}
+    result = P._g0_payload(primitives)
+    assert result["passes"] is True and set(result["primitives"]) == set(P.G0_PRIMITIVES)
+    primitives["trace_duplicates"] = {"passes": False, "evidence": "different bytes"}
+    assert P._g0_payload(primitives)["passes"] is False
+    primitives.pop("cache_hashes")
+    with pytest.raises(ValueError, match="primitive|exact"):
+        P._g0_payload(primitives)
+
+
+def test_task7_review_integrity_is_exact_and_declares_unavoidable_exclusions(tmp_path: Path) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); cfg.out_dir.mkdir(parents=True)
+    audit = {"preregistration_path": str(tmp_path / "design.md"), "implementation_path": str(Path(P.__file__)), "checkpoint_path": str(tmp_path / "source.pt")}
+    (tmp_path / "design.md").write_text("design", encoding="utf-8"); (tmp_path / "source.pt").write_bytes(b"source")
+    (cfg.out_dir / "source_audit.json").write_bytes(P.canonical_json_bytes(audit))
+    state = cfg.out_dir / ".training-state" / "checkpoints" / "latest.pt"; state.parent.mkdir(parents=True); state.write_bytes(b"latest")
+    payload = P.build_integrity_manifest(cfg)
+    assert payload["exclusions"] == ["integrity.json:self", "bindings/report.json:created-after-integrity"]
+    paths = {entry["path"] for entry in payload["artifacts"].values()}
+    assert ".training-state/checkpoints/latest.pt" in paths
+    assert payload["artifact_count"] == len(payload["artifacts"])
+
+
+def test_task7_review_selection_uses_dataclass_fields_and_finalizes_artifacts() -> None:
+    source = inspect.getsource(P.run_train_stage)
+    assert "selection.selected_epoch" in source and "selection.selected_validation_loss" in source
+    assert "selection.epoch" not in source and "selection.validation_loss" not in source
+    assert source.index("_verify_training_trace_evidence") < source.index("torch.cuda.is_available")
+
+
+def test_task7_review_verify_pipeline_contains_no_mutating_stage_calls() -> None:
+    source = inspect.getsource(P.verify_pipeline)
+    assert "run_audit_stage" not in source and "run_trace_stage" not in source and "train_stationary_model" not in source
+    assert "_verify_development_evidence" in source and "verify_integrity" in source
+
+
+def test_task7_review_train_stage_real_finalization_with_only_expensive_kernels_stubbed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = replace(_task7_source(tmp_path), c13j_root=tmp_path / "source-j", c13m_root=tmp_path / "source-m")
+    source.c13j_root.mkdir(); source.c13m_root.mkdir(); cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    monkeypatch.setattr(P, "audit_sources", lambda _: source)
+    P.run_audit_stage(cfg)
+
+    def trace_pass(_cfg: object, split: str, raw_records: object, _audit: object, destination: Path) -> dict[str, object]:
+        assert isinstance(raw_records, list)
+        traces = []
+        for record in raw_records:
+            event = P.TraceEvent(event_index=0, expanded_node=0, expanded_g=0.0, expanded_base_rank=0.0,
+                                 open_nodes=(1,), open_g=(1.0,), open_parent=(0,), open_base_rank=(0.5,),
+                                 open_count=1, closed_count=1, positive_node=1)
+            traces.append(P.TeacherTrace(split=split, suite=str(record["suite"]), world_index=int(record["world_index"]),
+                                         world_seed=int(record["world_seed"]), roadmap_seed=int(record["roadmap_seed"]),
+                                         feature_cache_path=str(record["feature_cache_path"]), feature_cache_sha256=str(record["feature_cache_sha256"]),
+                                         node_count=int(record["node_count"]), edge_count=int(record["edge_count"]), start_idx=0, goal_idx=1,
+                                         events=(event,), teacher_path=(0, 1), teacher_cost=1.0, teacher_expansions=2, teacher_valid=True))
+        generation = P.hash_canonical({"split": split, "records": raw_records})
+        destination.parent.mkdir(parents=True, exist_ok=True); P.write_trace_shard(destination, traces, generation)
+        return {"path": str(destination), "sha256": _sha256(destination), "generation_fingerprint": generation,
+                "worlds": len(traces), "events": sum(len(trace.events) for trace in traces), "record_fingerprint": P.hash_canonical(raw_records)}
+
+    monkeypatch.setattr(P, "_generate_trace_pass", trace_pass)
+    P.run_trace_stage(cfg)
+    smoke_path = cfg.out_dir / "results" / "smoke.json"
+    P._atomic_json(smoke_path, {"schema_version": P.SMOKE_SCHEMA_VERSION, "passes": True,
+                                "hand_events": 1, "training_world_id": "train/suite-0/0", "loss": 0.0, "configuration_changed": False})
+    smoke_binding = P.stage_binding(cfg, "smoke", P._stage_inputs(cfg, "smoke"))
+    P._write_stage_marker(cfg, "smoke", smoke_binding, ((smoke_path, P.SMOKE_SCHEMA_VERSION),))
+
+    order = []; original_preflight = P._verify_training_trace_evidence
+    def preflight(run_cfg: P.PersistentSearchConfig):
+        order.append("preflight"); return original_preflight(run_cfg)
+    monkeypatch.setattr(P, "_verify_training_trace_evidence", preflight)
+    monkeypatch.setattr(P.torch.cuda, "is_available", lambda: (order.append("cuda"), order.index("preflight") < order.index("cuda"))[1])
+    monkeypatch.setattr(P, "_load_frozen_ranker", lambda *_args: object())
+    def materialize(_cfg: object, record: object, *_args: object, **_kwargs: object):
+        return {}, type("PreparedStub", (), {"world_id": str(record["world_id"])})()
+    monkeypatch.setattr(P, "_materialize_record", materialize)
+
+    def train_stub(_train: object, _validation: object, prepared: object, state_cfg: P.PersistentSearchConfig,
+                   training_binding: object) -> P.CheckpointSelection:
+        order.append("train"); assert len(prepared) == 120
+        state_root = Path(state_cfg.out_dir); (state_root / "results").mkdir(parents=True); (state_root / "checkpoints").mkdir()
+        pd.DataFrame([{"epoch": 1, "validation_loss": 0.3}, {"epoch": 2, "validation_loss": 0.2}]).to_csv(state_root / "results" / "training_history.csv", index=False, lineterminator="\n")
+        model = P.PersistentSearchHRM(); checkpoint = state_root / "checkpoints" / "epoch-0002.pt"
+        torch.save({"model": model.state_dict(), "optimizer": {"step": 2}, "rng": {"torch": [1]}, "training_binding": training_binding}, checkpoint)
+        (state_root / "checkpoints" / "latest.pt").write_bytes(checkpoint.read_bytes())
+        torch.save({"optimizer": {"step": 2}, "rng": {"torch": [1]}}, state_root / "optimizer-rng.pt")
+        return P.CheckpointSelection(selected_epoch=2, selected_validation_loss=0.2, checkpoint_path=checkpoint, checkpoint_sha256=_sha256(checkpoint))
+    monkeypatch.setattr(P, "train_stationary_model", train_stub)
+
+    P.run_train_stage(cfg)
+    assert order[:3] == ["preflight", "cuda", "train"]
+    selection = json.loads((cfg.out_dir / "results" / "checkpoint_selection.json").read_text(encoding="utf-8"))
+    assert selection["epoch"] == 2 and selection["validation_loss"] == 0.2
+    assert (cfg.out_dir / "results" / "training_history.csv").is_file() and (cfg.out_dir / "checkpoints" / "selected.pt").is_file()
+    assert P.verify_evaluation_binding(cfg)["checkpoint_sha256"] == _sha256(cfg.out_dir / "checkpoints" / "selected.pt")
+    train_marker = json.loads((cfg.out_dir / "bindings" / "train.json").read_text(encoding="utf-8"))
+    assert ".training-state/checkpoints/latest.pt" in train_marker["outputs"]
+    assert ".training-state/optimizer-rng.pt" in train_marker["outputs"]
+    source = inspect.getsource(P.verify_pipeline)
+    assert "run_audit_stage" not in source and "run_trace_stage" not in source and "train_stationary_model" not in source
+    assert "_verify_development_evidence" in source and "verify_integrity" in source
