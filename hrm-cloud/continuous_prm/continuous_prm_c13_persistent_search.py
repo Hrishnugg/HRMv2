@@ -837,6 +837,32 @@ def read_trace_shard(path: Path, expected_fingerprint: str) -> Sequence[TeacherT
 @dataclass(frozen=True)
 class PreparedWorld:
     node_tokens: np.ndarray; node_embeddings: np.ndarray; euclidean_rank: np.ndarray; local_values: np.ndarray; base_rank: np.ndarray
+    world_id: str; split: str; suite: str; world_index: int; world_seed: int; roadmap_seed: int
+    feature_cache_path: str; feature_cache_sha256: str; node_count: int; edge_count: int
+    start_idx: int; goal_idx: int; graph_sha256: str; provenance_fingerprint: str
+
+def _canonical_graph_sha256(graph: Sequence[Sequence[tuple[int, float]]]) -> str:
+    return hashlib.sha256(canonical_json_bytes([[[int(node), float(weight)] for node, weight in outgoing] for outgoing in graph])).hexdigest()
+
+
+def _prepared_world_provenance(identity: Mapping[str, object] | None, graph: Sequence[Sequence[tuple[int, float]]], start_idx: int, goal_idx: int, cache_path: str, cache_sha256: str) -> dict[str, object]:
+    if not isinstance(identity, Mapping): raise ValueError("prepared world audited provenance is required")
+    required = {"split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count"}
+    if not required.issubset(identity) or identity.get("split") != "development": raise ValueError("prepared world audited identity is incomplete")
+    suite = identity.get("suite"); world_index = _integer(identity.get("world_index"), "prepared world_index")
+    if not isinstance(suite, str) or not suite or start_idx != 0 or goal_idx != 1: raise ValueError("prepared world identity or canonical endpoints are invalid")
+    count = len(graph); edge_count = sum(len(outgoing) for outgoing in graph)
+    canonical = {
+        "world_id": f"development/{suite}/{world_index}", "split": "development", "suite": suite, "world_index": world_index,
+        "world_seed": _integer(identity.get("world_seed"), "prepared world_seed"), "roadmap_seed": _integer(identity.get("roadmap_seed"), "prepared roadmap_seed"),
+        "feature_cache_path": cache_path, "feature_cache_sha256": cache_sha256, "node_count": count, "edge_count": edge_count,
+        "start_idx": start_idx, "goal_idx": goal_idx, "graph_sha256": _canonical_graph_sha256(graph),
+    }
+    if identity.get("world_id", canonical["world_id"]) != canonical["world_id"] or identity.get("feature_cache_path") != cache_path or identity.get("feature_cache_sha256") != cache_sha256 or _integer(identity.get("node_count"), "prepared node_count") != count or _integer(identity.get("edge_count"), "prepared edge_count") != edge_count:
+        raise ValueError("prepared world identity does not match actual cache or graph")
+    canonical["provenance_fingerprint"] = hashlib.sha256(canonical_json_bytes(canonical)).hexdigest()
+    return canonical
+
 
 def load_frozen_flat_encoder(source: SourceContext, device: torch.device) -> nn.Module:
     if sha256_file(source.checkpoint_path) != source.checkpoint_sha256: raise ValueError("frozen iteration-8 checkpoint hash mismatch")
@@ -859,7 +885,7 @@ def _vector(cache: Mapping[str, np.ndarray], key: str, n: int) -> np.ndarray:
     if result.shape != (n,) or not np.all(np.isfinite(result)): raise ValueError(f"{key} is invalid")
     return result
 
-def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph: Sequence[Sequence[tuple[int, float]]], goal_idx: int, cfg: PersistentSearchConfig, encoder: nn.Module) -> PreparedWorld:
+def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph: Sequence[Sequence[tuple[int, float]]], goal_idx: int, cfg: PersistentSearchConfig, encoder: nn.Module, *, audited_identity: Mapping[str, object] | None = None, start_idx: int = 0) -> PreparedWorld:
     tokens = feature_cache.get("features")
     if not isinstance(tokens, np.ndarray) or tokens.ndim != 3 or tuple(tokens.shape[1:]) != getattr(encoder, "c13p_token_shape", None) or not np.all(np.isfinite(tokens)): raise ValueError("feature cache token shape changed")
     path, digest = feature_cache.get("cache_path", feature_cache.get("feature_cache_path")), feature_cache.get("cache_sha256", feature_cache.get("feature_cache_sha256"))
@@ -867,10 +893,11 @@ def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph:
     if not isinstance(path, (str, Path)) or not isinstance(digest, str) or sha256_file(Path(path)) != digest: raise ValueError("feature cache hash mismatch")
     if float(cfg.local_alpha) != LOCAL_ALPHA: raise ValueError("frozen local alpha changed")
     if len(graph) != len(tokens) or not isinstance(goal_idx, int) or not 0 <= goal_idx < len(tokens) or encoder.training or any(p.requires_grad for p in encoder.parameters()): raise ValueError("world or frozen encoder invalid")
+    _validated_graph(graph, np.zeros(len(tokens), dtype=np.float64)); provenance = _prepared_world_provenance(audited_identity, graph, start_idx, goal_idx, str(Path(path)), digest)
     euclid, local = _vector(feature_cache, "euclidean_to_goal", len(tokens)), _vector(feature_cache, "local_value_radius_0_20", len(tokens))
     with torch.no_grad(): embedding = encoder(torch.as_tensor(tokens.astype(np.float32, copy=False), device=next(encoder.parameters()).device).flatten(1))
     if tuple(embedding.shape) != (len(tokens), HIDDEN_DIM): raise ValueError("encoder output width changed")
-    return PreparedWorld(tokens, embedding.cpu().numpy(), euclid, local, euclid + LOCAL_ALPHA * (local - euclid))
+    return PreparedWorld(tokens, embedding.cpu().numpy(), euclid, local, euclid + LOCAL_ALPHA * (local - euclid), **provenance)
 
 @dataclass(frozen=True)
 class HRMCarry:
@@ -912,11 +939,11 @@ def event_tensor_from_causal(causal_event: Mapping[str, object], node_embeddings
     return torch.cat((node_embeddings[node:node+1], torch.as_tensor([g/side_len, rank/side_len, (g+rank)/side_len, opened/roadmap_nodes, closed/roadmap_nodes, step/roadmap_nodes], dtype=node_embeddings.dtype, device=node_embeddings.device).unsqueeze(0)), -1)
 def candidate_tensors_from_causal(causal_event: Mapping[str, object], node_embeddings: torch.Tensor, side_len: float) -> tuple[torch.Tensor, torch.Tensor, Sequence[int]]:
     validate_model_causal_fields(causal_event); raw_nodes, raw_g, raw_rank = causal_event["open_nodes"], causal_event["open_g"], causal_event["open_base_rank"]
-    if node_embeddings.ndim != 2 or node_embeddings.shape[1] != 64 or side_len <= 0 or any(not isinstance(v, Sequence) or isinstance(v, (str, bytes)) for v in (raw_nodes, raw_g, raw_rank)) or not raw_nodes or len(raw_nodes) != len(raw_g) or len(raw_nodes) != len(raw_rank): raise ValueError("candidate representation invalid")
+    if node_embeddings.ndim != 2 or node_embeddings.shape[1] != 64 or side_len <= 0 or any(not isinstance(v, Sequence) or isinstance(v, (str, bytes)) for v in (raw_nodes, raw_g, raw_rank)) or len(raw_nodes) != len(raw_g) or len(raw_nodes) != len(raw_rank): raise ValueError("candidate representation invalid")
     nodes = tuple(_integer(v, "open_node") for v in raw_nodes)
     if len(set(nodes)) != len(nodes) or any(not 0 <= node < len(node_embeddings) for node in nodes): raise ValueError("open candidates invalid")
     g, rank = [_finite_float(v, "open_g") for v in raw_g], [_finite_float(v, "open_base_rank") for v in raw_rank]
-    return node_embeddings.index_select(0, torch.as_tensor(nodes, device=node_embeddings.device)), torch.as_tensor([[a/side_len,b/side_len,(a+b)/side_len] for a,b in zip(g,rank)], dtype=node_embeddings.dtype, device=node_embeddings.device), nodes
+    return node_embeddings.index_select(0, torch.as_tensor(nodes, dtype=torch.long, device=node_embeddings.device)), torch.as_tensor([[a/side_len,b/side_len,(a+b)/side_len] for a,b in zip(g,rank)], dtype=node_embeddings.dtype, device=node_embeddings.device).reshape(len(nodes), 3), nodes
 
 def reset_carry_for_event(model: PersistentSearchHRM, causal_event: Mapping[str, object], batch_size: int, device: torch.device, dtype: torch.dtype, step: int | None = None) -> HRMCarry:
     validate_model_causal_fields(causal_event); event_index=_integer(causal_event["event_index"],"event_index")
@@ -1366,7 +1393,7 @@ def _make_search_result(arm: str, graph: Sequence[Sequence[tuple[int, float]]], 
         try: path = _path_from_parent(parent, start, goal); cost = float(g[goal])
         except ValueError: valid = False
     optimum = _evaluation_optimal_cost(graph, start, goal)
-    ratio = cost / optimum if valid and optimum > 0. and math.isfinite(optimum) else (1. if valid and cost == optimum == 0. else math.nan)
+    ratio = cost / optimum if valid and optimum > 0. and math.isfinite(optimum) else (1. if valid and cost == optimum == 0. else math.inf)
     return SearchResult(arm, path, valid, cost, optimum, ratio, len(expanded), tuple(expanded), calls, candidates, rep, model, book)
 
 
@@ -1400,7 +1427,7 @@ def dynamic_best_first(graph: Sequence[Sequence[tuple[int, float]]], prepared: P
                 else:
                     reset = reset_carry_for_event(model, causal, 1, device, torch.float32); context, _ = model.update_event(event_features, reset)
                 elapsed_model += time.perf_counter() - tick
-                if opened:
+                if True:
                     tick = time.perf_counter(); candidate_embeddings, candidate_scalars, candidate_nodes = candidate_tensors_from_causal(causal, embeddings, side_len); rep += time.perf_counter() - tick; tick = time.perf_counter(); logits = model.score_candidates(candidate_embeddings, context, candidate_scalars); elapsed_model += time.perf_counter() - tick
                     if logits.ndim != 1 or len(logits) != len(candidate_nodes) or not bool(torch.isfinite(logits).all()): raise ValueError("online scorer logits are invalid")
                     calls += 1; candidates += len(candidate_nodes); queue = [(-float(logit), g[candidate] + ranks[candidate], g[candidate], candidate) for candidate, logit in zip(candidate_nodes, logits.detach().cpu().tolist())]; heapq.heapify(queue)
@@ -1435,19 +1462,33 @@ def validate_timing_columns(rows: pd.DataFrame) -> None:
     if any(not np.all(np.isfinite(rows[column].to_numpy(dtype=float))) or np.any(rows[column].to_numpy(dtype=float) < 0.) for column in _TIMING_COLUMNS): raise ValueError("result timings must be finite and nonnegative")
 
 
-def evaluate_online_arms(worlds: Sequence[Mapping[str, object]], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, cfg: PersistentSearchConfig) -> pd.DataFrame:
+def evaluate_online_arms(worlds: Sequence[Mapping[str, object]], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, cfg: PersistentSearchConfig, *, binding: "EvaluationBinding") -> pd.DataFrame:
     registry = validate_expected_development_registry(worlds)
     if set(prepared_worlds) != set(registry): raise ValueError("online prepared worlds do not match the audited registry")
-    checkpoint = getattr(model, "c13p_checkpoint_sha256", None)
-    if not _is_sha256(checkpoint): raise ValueError("online evaluation requires the bound shared checkpoint hash")
+    if not isinstance(binding, EvaluationBinding) or binding.schema_version != "c13p-evaluation-binding-v1": raise ValueError("online evaluation binding is invalid")
+    if binding.source_fingerprint != sha256_file(Path(__file__)) or binding.registry_fingerprint != hashlib.sha256(canonical_json_bytes(registry)).hexdigest(): raise ValueError("online evaluation binding source or registry drifted")
+    if binding.model_state_sha256 != _model_state_sha256(model): raise ValueError("online evaluation binding model drifted")
+    checkpoint_path = Path(binding.checkpoint_path)
+    if not checkpoint_path.is_file() or sha256_file(checkpoint_path) != binding.checkpoint_sha256: raise ValueError("online evaluation binding checkpoint drifted")
+    payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False); saved_state = payload.get("model") if isinstance(payload, Mapping) else None
+    if not isinstance(saved_state, Mapping) or set(saved_state) != set(model.state_dict()) or any(not isinstance(value, torch.Tensor) or not torch.equal(value.detach().cpu(), model.state_dict()[name].detach().cpu()) for name, value in saved_state.items()): raise ValueError("online evaluation checkpoint state drifted")
+    checkpoint = binding.checkpoint_sha256
     records = {f"development/{record['suite']}/{record['world_index']}": record for record in worlds}; rows: list[dict[str, object]] = []; state = _model_state_sha256(model)
     for world_id in sorted(registry):
         record = records[world_id]; graph = record.get("graph"); start = record.get("start_idx"); goal = record.get("goal_idx")
-        if not isinstance(graph, Sequence) or isinstance(graph, (str, bytes)) or not isinstance(start, int) or not isinstance(goal, int): raise ValueError("online world graph/start/goal is invalid")
+        if not isinstance(graph, Sequence) or isinstance(graph, (str, bytes)) or not isinstance(start, int) or not isinstance(goal, int) or start != 0 or goal != 1: raise ValueError("online world graph or canonical start/goal is invalid")
+        prepared = prepared_worlds[world_id]; count, _ = _validated_graph(graph, prepared.base_rank); edge_count = sum(len(outgoing) for outgoing in graph)
+        expected = {"world_id": world_id, **registry[world_id], "start_idx": start, "goal_idx": goal, "graph_sha256": _canonical_graph_sha256(graph)}
+        expected["provenance_fingerprint"] = hashlib.sha256(canonical_json_bytes(expected)).hexdigest()
+        if any(getattr(prepared, key) != value for key, value in expected.items()) or prepared.node_count != count or prepared.edge_count != edge_count or np.asarray(prepared.node_embeddings).shape != (count, HIDDEN_DIM): raise ValueError("online prepared world provenance or graph drifted")
+        if record.get("feature_cache_path") != prepared.feature_cache_path or record.get("feature_cache_sha256") != prepared.feature_cache_sha256 or record.get("world_seed") != prepared.world_seed or record.get("roadmap_seed") != prepared.roadmap_seed: raise ValueError("online world metadata drifted from prepared provenance")
+
         for arm in ONLINE_ARMS:
             result = static_c13m_search(graph, prepared_worlds[world_id], start, goal, cfg) if arm == "c13m_base" else dynamic_best_first(graph, prepared_worlds[world_id], start, goal, model, "persistent" if arm == "c13p_persistent" else "reset", cfg)
             rows.append({**registry[world_id], "world_id": world_id, "arm": arm, "path": tuple(result.path), "valid": result.valid, "cost": result.cost, "optimal_cost": result.optimal_cost, "cost_ratio": result.cost_ratio, "expansions": result.expansions, "expanded_nodes": tuple(result.expanded_nodes), "scorer_calls": result.scorer_calls, "candidates_scored": result.candidates_scored, "representation_seconds": result.representation_seconds, "model_seconds": result.model_seconds, "bookkeeping_seconds": result.bookkeeping_seconds, "checkpoint_sha256": checkpoint, "model_state_sha256": state})
-    output = pd.DataFrame(rows); validate_timing_columns(output); return output
+    output = pd.DataFrame(rows); validate_timing_columns(output)
+    if len(output) != DEVELOPMENT_WORLDS * len(ONLINE_ARMS): raise ValueError("online evaluation did not emit the complete 72-row cross-product")
+    return output
 
 
 def _g2_paired_rows(rows: pd.DataFrame, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]] | None) -> pd.DataFrame:
@@ -1455,8 +1496,8 @@ def _g2_paired_rows(rows: pd.DataFrame, expected_development: Sequence[Mapping[s
     if not isinstance(rows, pd.DataFrame) or not required.issubset(rows.columns): raise ValueError("G2 search rows are incomplete")
     rows = rows.copy(); _validate_development_identity_rows(rows, expected_development)
     if len(rows) != 72 or set(rows["arm"].unique()) != set(ONLINE_ARMS) or rows.duplicated(["world_id", "arm"]).any(): raise ValueError("G2 requires exactly 72 unique arm-world rows")
-    if not np.all(np.isfinite(rows[["expansions", "cost_ratio"]].to_numpy(dtype=float))): raise ValueError("G2 values must be finite")
-    if rows.groupby("world_id")[["checkpoint_sha256", "model_state_sha256"]].nunique().max().max() != 1: raise ValueError("G2 arms must share model/checkpoint audit")
+    if not np.all(np.isfinite(rows["expansions"].to_numpy(dtype=float))) or np.any(np.isnan(rows["cost_ratio"].to_numpy(dtype=float))) or not all(isinstance(value, (bool, np.bool_)) for value in rows["valid"]): raise ValueError("G2 outcome values are malformed")
+    if rows[["checkpoint_sha256", "model_state_sha256"]].nunique().max() != 1 or not _is_sha256(rows["checkpoint_sha256"].iloc[0]) or not _is_sha256(rows["model_state_sha256"].iloc[0]): raise ValueError("G2 rows require one globally verified checkpoint/model audit")
     pivot = rows.pivot(index=["world_id", "suite", "world_index"], columns="arm", values=["expansions", "cost_ratio", "valid"])
     if pivot.shape[0] != 24 or pivot.isna().any().any(): raise ValueError("G2 paired search rows are incomplete")
     paired = pd.DataFrame({"persistent_expansions": pivot[("expansions", "c13p_persistent")], "reset_expansions": pivot[("expansions", "c13p_reset")], "c13m_expansions": pivot[("expansions", "c13m_base")], "persistent_cost_ratio": pivot[("cost_ratio", "c13p_persistent")], "c13m_cost_ratio": pivot[("cost_ratio", "c13m_base")], "all_valid": pivot["valid"].all(axis=1)}).reset_index(); metadata = rows.loc[:, ["world_id", *_DEVELOPMENT_IDENTITY_FIELDS]].drop_duplicates("world_id"); paired = paired.merge(metadata, on=["world_id", "suite", "world_index"], validate="one_to_one"); paired["persistent_minus_reset_expansions"] = paired["persistent_expansions"] - paired["reset_expansions"]; paired["persistent_minus_c13m_expansions"] = paired["persistent_expansions"] - paired["c13m_expansions"]
@@ -1465,7 +1506,7 @@ def _g2_paired_rows(rows: pd.DataFrame, expected_development: Sequence[Mapping[s
 
 def _g2_seeds(payload: object) -> Mapping[str, int]:
     keys = {"g2_exp_reset", "g2_exp_c13m"}
-    if not isinstance(payload, Mapping) or not keys.issubset(payload) or any(payload[key] != BOOTSTRAP_SEEDS[key] for key in keys): raise ValueError("G2 bootstrap seeds must be the frozen bound seed payload")
+    if not isinstance(payload, Mapping) or set(payload) != keys or any(payload[key] != BOOTSTRAP_SEEDS[key] for key in keys) or payload["g2_exp_reset"] == payload["g2_exp_c13m"]: raise ValueError("G2 bootstrap seeds must be the exact distinct frozen bound payload")
     return {key: int(payload[key]) for key in keys}
 
 
@@ -1473,7 +1514,7 @@ def g2_verdict(search_rows: pd.DataFrame, bootstrap_seed: object, resamples: int
     paired = _g2_paired_rows(search_rows, expected_development); seeds = _g2_seeds(bootstrap_seed); reset_bootstrap = world_clustered_bootstrap(paired, "persistent_minus_reset_expansions", resamples, seeds["g2_exp_reset"], expected_development=expected_development); c13m_bootstrap = world_clustered_bootstrap(paired, "persistent_minus_c13m_expansions", resamples, seeds["g2_exp_c13m"], expected_development=expected_development)
     reset_suites = paired.groupby("suite", sort=True)["persistent_minus_reset_expansions"].mean(); c13m_suites = paired.groupby("suite", sort=True)["persistent_minus_c13m_expansions"].mean(); reset_high = float(reset_bootstrap["ci_high"]); c13m_high = float(c13m_bootstrap["ci_high"]); mean = float(paired["persistent_cost_ratio"].mean()); c13m_mean = float(paired["c13m_cost_ratio"].mean()); maximum = float(paired["persistent_cost_ratio"].max()); c13m_max = float(paired["c13m_cost_ratio"].max()); negative_reset = int((reset_suites < 0.).sum()); negative_c13m = int((c13m_suites < 0.).sum()); valid = bool(paired["all_valid"].all())
     mean_passes = mean <= c13m_mean + .005 or math.isclose(mean, c13m_mean + .005, rel_tol=0., abs_tol=1.e-12); maximum_passes = maximum <= c13m_max + .02 or math.isclose(maximum, c13m_max + .02, rel_tol=0., abs_tol=1.e-12); passes = valid and reset_high < 0. and c13m_high < 0. and negative_reset >= 4 and negative_c13m >= 4 and mean_passes and maximum_passes
-    return {"all_valid": valid, "reset_bootstrap": reset_bootstrap, "c13m_bootstrap": c13m_bootstrap, "reset_ci_high": reset_high, "c13m_ci_high": c13m_high, "suite_reset_expansion_deltas": {str(k): float(v) for k, v in reset_suites.items()}, "suite_c13m_expansion_deltas": {str(k): float(v) for k, v in c13m_suites.items()}, "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m, "persistent_mean_cost_ratio": mean, "c13m_mean_cost_ratio": c13m_mean, "persistent_max_cost_ratio": maximum, "c13m_max_cost_ratio": c13m_max, "passes": passes, "verdict": "c13p_g2_passed" if passes else "c13p_offline_signal_failed_free_running_search"}
+    return {"all_valid": valid, "reset_bootstrap": reset_bootstrap, "c13m_bootstrap": c13m_bootstrap, "reset_ci_high": reset_high, "c13m_ci_high": c13m_high, "reset_ci_passes": reset_high < 0., "c13m_ci_passes": c13m_high < 0., "suite_reset_expansion_deltas": {str(k): float(v) for k, v in reset_suites.items()}, "suite_c13m_expansion_deltas": {str(k): float(v) for k, v in c13m_suites.items()}, "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m, "suite_reset_passes": negative_reset >= 4, "suite_c13m_passes": negative_c13m >= 4, "persistent_mean_cost_ratio": mean, "c13m_mean_cost_ratio": c13m_mean, "persistent_max_cost_ratio": maximum, "c13m_max_cost_ratio": c13m_max, "quality_mean_passes": bool(math.isfinite(mean) and math.isfinite(c13m_mean) and mean_passes), "quality_max_passes": bool(math.isfinite(maximum) and math.isfinite(c13m_max) and maximum_passes), "passes": passes, "verdict": "c13p_g2_passed" if passes else "c13p_offline_signal_failed_free_running_search"}
 
 
 def overall_verdict(g0: Mapping[str, object], g1: Mapping[str, object], g2: Mapping[str, object]) -> str:
@@ -1643,3 +1684,19 @@ def train_stationary_model(train_traces: Sequence[TeacherTrace], validation_trac
         if stalled >= cfg.patience:
             break
     return select_checkpoint(history)
+@dataclass(frozen=True)
+class EvaluationBinding:
+    schema_version: str
+    checkpoint_path: str
+    checkpoint_sha256: str
+    model_state_sha256: str
+    registry_fingerprint: str
+    source_fingerprint: str
+
+
+def build_evaluation_binding(checkpoint_path: Path, model: PersistentSearchHRM, expected_development: Sequence[Mapping[str, object]] | Mapping[str, Mapping[str, object]], source_fingerprint: str) -> EvaluationBinding:
+    path = Path(checkpoint_path)
+    if not path.is_file() or not isinstance(source_fingerprint, str) or not source_fingerprint: raise ValueError("evaluation binding inputs are invalid")
+    registry = validate_expected_development_registry(expected_development); payload = torch.load(path, map_location="cpu", weights_only=False); state = payload.get("model") if isinstance(payload, Mapping) else None
+    if not isinstance(state, Mapping) or set(state) != set(model.state_dict()) or any(not isinstance(value, torch.Tensor) or not torch.equal(value.detach().cpu(), model.state_dict()[name].detach().cpu()) for name, value in state.items()): raise ValueError("evaluation checkpoint state does not match current model")
+    return EvaluationBinding("c13p-evaluation-binding-v1", str(path.resolve()), sha256_file(path), _model_state_sha256(model), hashlib.sha256(canonical_json_bytes(registry)).hexdigest(), source_fingerprint)

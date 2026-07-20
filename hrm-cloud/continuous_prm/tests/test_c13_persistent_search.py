@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 import torch
 
+import continuous_prm_c13_lhbl_c7_comparison as L
 import continuous_prm_c13_identifiability as I
 
 import continuous_prm_c13_persistent_search as P
@@ -391,6 +392,17 @@ def _task3_source(tmp_path: Path) -> P.SourceContext:
 def _task3_features() -> dict[str, np.ndarray]:
     return {"features": np.arange(96, dtype=np.float32).reshape(2,3,16)/100, "euclidean_to_goal": np.asarray([.8,0.]), "local_value_radius_0_20": np.asarray([1.2,0.])}
 
+def _prepared_provenance(node_count: int, *, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None) -> dict[str, object]:
+    actual_graph = graph if graph is not None else tuple(() for _ in range(node_count))
+    identity = dict(record or {"split": "development", "suite": "synthetic", "world_index": 0, "world_seed": 1, "roadmap_seed": 2, "feature_cache_path": "synthetic-cache", "feature_cache_sha256": "0" * 64, "node_count": node_count, "edge_count": sum(len(edges) for edges in actual_graph)})
+    payload = {
+        "world_id": f"development/{identity['suite']}/{identity['world_index']}", "split": identity["split"], "suite": identity["suite"], "world_index": identity["world_index"],
+        "world_seed": identity["world_seed"], "roadmap_seed": identity["roadmap_seed"], "feature_cache_path": identity["feature_cache_path"], "feature_cache_sha256": identity["feature_cache_sha256"],
+        "node_count": node_count, "edge_count": sum(len(edges) for edges in actual_graph), "start_idx": 0, "goal_idx": 1, "graph_sha256": P._canonical_graph_sha256(actual_graph),
+    }
+    return {**payload, "provenance_fingerprint": hashlib.sha256(P.canonical_json_bytes(payload)).hexdigest()}
+
+
 def test_first_teacher_event_is_start_expansion_and_first_hrm_update(monkeypatch: pytest.MonkeyPatch) -> None:
     trace, _ = _hand_trace()
     prepared = P.PreparedWorld(
@@ -399,6 +411,7 @@ def test_first_teacher_event_is_start_expansion_and_first_hrm_update(monkeypatch
         np.zeros(6, dtype=np.float64),
         np.zeros(6, dtype=np.float64),
         np.asarray([0.0, 4.0, 4.0, 3.0, 0.0, 0.0], dtype=np.float64),
+        **_prepared_provenance(6),
     )
 
     causal, event_features, _, _, candidate_nodes = P._event_tensors(trace.events[0], prepared, torch.device("cpu"))
@@ -481,7 +494,7 @@ def test_lifecycle_rejects_stale_and_foreign_carries() -> None:
 
 def test_frozen_encoder_preparation_accepts_exact_bound_cache(tmp_path: Path) -> None:
     encoder=P.load_frozen_flat_encoder(_task3_source(tmp_path),torch.device("cpu")); cache=_task3_features(); path=tmp_path/"exact-cache.npz"; np.savez(path,features=cache["features"]); cache["cache_path"]=str(path); cache["cache_sha256"]=_sha256(path)
-    prepared=P.prepare_world_representation(cache,[[(1,1.)],[(0,1.)]],1,P.resolve_paths(tmp_path),encoder)
+    prepared=P.prepare_world_representation(cache,[[(1,1.)],[(0,1.)]],1,P.resolve_paths(tmp_path),encoder,audited_identity={"split":"development","suite":"suite-0","world_index":0,"world_seed":1,"roadmap_seed":2,"feature_cache_path":str(path),"feature_cache_sha256":_sha256(path),"node_count":2,"edge_count":2})
     assert prepared.node_embeddings.shape==(2,64) and all(not p.requires_grad for p in encoder.parameters()) and not encoder.training
     np.testing.assert_allclose(prepared.base_rank,prepared.euclidean_rank+1.50*(prepared.local_values-prepared.euclidean_rank))
 
@@ -514,6 +527,7 @@ def _prepared_training_world() -> P.PreparedWorld:
     return P.PreparedWorld(
         np.zeros((2, 3, 16), dtype=np.float32), np.zeros((2, 64), dtype=np.float32),
         np.array([0.0, 1.0]), np.array([0.0, 0.5]), np.array([0.0, 0.5]),
+        **_prepared_provenance(2),
     )
 
 
@@ -810,12 +824,12 @@ def test_registry_mapping_from_sourcecontext_integrates_with_bootstrap_and_rejec
         P.world_clustered_bootstrap(paired, "mrr_delta", 20, P.BOOTSTRAP_SEEDS["g1_mrr"], expected_development=corrupt)
 
 
-def _prepared_search_world(node_count: int) -> P.PreparedWorld:
+def _prepared_search_world(node_count: int, *, record: Mapping[str, object] | None = None, graph: Sequence[Sequence[tuple[int, float]]] | None = None) -> P.PreparedWorld:
     embeddings = np.zeros((node_count, 64), dtype=np.float32)
     embeddings[:, 0] = np.arange(node_count, dtype=np.float32)
     return P.PreparedWorld(
         np.zeros((node_count, 3, 16), dtype=np.float32), embeddings,
-        np.arange(node_count, dtype=float), np.zeros(node_count), np.arange(node_count, dtype=float),
+        np.arange(node_count, dtype=float), np.zeros(node_count), np.arange(node_count, dtype=float), **_prepared_provenance(node_count, record=record, graph=graph),
     )
 
 
@@ -846,7 +860,7 @@ def test_dynamic_search_rescores_the_entire_open_set_after_each_post_relaxation_
 def test_dynamic_search_ties_and_reset_carry_are_deterministic(monkeypatch: pytest.MonkeyPatch) -> None:
     graph = [[(1, 1.0), (2, 1.0), (3, 1.0)], [(4, 1.0)], [(4, 1.0)], [(4, 1.0)], []]
     prepared = _prepared_search_world(5)
-    prepared = P.PreparedWorld(prepared.node_tokens, prepared.node_embeddings, prepared.euclidean_rank, prepared.local_values, np.array([0.0, 2.0, 1.0, 1.0, 0.0]))
+    prepared = replace(prepared, base_rank=np.array([0.0, 2.0, 1.0, 1.0, 0.0]))
     model = P.PersistentSearchHRM(); reset_steps: list[int] = []
     monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: torch.zeros(len(embeddings)))
     original_reset = P.reset_carry_for_event
@@ -872,8 +886,8 @@ def _g2_search_rows(expansion_delta: float, *, cost_margin: float = 0.005, max_m
 
 def test_g2_uses_two_bound_bootstrap_seeds_and_exact_gate_boundaries() -> None:
     registry = _expected_development_registry()
-    passing = P.g2_verdict(_g2_search_rows(-1.0), P.BOOTSTRAP_SEEDS, 200, expected_development=registry)
-    zero_ci = P.g2_verdict(_g2_search_rows(0.0), P.BOOTSTRAP_SEEDS, 200, expected_development=registry)
+    passing = P.g2_verdict(_g2_search_rows(-1.0), {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}, 200, expected_development=registry)
+    zero_ci = P.g2_verdict(_g2_search_rows(0.0), {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}, 200, expected_development=registry)
 
     assert P.ONLINE_ARMS == ("c13p_persistent", "c13p_reset", "c13m_base")
     assert passing["passes"] and passing["persistent_mean_cost_ratio"] == pytest.approx(passing["c13m_mean_cost_ratio"] + 0.005)
@@ -888,3 +902,89 @@ def test_overall_verdict_has_frozen_precedence() -> None:
     assert P.overall_verdict({"passes": False}, {"passes": True}, {"passes": True}) == "c13p_invalid_no_mechanism_verdict"
     assert P.overall_verdict({"passes": True}, {"passes": False}, {"passes": True}) == "c13p_no_persistent_ranking_signal"
     assert P.overall_verdict({"passes": True}, {"passes": True}, {"passes": False}) == "c13p_offline_signal_failed_free_running_search"
+
+
+def test_task6_review_empty_open_updates_and_scores_zero_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    model = P.PersistentSearchHRM(); prepared = _prepared_search_world(2); calls: list[int] = []
+    monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: (calls.append(len(embeddings)), torch.empty((len(embeddings),)))[1])
+    result = P.dynamic_best_first([[(1, 1.0)], []], prepared, 0, 1, model, "persistent", P.resolve_paths(Path.cwd()))
+    assert result.valid and calls == [1]
+    empty = P.dynamic_best_first([[], []], prepared, 0, 1, model, "reset", P.resolve_paths(Path.cwd()))
+    assert not empty.valid and empty.scorer_calls == 1 and empty.candidates_scored == 0 and calls[-1] == 0
+
+
+def test_task6_review_binding_api_and_invalid_g2_outcomes_are_audited(tmp_path: Path) -> None:
+    model = P.PersistentSearchHRM(); checkpoint = tmp_path / "model.pt"; torch.save({"model": model.state_dict()}, checkpoint)
+    registry = _expected_development_registry()
+    binding = P.build_evaluation_binding(checkpoint, model, registry, "source-fingerprint")
+    assert binding.checkpoint_sha256 == _sha256(checkpoint) and binding.model_state_sha256 == P._model_state_sha256(model)
+    rows = _g2_search_rows(-1.0); rows.loc[0, "valid"] = False; rows.loc[0, "cost_ratio"] = math.inf
+    verdict = P.g2_verdict(rows, {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}, 20, expected_development=registry)
+    assert not verdict["passes"] and not verdict["all_valid"] and not verdict["quality_mean_passes"]
+
+
+def test_task6_preparation_requires_immutable_audited_world_provenance(tmp_path: Path) -> None:
+    encoder = P.load_frozen_flat_encoder(_task3_source(tmp_path), torch.device("cpu"))
+    cache = _task3_features()
+    cache_path = tmp_path / "development-cache.npz"; np.savez(cache_path, features=cache["features"])
+    cache["cache_path"] = str(cache_path); cache["cache_sha256"] = _sha256(cache_path)
+    graph = [[(1, 1.0)], [(0, 1.0)]]
+    identity = {
+        "split": "development", "suite": "suite-0", "world_index": 0,
+        "world_seed": 1000, "roadmap_seed": 2000,
+        "feature_cache_path": str(cache_path), "feature_cache_sha256": _sha256(cache_path),
+        "node_count": 2, "edge_count": 2,
+    }
+    with pytest.raises(ValueError, match="provenance|identity"):
+        P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder)
+    prepared = P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity=identity, start_idx=0)
+    assert prepared.world_id == "development/suite-0/0" and prepared.start_idx == 0 and prepared.goal_idx == 1
+    assert prepared.node_count == 2 and prepared.edge_count == 2 and P._is_sha256(prepared.provenance_fingerprint)
+    with pytest.raises(ValueError, match="node_count|identity|provenance"):
+        P.prepare_world_representation(cache, graph, 1, P.resolve_paths(tmp_path), encoder, audited_identity={**identity, "node_count": 3}, start_idx=0)
+
+
+def test_task6_online_evaluation_requires_verified_binding_and_provenance(tmp_path: Path) -> None:
+    registry = _expected_development_registry()
+    graph = [[(1, 1.0)], []]
+    model = P.PersistentSearchHRM(); checkpoint = tmp_path / "evaluation.pt"; torch.save({"model": model.state_dict()}, checkpoint)
+    binding = P.build_evaluation_binding(checkpoint, model, registry, _sha256(Path(P.__file__)))
+    worlds = [{**record, "graph": graph, "start_idx": 0, "goal_idx": 1} for record in registry]
+    prepared = {f"development/{record['suite']}/{record['world_index']}": _prepared_search_world(2, record=record, graph=graph) for record in registry}
+    rows = P.evaluate_online_arms(worlds, prepared, model, P.resolve_paths(tmp_path), binding=binding)
+    assert len(rows) == 72 and set(rows["arm"]) == set(P.ONLINE_ARMS)
+    bad = dict(prepared); first = next(iter(bad)); bad[first] = replace(bad[first], graph_sha256="0" * 64)
+    with pytest.raises(ValueError, match="prepared|graph|provenance"):
+        P.evaluate_online_arms(worlds, bad, model, P.resolve_paths(tmp_path), binding=binding)
+    with pytest.raises(ValueError, match="binding|source"):
+        P.evaluate_online_arms(worlds, prepared, model, P.resolve_paths(tmp_path), binding=replace(binding, source_fingerprint="stale"))
+
+
+def test_task6_static_c13m_exactly_matches_frozen_c7_astar_and_no_reentry(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph = [[(2, 1.0), (3, 5.0)], [], [(3, 1.0)], [(2, 0.5), (1, 1.0)]]
+    prepared = _prepared_search_world(4)
+    static = P.static_c13m_search(graph, prepared, 0, 1, P.resolve_paths(Path.cwd()))
+    reference = L.astar_with_path(graph, prepared.base_rank, P.MAX_EXPANSIONS, 0, 1)
+    assert static.valid == reference["found"] and static.path == tuple(reference["path"]) and static.cost == reference["cost"] and static.expansions == reference["expansions"]
+    model = P.PersistentSearchHRM(); monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: torch.zeros(len(embeddings)))
+    dynamic = P.dynamic_best_first(graph, prepared, 0, 1, model, "persistent", P.resolve_paths(Path.cwd()))
+    assert dynamic.valid and len(dynamic.expanded_nodes) == len(set(dynamic.expanded_nodes))
+
+
+def test_task6_dynamic_search_honors_exact_192_expansion_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph = [[] for _ in range(193)]; graph[0] = [(2, 1.0)]
+    for node in range(2, 192): graph[node] = [(node + 1, 1.0)]
+    prepared = _prepared_search_world(193); model = P.PersistentSearchHRM()
+    monkeypatch.setattr(model, "update_event", lambda event, carry: (torch.zeros((1, 64)), P.HRMCarry(carry.low, carry.high, carry.step + 1)))
+    monkeypatch.setattr(model, "score_candidates", lambda embeddings, context, scalars: torch.zeros(len(embeddings)))
+    result = P.dynamic_best_first(graph, prepared, 0, 1, model, "persistent", P.resolve_paths(Path.cwd()))
+    assert not result.valid and result.expansions == 192 and len(result.expanded_nodes) == len(set(result.expanded_nodes))
+
+
+def test_task6_g2_invalid_infinity_is_a_false_bool_and_nan_is_rejected() -> None:
+    registry = _expected_development_registry(); invalid = _g2_search_rows(-1.0); invalid.loc[0, "valid"] = False; invalid.loc[0, "cost_ratio"] = math.inf
+    verdict = P.g2_verdict(invalid, {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}, 20, expected_development=registry)
+    assert verdict["passes"] is False and verdict["quality_mean_passes"] is False and verdict["quality_max_passes"] is False
+    malformed = invalid.copy(); malformed.loc[0, "cost_ratio"] = math.nan
+    with pytest.raises(ValueError, match="malformed"):
+        P.g2_verdict(malformed, {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}, 20, expected_development=registry)
