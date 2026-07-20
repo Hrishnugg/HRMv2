@@ -1482,8 +1482,9 @@ def test_task7_review_train_stage_real_finalization_with_only_expensive_kernels_
     monkeypatch.setattr(P, "_generate_trace_pass", trace_pass)
     P.run_trace_stage(cfg)
     smoke_path = cfg.out_dir / "results" / "smoke.json"
-    P._atomic_json(smoke_path, {"schema_version": P.SMOKE_SCHEMA_VERSION, "passes": True,
-                                "hand_events": 1, "training_world_id": "train/suite-0/0", "loss": 0.0, "configuration_changed": False})
+    monkeypatch.setattr(P, "_load_frozen_ranker", lambda *_args: object())
+    monkeypatch.setattr(P, "_materialize_record", lambda *_args, **_kwargs: ({}, _prepared_training_world()))
+    P._atomic_json(smoke_path, P._smoke_payload(cfg))
     smoke_binding = P.stage_binding(cfg, "smoke", P._stage_inputs(cfg, "smoke"))
     P._write_stage_marker(cfg, "smoke", smoke_binding, ((smoke_path, P.SMOKE_SCHEMA_VERSION),))
 
@@ -1494,7 +1495,7 @@ def test_task7_review_train_stage_real_finalization_with_only_expensive_kernels_
     monkeypatch.setattr(P.torch.cuda, "is_available", lambda: (order.append("cuda"), order.index("preflight") < order.index("cuda"))[1])
     monkeypatch.setattr(P, "_load_frozen_ranker", lambda *_args: object())
     def materialize(_cfg: object, record: object, *_args: object, **_kwargs: object):
-        return {}, type("PreparedStub", (), {"world_id": str(record["world_id"])})()
+        return {}, replace(_prepared_training_world(), world_id=str(record["world_id"]))
     monkeypatch.setattr(P, "_materialize_record", materialize)
 
     def train_stub(_train: object, _validation: object, prepared: object, state_cfg: P.PersistentSearchConfig,
@@ -1647,3 +1648,92 @@ def test_task7_rereview_verifier_reconstructs_exact_payload_schemas_and_event_co
     assert "GATE_VERDICT_KEYS" in source and "VERIFICATION_KEYS" in source
     assert "claim_safe_interpretation" in source and "self_bootstrap_performed" in source and "confirmation_performed" in source
     assert "trace_event_counts" in source and "evaluation_binding_fingerprint" in source
+
+
+def test_task7_thirdreview_binding_rejects_valid_file_label_swap(tmp_path: Path) -> None:
+    cfg, path, original = _task7_bound_evaluation_fixture(tmp_path)
+    changed = copy.deepcopy(original)
+    changed["bound_files"]["preregistration"] = copy.deepcopy(changed["bound_files"]["source_implementation"])
+    changed["binding_fingerprint"] = P.hash_canonical({key: value for key, value in changed.items() if key != "binding_fingerprint"})
+    path.write_bytes(P.canonical_json_bytes(changed))
+    with pytest.raises(ValueError, match="canonical|inventory|bound|path|schema"):
+        P.verify_evaluation_binding(cfg)
+
+
+def test_task7_thirdreview_develop_predecessor_order_is_runtime_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); calls = []
+    monkeypatch.setattr(P, "verify_evaluation_binding", lambda _cfg: (calls.append("evaluation"), {})[1])
+    monkeypatch.setattr(P, "_stage_inputs", lambda *_args: (calls.append("predecessors"), {"train": "a" * 64})[1])
+    monkeypatch.setattr(P, "stage_binding", lambda *_args: (calls.append("binding"), {})[1])
+    monkeypatch.setattr(P, "_fail_if_partial", lambda *_args: (calls.append("partial"), (_ for _ in ()).throw(RuntimeError("stop")))[1])
+    with pytest.raises(RuntimeError, match="stop"): P.run_develop_stage(cfg)
+    assert calls == ["evaluation", "predecessors", "binding", "partial"]
+
+
+def test_task7_thirdreview_smoke_replay_rejects_coherent_tamper(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); trace = _training_trace(1); prepared = _prepared_training_world()
+    checkpoint = tmp_path / "source.pt"; checkpoint.write_bytes(b"source")
+    audit = {"checkpoint_path": str(checkpoint), "checkpoint_sha256": _sha256(checkpoint), "trace_records": {"train": [{"world_id": "train/maze/0"}]}}
+    monkeypatch.setattr(P, "_trace_split", lambda *_args: ((trace,), "f" * 64))
+    monkeypatch.setattr(P, "_read_source_audit", lambda _cfg: audit)
+    monkeypatch.setattr(P, "_load_frozen_ranker", lambda *_args: object())
+    monkeypatch.setattr(P, "_materialize_record", lambda *_args: ({}, prepared))
+    expected = P._smoke_payload(cfg)
+    path = cfg.out_dir / "results" / "smoke.json"; P._atomic_json(path, expected)
+    assert P._verify_smoke_evidence(cfg) == expected
+    changed = dict(expected); changed["loss"] = float(expected["loss"]) + 0.125
+    P._atomic_json(path, changed)
+    with pytest.raises(ValueError, match="semantic|replay|drift"): P._verify_smoke_evidence(cfg)
+
+
+def _task7_thirdreview_development_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[P.PersistentSearchConfig, dict[str, object], dict[str, object]]:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); root = cfg.out_dir; (root / "results" / "verification").mkdir(parents=True)
+    registry = _expected_development_registry(); evaluation = {"development_registry": registry, "binding_fingerprint": "a" * 64,
+        "trace_event_counts": {"train": 96, "validation": 24}}
+    ranking = pd.DataFrame({"placeholder": [1]}); search = pd.DataFrame({"world_id": [f"world-{i}" for i in range(72)], "arm": ["arm"] * 72})
+    ranking.to_csv(root / "results" / "development_ranking_raw.csv", index=False)
+    search.to_csv(root / "results" / "development_search_raw.csv", index=False)
+    for name in ("offline_summary.json", "online_summary.json"): (root / "results" / name).write_bytes(P.canonical_json_bytes({}))
+    projection = b"projection\n"
+    for name in ("ranking_projection_first.csv", "ranking_projection_second.csv", "search_projection_first.csv", "search_projection_second.csv"):
+        (root / "results" / "verification" / name).write_bytes(projection)
+    duplicate = root / "traces" / "duplicates" / "development"; duplicate.mkdir(parents=True)
+    (duplicate / "first.json").write_bytes(b"trace\n"); (duplicate / "second.json").write_bytes(b"trace\n")
+    promoted = root / "traces" / "development" / "traces.json"; promoted.parent.mkdir(parents=True); promoted.write_bytes(b"trace\n")
+    g0 = {"passes": True, "primitives": {"projection_duplicates": {"passes": True}, "timings": {"passes": True}}}
+    g1, g2 = {"passes": True, "name": "g1"}, {"passes": True, "name": "g2"}; trace = _training_trace(1)
+    monkeypatch.setattr(P, "verify_evaluation_binding", lambda _cfg: evaluation)
+    monkeypatch.setattr(P, "_offline_summary", lambda *_args, **_kwargs: pd.DataFrame())
+    monkeypatch.setattr(P, "_summary_payload", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(P, "g1_verdict", lambda *_args, **_kwargs: g1); monkeypatch.setattr(P, "g2_verdict", lambda *_args, **_kwargs: g2)
+    monkeypatch.setattr(P, "_compute_g0", lambda *_args, **_kwargs: g0)
+    monkeypatch.setattr(P, "_frame_projection_bytes", lambda *_args: projection)
+    monkeypatch.setattr(P, "_read_development_traces", lambda _cfg: (trace,))
+    monkeypatch.setattr(P, "validate_timing_columns", lambda *_args: None)
+    gate = P._gate_verdict_payload(g0, g1, g2)
+    verification = P._development_verification_payload(cfg, evaluation, g0, registry, 1, len(trace.events), 72)
+    (root / "results" / "gate_verdict.json").write_bytes(P.canonical_json_bytes(gate))
+    (root / "results" / "verification.json").write_bytes(P.canonical_json_bytes(verification))
+    return cfg, gate, verification
+
+
+def test_task7_thirdreview_exact_gate_and_verification_mutations_reach_verifier(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg, gate, verification = _task7_thirdreview_development_fixture(tmp_path, monkeypatch); root = cfg.out_dir
+    changed_gate = {**gate, "author_override": True}
+    (root / "results" / "gate_verdict.json").write_bytes(P.canonical_json_bytes(changed_gate))
+    with pytest.raises(ValueError, match="gate verdict schema|reconstructed payload"): P._verify_development_evidence(cfg)
+    (root / "results" / "gate_verdict.json").write_bytes(P.canonical_json_bytes(gate))
+    changed_verification = {**verification, "omitted_evidence": True}
+    (root / "results" / "verification.json").write_bytes(P.canonical_json_bytes(changed_verification))
+    with pytest.raises(ValueError, match="verification schema|reconstructed payload"): P._verify_development_evidence(cfg)
+
+
+def test_task7_thirdreview_integrity_reaches_missing_training_state_branch(tmp_path: Path) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); root = cfg.out_dir
+    for stage in P.STAGES[:P.STAGES.index("train") + 1]:
+        for relative in P._STAGE_OUTPUTS[stage]:
+            path = root / relative; path.parent.mkdir(parents=True, exist_ok=True)
+            if not path.exists(): path.write_bytes(b"placeholder\n")
+        marker = root / "bindings" / f"{stage}.json"; marker.parent.mkdir(parents=True, exist_ok=True); marker.write_bytes(b"marker\n")
+    with pytest.raises(ValueError, match="training-state artifacts are missing"):
+        P.build_integrity_manifest(cfg)

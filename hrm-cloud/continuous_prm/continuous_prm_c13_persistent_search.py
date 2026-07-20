@@ -1994,6 +1994,14 @@ def _verify_audit_evidence(cfg: PersistentSearchConfig) -> Mapping[str, object]:
         raise ValueError("audit cohort evidence drifted; new output directory required")
     if stored.get("source_hashes") != dict(source.source_hashes):
         raise ValueError("audit source integrity drifted; new output directory required")
+    expected_paths = {"checkpoint_path": str(source.checkpoint_path.resolve()),
+                      "preregistration_path": str(source.preregistration.resolve()),
+                      "implementation_path": str(source.implementation.resolve()),
+                      "source_roots": [str(source.c13j_root.resolve()), str(source.c13m_root.resolve())]}
+    if any(stored.get(field) != value for field, value in expected_paths.items()):
+        raise ValueError("audit canonical source paths drifted; new output directory required")
+    if stored.get("checkpoint_sha256") != source.checkpoint_sha256:
+        raise ValueError("audit source checkpoint identity drifted; new output directory required")
     if stored.get("record_fingerprints") != {split: hash_canonical(rows) for split, rows in records.items()}:
         raise ValueError("audit cohort replay drifted; new output directory required")
     if stored.get("trace_records") != {"train": records["train"], "validation": records["validation"]}:
@@ -2192,15 +2200,29 @@ def _verify_trace_evidence(cfg: PersistentSearchConfig) -> Mapping[str, int]:
     return event_counts
 
 
+def _smoke_payload(cfg: PersistentSearchConfig) -> dict[str, object]:
+    traces, _ = _trace_split(cfg, "train"); audit = _read_source_audit(cfg); records = audit.get("trace_records")
+    if not isinstance(records, Mapping) or not isinstance(records.get("train"), Sequence) or not traces: raise ValueError("smoke training fixture is missing")
+    graph = [[(1, 1.0), (2, 2.0)], [(3, 1.0)], [(3, 1.0)], []]
+    hand = generate_teacher_trace(graph, 0, 3, [0.0, 0.0, 0.5, 0.0], {"split": "train", "suite": "hand", "world_index": 0,
+        "world_seed": 1, "roadmap_seed": 18, "feature_cache_path": "hand", "feature_cache_sha256": "0" * 64})
+    validate_teacher_trace(hand, graph); checkpoint = Path(str(audit["checkpoint_path"])); checkpoint_hash = str(audit["checkpoint_sha256"])
+    ranker = _load_frozen_ranker(checkpoint, checkpoint_hash); _, prepared = _materialize_record(cfg, records["train"][0], checkpoint, checkpoint_hash, ranker)
+    event = traces[0].events[0]
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(MODEL_SEED); model = PersistentSearchHRM()
+        _, event_tensor, embeddings, scalars, candidates = _event_tensors(event, prepared, torch.device("cpu"))
+        context, _ = model.update_event(event_tensor, model.initial_carry(1, torch.device("cpu"), torch.float32))
+        loss = frontier_cross_entropy(model.score_candidates(embeddings, context, scalars), candidates, event.positive_node); loss.backward()
+    if not math.isfinite(float(loss.detach())): raise ValueError("smoke forward/backward is non-finite")
+    return {"schema_version": SMOKE_SCHEMA_VERSION, "passes": True, "hand_events": len(hand.events),
+            "training_world_id": _trace_world_id(traces[0]), "loss": float(loss.detach()), "configuration_changed": False}
+
+
 def _verify_smoke_evidence(cfg: PersistentSearchConfig) -> Mapping[str, object]:
     smoke = _read_json(Path(cfg.out_dir) / "results" / "smoke.json", "smoke evidence")
-    expected_keys = {"schema_version", "passes", "hand_events", "training_world_id", "loss", "configuration_changed"}
-    if set(smoke) != expected_keys or smoke.get("schema_version") != SMOKE_SCHEMA_VERSION or smoke.get("passes") is not True or smoke.get("configuration_changed") is not False:
-        raise ValueError("smoke evidence schema or verdict drifted")
-    traces, _ = _trace_split(cfg, "train")
-    if not traces or smoke.get("training_world_id") != _trace_world_id(traces[0]) or not isinstance(smoke.get("hand_events"), int) or smoke["hand_events"] <= 0:
-        raise ValueError("smoke evidence fixture drifted")
-    if not isinstance(smoke.get("loss"), (int, float)) or not math.isfinite(float(smoke["loss"])): raise ValueError("smoke loss drifted")
+    expected = _smoke_payload(cfg)
+    if smoke != expected: raise ValueError("smoke semantic replay drifted; new output directory required")
     return smoke
 
 
@@ -2210,21 +2232,8 @@ def run_smoke_stage(cfg: PersistentSearchConfig) -> None:
         require_stage_binding(marker, binding)
         _verify_smoke_evidence(cfg)
         return
-    traces, _ = _trace_split(cfg, "train"); audit = _read_source_audit(cfg); records = audit.get("trace_records")
-    if not isinstance(records, Mapping) or not isinstance(records.get("train"), Sequence) or not traces: raise ValueError("smoke training fixture is missing")
-    graph = [[(1, 1.0), (2, 2.0)], [(3, 1.0)], [(3, 1.0)], []]
-    hand = generate_teacher_trace(graph, 0, 3, [0.0, 0.0, 0.5, 0.0], {"split": "train", "suite": "hand", "world_index": 0,
-        "world_seed": 1, "roadmap_seed": 18, "feature_cache_path": "hand", "feature_cache_sha256": "0" * 64})
-    validate_teacher_trace(hand, graph); checkpoint = Path(str(audit["checkpoint_path"])); checkpoint_hash = str(audit["checkpoint_sha256"])
-    ranker = _load_frozen_ranker(checkpoint, checkpoint_hash); _, prepared = _materialize_record(cfg, records["train"][0], checkpoint, checkpoint_hash, ranker)
-    model = PersistentSearchHRM(); event = traces[0].events[0]
-    _, event_tensor, embeddings, scalars, candidates = _event_tensors(event, prepared, torch.device("cpu"))
-    context, _ = model.update_event(event_tensor, model.initial_carry(1, torch.device("cpu"), torch.float32))
-    loss = frontier_cross_entropy(model.score_candidates(embeddings, context, scalars), candidates, event.positive_node); loss.backward()
-    if not math.isfinite(float(loss.detach())): raise ValueError("smoke forward/backward is non-finite")
     path = Path(cfg.out_dir) / "results" / "smoke.json"
-    _atomic_json(path, {"schema_version": SMOKE_SCHEMA_VERSION, "passes": True, "hand_events": len(hand.events),
-                        "training_world_id": _trace_world_id(traces[0]), "loss": float(loss.detach()), "configuration_changed": False})
+    _atomic_json(path, _smoke_payload(cfg))
     _write_stage_marker(cfg, "smoke", binding, ((path, SMOKE_SCHEMA_VERSION),))
 
 
@@ -2280,6 +2289,34 @@ def _verify_training_trace_evidence(cfg: PersistentSearchConfig) -> tuple[Sequen
     return train, validation, audit, manifest
 
 
+def _expected_evaluation_bound_files(cfg: PersistentSearchConfig, audit: Mapping[str, object]) -> dict[str, dict[str, object]]:
+    root = Path(cfg.out_dir).resolve(); selected = root / "checkpoints" / "selected.pt"
+    candidates: dict[str, tuple[Path, str]] = {
+        "implementation": (Path(__file__).resolve(), "python-source-v1"),
+        "source_audit": (root / "source_audit.json", "c13p-source-audit-v1"),
+        "manifest": (root / "manifest.json", SCHEMA_VERSION),
+        "selected_checkpoint": (selected, "c13p-training-checkpoint-v1"),
+        "trace_manifest": (root / "traces" / "trace_manifest.json", TRACE_MANIFEST_SCHEMA_VERSION),
+    }
+    external = {
+        "preregistration": ("preregistration_path", "generated-markdown-v1"),
+        "source_implementation": ("implementation_path", "python-source-v1"),
+        "source_checkpoint": ("checkpoint_path", "torch-checkpoint-v1"),
+    }
+    for label, (field, schema) in external.items():
+        raw = audit.get(field)
+        if not isinstance(raw, str): raise ValueError(f"evaluation binding source path is missing: {field}")
+        candidates[label] = (Path(raw).resolve(), schema)
+    for split in ("train", "validation"):
+        candidates[f"trace_{split}"] = (root / "traces" / split / "traces.json", SCHEMA_VERSION)
+        for pass_name in ("first", "second"):
+            candidates[f"trace_{split}_{pass_name}"] = (root / "traces" / "duplicates" / split / f"{pass_name}.json", SCHEMA_VERSION)
+    if set(candidates) != EVALUATION_BOUND_FILE_LABELS: raise ValueError("evaluation binding expected inventory is incomplete")
+    missing = sorted(label for label, (candidate, _) in candidates.items() if not candidate.is_file())
+    if missing: raise ValueError(f"evaluation binding canonical bound files are missing: {missing}")
+    return {label: _artifact_entry(candidate, root, schema) for label, (candidate, schema) in sorted(candidates.items())}
+
+
 def evaluation_binding_payload(cfg: PersistentSearchConfig, checkpoint_path: Path, model_state_sha256: str,
                                source_hashes: Mapping[str, str], trace_hashes: Mapping[str, str],
                                development_registry: Mapping[str, Mapping[str, object]]) -> dict[str, object]:
@@ -2298,29 +2335,12 @@ def evaluation_binding_payload(cfg: PersistentSearchConfig, checkpoint_path: Pat
         "gate_payload_sha256": hash_canonical(_GATE_PAYLOAD), "development_registry": registry,
         "registry_fingerprint": hash_canonical(registry),
     }
-    bound_candidates: dict[str, tuple[Path, str]] = {
-        "implementation": (Path(__file__).resolve(), "python-source-v1"),
-        "selected_checkpoint": (checkpoint, "c13p-training-checkpoint-v1"),
-    }
     audit_path = Path(cfg.out_dir) / "source_audit.json"
     if not audit_path.is_file(): raise ValueError("evaluation binding source audit is missing")
     audit = _read_json(audit_path, "source audit")
-    bound_candidates.update({"source_audit": (audit_path, "c13p-source-audit-v1"), "manifest": (Path(cfg.out_dir) / "manifest.json", SCHEMA_VERSION)})
-    for label, field in (("preregistration", "preregistration_path"), ("source_implementation", "implementation_path"), ("source_checkpoint", "checkpoint_path")):
-        raw = audit.get(field)
-        if not isinstance(raw, str): raise ValueError(f"evaluation binding source path is missing: {field}")
-        bound_candidates[label] = (Path(raw), _schema_for(Path(raw)))
-    for split in ("train", "validation"):
-        bound_candidates[f"trace_{split}"] = (Path(cfg.out_dir) / "traces" / split / "traces.json", SCHEMA_VERSION)
-        for pass_name in ("first", "second"):
-            bound_candidates[f"trace_{split}_{pass_name}"] = (Path(cfg.out_dir) / "traces" / "duplicates" / split / f"{pass_name}.json", SCHEMA_VERSION)
     trace_manifest_path = Path(cfg.out_dir) / "traces" / "trace_manifest.json"
-    bound_candidates["trace_manifest"] = (trace_manifest_path, TRACE_MANIFEST_SCHEMA_VERSION)
-    if set(bound_candidates) != EVALUATION_BOUND_FILE_LABELS: raise ValueError("evaluation binding bound-file inventory is incomplete")
-    missing = sorted(label for label, (candidate, _) in bound_candidates.items() if not candidate.is_file())
-    if missing: raise ValueError(f"evaluation binding bound files are missing: {missing}")
-    payload["bound_files"] = {label: _artifact_entry(candidate, Path(cfg.out_dir), schema)
-                              for label, (candidate, schema) in sorted(bound_candidates.items())}
+    if checkpoint != (Path(cfg.out_dir).resolve() / "checkpoints" / "selected.pt"): raise ValueError("evaluation binding selected checkpoint path is not canonical")
+    payload["bound_files"] = _expected_evaluation_bound_files(cfg, audit)
     trace_manifest = _read_json(trace_manifest_path, "trace manifest"); splits = trace_manifest.get("splits")
     if not isinstance(splits, Mapping): raise ValueError("evaluation binding trace event counts are missing")
     payload["trace_event_counts"] = {split: _integer(splits[split].get("events"), f"{split} events") for split in ("train", "validation")}
@@ -2341,7 +2361,8 @@ def verify_evaluation_binding(cfg: PersistentSearchConfig, path: Path | None = N
     for name, value in expected.items():
         if binding.get(name) != value: raise ValueError(f"evaluation binding {name} drifted; new output directory required")
     checkpoint = Path(str(binding.get("checkpoint_path")))
-    if not checkpoint.is_file() or binding.get("checkpoint_sha256") != sha256_file(checkpoint):
+    canonical_checkpoint = Path(cfg.out_dir).resolve() / "checkpoints" / "selected.pt"
+    if checkpoint.resolve() != canonical_checkpoint or not checkpoint.is_file() or binding.get("checkpoint_sha256") != sha256_file(checkpoint):
         raise ValueError("evaluation binding checkpoint drifted; new output directory required")
     registry = validate_expected_development_registry(binding.get("development_registry"))
     if binding.get("registry_fingerprint") != hash_canonical(registry): raise ValueError("evaluation binding development registry drifted; new output directory required")
@@ -2349,19 +2370,13 @@ def verify_evaluation_binding(cfg: PersistentSearchConfig, path: Path | None = N
     if not isinstance(source_hashes, Mapping) or any(not _is_sha256(value) for value in source_hashes.values()):
         raise ValueError("evaluation binding source hashes drifted; new output directory required")
     audit_path = Path(cfg.out_dir) / "source_audit.json"
-    if audit_path.is_file() and source_hashes != _read_json(audit_path, "source audit").get("source_hashes"):
+    audit = (_verify_audit_evidence(cfg) if _marker_path(cfg, "audit").is_file() else _read_json(audit_path, "source audit"))
+    if source_hashes != audit.get("source_hashes"):
         raise ValueError("evaluation binding source audit drifted; new output directory required")
     bound_files = binding.get("bound_files")
-    if not isinstance(bound_files, Mapping) or set(bound_files) != EVALUATION_BOUND_FILE_LABELS:
-        raise ValueError("evaluation binding bound source inventory is incomplete; new output directory required")
+    expected_bound_files = _expected_evaluation_bound_files(cfg, audit)
+    if bound_files != expected_bound_files: raise ValueError("evaluation binding canonical bound-file inventory drifted; new output directory required")
     root = Path(cfg.out_dir).resolve()
-    for label, raw in bound_files.items():
-        if not isinstance(label, str) or not isinstance(raw, Mapping) or set(raw) != STAGE_OUTPUT_KEYS:
-            raise ValueError("evaluation binding bound source entry drifted; new output directory required")
-        recorded = raw.get("path")
-        candidate = Path(str(recorded)).resolve() if isinstance(recorded, str) and Path(recorded).is_absolute() else (root / str(recorded)).resolve()
-        if not candidate.is_file() or raw.get("sha256") != sha256_file(candidate) or raw.get("size") != candidate.stat().st_size:
-            raise ValueError(f"evaluation binding bound source drifted: {label}; new output directory required")
     trace_hashes = binding.get("trace_hashes")
     if not isinstance(trace_hashes, Mapping) or set(trace_hashes) != {"train", "validation"} or any(trace_hashes.get(split) != sha256_file(root / "traces" / split / "traces.json") for split in ("train", "validation")):
         raise ValueError("evaluation binding promoted trace hashes drifted; new output directory required")
@@ -2611,15 +2626,8 @@ def _compute_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], r
         binding_ok = False
     trace_manifest = _validate_duplicate_trace_manifest(cfg)
     bound_files = evaluation.get("bound_files")
-    def bound_entry_matches(entry: object) -> bool:
-        if not isinstance(entry, Mapping) or set(entry) != STAGE_OUTPUT_KEYS or not _is_sha256(entry.get("sha256")): return False
-        recorded = entry.get("path")
-        candidate = Path(str(recorded)).resolve() if isinstance(recorded, str) and Path(recorded).is_absolute() else (root / str(recorded)).resolve()
-        return (candidate.is_file() and entry.get("sha256") == sha256_file(candidate)
-                and entry.get("size") == candidate.stat().st_size)
-    source_integrity_ok = (isinstance(bound_files, Mapping)
-                           and set(bound_files) == EVALUATION_BOUND_FILE_LABELS
-                           and all(bound_entry_matches(entry) for entry in bound_files.values()))
+    expected_bound_files = _expected_evaluation_bound_files(cfg, audit)
+    source_integrity_ok = bound_files == expected_bound_files
     development_traces = _read_development_traces(cfg); development_ids = [_trace_world_id(trace) for trace in development_traces]
     privileged_fields_absent, causal_events_checked = True, 0
     for trace in development_traces:
