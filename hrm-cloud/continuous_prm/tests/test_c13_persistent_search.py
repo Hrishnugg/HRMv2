@@ -349,6 +349,19 @@ def test_teacher_trace_payload_exposes_only_one_causal_event_per_example() -> No
     assert payload["privileged_audit"]["teacher_path"] == list(trace.teacher_path)
     assert P.trace_from_payload(payload) == trace
 
+def test_teacher_trace_payload_rejects_noncanonical_or_relabelled_event_kinds() -> None:
+    trace, graph = _hand_trace()
+    cases = ((0, "post_expansion", "initialized"), (1, "initialized_frontier", "post-expansion"), (1, "forged_kind", "event_kind"))
+    for index, event_kind, match in cases:
+        payload = copy.deepcopy(P.trace_payload(trace))
+        payload["examples"][index]["model_causal"]["event"]["event_kind"] = event_kind
+        with pytest.raises(ValueError, match=match):
+            P.trace_from_payload(payload)
+        events = list(trace.events)
+        events[index] = replace(events[index], event_kind=event_kind)
+        with pytest.raises(ValueError, match=match):
+            P.validate_teacher_trace(replace(trace, events=tuple(events)), graph)
+
 def test_teacher_trace_payload_and_shard_are_byte_identical_across_duplicate_passes() -> None:
     first, _ = _hand_trace()
     second, _ = _hand_trace()

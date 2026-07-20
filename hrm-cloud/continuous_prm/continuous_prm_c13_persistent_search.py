@@ -580,6 +580,8 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
     for expected_index, event in enumerate(trace.events[1:], start=1):
         if event.event_index != expected_index:
             raise ValueError("trace event index is invalid")
+        if event.event_kind != "post_expansion" or event.expanded_node is None:
+            raise ValueError("trace event_kind must be post-expansion")
         event_g, event_parent, event_rank = _event_maps(event)
         if event.expanded_node == trace.goal_idx:
             raise ValueError("trace terminal goal pop must not be recorded")
@@ -734,13 +736,19 @@ def trace_from_payload(payload: Mapping[str, object]) -> TeacherTrace:
         if any(not isinstance(raw_event.get(field), Sequence) or isinstance(raw_event.get(field), (str, bytes)) for field in fields):
             raise ValueError("trace payload candidate fields are invalid")
         event_kind = raw_event.get("event_kind")
-        if not isinstance(event_kind, str):
+        if event_kind not in ("initialized_frontier", "post_expansion"):
             raise ValueError("trace event_kind is invalid")
         raw_expanded = raw_event.get("expanded_node")
         if raw_expanded is not None and (isinstance(raw_expanded, bool) or not isinstance(raw_expanded, int)):
             raise ValueError("trace expanded_node is invalid")
+        event_index = _integer(raw_event.get("event_index"), "event_index")
+        if event_index == 0:
+            if event_kind != "initialized_frontier" or raw_expanded is not None:
+                raise ValueError("trace initialized frontier event_kind is invalid")
+        elif event_kind != "post_expansion" or raw_expanded is None:
+            raise ValueError("trace event_kind must be post-expansion")
         events.append(TraceEvent(
-            event_index=_integer(raw_event.get("event_index"), "event_index"), event_kind=event_kind,
+            event_index=event_index, event_kind=event_kind,
             expanded_node=raw_expanded, expanded_g=_finite_float(raw_event.get("expanded_g"), "expanded_g"),
             expanded_base_rank=_finite_float(raw_event.get("expanded_base_rank"), "expanded_base_rank"),
             open_nodes=tuple(_integer(value, "open_node") for value in raw_event["open_nodes"]),
