@@ -900,3 +900,30 @@ def candidate_tensors_from_causal(causal_event: Mapping[str, object], node_embed
     if len(set(nodes)) != len(nodes) or any(not 0 <= node < len(node_embeddings) for node in nodes): raise ValueError("open candidates invalid")
     g, rank = [_finite_float(v, "open_g") for v in raw_g], [_finite_float(v, "open_base_rank") for v in raw_rank]
     return node_embeddings.index_select(0, torch.as_tensor(nodes, device=node_embeddings.device)), torch.as_tensor([[a/side_len,b/side_len,(a+b)/side_len] for a,b in zip(g,rank)], dtype=node_embeddings.dtype, device=node_embeddings.device), nodes
+
+_prepare_world_representation_legacy = prepare_world_representation
+def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph: Sequence[Sequence[tuple[int, float]]], goal_idx: int, cfg: PersistentSearchConfig, encoder: nn.Module) -> PreparedWorld:
+    path=feature_cache.get("cache_path",feature_cache.get("feature_cache_path")); digest=feature_cache.get("cache_sha256",feature_cache.get("feature_cache_sha256"))
+    if path is None or digest is None: raise ValueError("feature cache path/hash binding is required")
+    if not isinstance(path,(str,Path)) or not isinstance(digest,str) or sha256_file(Path(path)) != digest: raise ValueError("feature cache hash mismatch")
+    if float(cfg.local_alpha) != LOCAL_ALPHA: raise ValueError("frozen local alpha changed")
+    return _prepare_world_representation_legacy(feature_cache,graph,goal_idx,cfg,encoder)
+
+def reset_carry_for_event(model: PersistentSearchHRM, causal_event: Mapping[str, object], batch_size: int, device: torch.device, dtype: torch.dtype, step: int | None = None) -> HRMCarry:
+    validate_model_causal_fields(causal_event); event_index=_integer(causal_event["event_index"],"event_index")
+    if event_index < 0 or step is not None and step != event_index: raise ValueError("reset carry step must match causal event_index")
+    return model.initial_carry(batch_size,device,dtype,step=event_index)
+
+class PersistentCarryLifecycle:
+    def __init__(self,model: PersistentSearchHRM,evaluation_id: str)->None:
+        if not isinstance(evaluation_id,str) or not evaluation_id: raise ValueError("evaluation id is invalid")
+        self.model=model; self.evaluation_id=evaluation_id; self._world_id: object|None=None; self._issued=False
+    def initial_for_world(self,world_id: object,batch_size:int,device:torch.device,dtype:torch.dtype,evaluation_id:str|None=None)->HRMCarry:
+        if evaluation_id is not None and evaluation_id != self.evaluation_id: raise ValueError("evaluation id cannot cross lifecycle")
+        if self._issued:
+            if world_id != self._world_id: raise ValueError("carry cannot cross a world boundary")
+            raise ValueError("duplicate evaluation/world allocation")
+        self._world_id=world_id; self._issued=True; return self.model.initial_carry(batch_size,device,dtype)
+    def update(self,event_features:torch.Tensor,carry:HRMCarry)->tuple[torch.Tensor,HRMCarry]:
+        if not self._issued: raise ValueError("persistent carry lifecycle is not initialized")
+        return self.model.update_event(event_features,carry)
