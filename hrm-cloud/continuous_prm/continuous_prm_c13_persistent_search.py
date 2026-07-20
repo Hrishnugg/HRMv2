@@ -344,3 +344,408 @@ def audit_sources(cfg: PersistentSearchConfig) -> SourceContext:
         checkpoint_path=checkpoint_path,
         checkpoint_sha256=checkpoint_sha256,
     )
+
+
+@dataclass(frozen=True)
+class TraceEvent:
+    event_index: int
+    expanded_node: int
+    expanded_g: float
+    expanded_base_rank: float
+    open_nodes: Sequence[int]
+    open_g: Sequence[float]
+    open_parent: Sequence[int | None]
+    open_base_rank: Sequence[float]
+    open_count: int
+    closed_count: int
+    positive_node: int
+
+
+@dataclass(frozen=True)
+class TeacherTrace:
+    split: str
+    suite: str
+    world_index: int
+    world_seed: int
+    roadmap_seed: int
+    feature_cache_path: str
+    feature_cache_sha256: str
+    node_count: int
+    edge_count: int
+    start_idx: int
+    goal_idx: int
+    events: Sequence[TraceEvent]
+    teacher_path: Sequence[int]
+    teacher_cost: float
+    teacher_expansions: int
+    teacher_valid: bool
+
+
+def _finite_float(value: object, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be a finite number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{label} must be a finite number")
+    return result
+
+
+def _integer(value: object, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} must be an integer")
+    return value
+
+
+def _trace_metadata(metadata: Mapping[str, object]) -> tuple[str, str, int, int, int, str, str]:
+    required = ("split", "suite", "world_index", "world_seed", "roadmap_seed")
+    if any(name not in metadata for name in required):
+        raise ValueError("trace metadata is incomplete")
+    cache_path = metadata.get("feature_cache_path", metadata.get("cache"))
+    cache_sha256 = metadata.get("feature_cache_sha256", metadata.get("cache_sha256"))
+    if not isinstance(metadata["split"], str) or not metadata["split"]:
+        raise ValueError("trace split is invalid")
+    if not isinstance(metadata["suite"], str) or not metadata["suite"]:
+        raise ValueError("trace suite is invalid")
+    if not isinstance(cache_path, str) or not cache_path:
+        raise ValueError("trace feature_cache_path is invalid")
+    if not isinstance(cache_sha256, str) or len(cache_sha256) != 64:
+        raise ValueError("trace feature_cache_sha256 is invalid")
+    return (
+        metadata["split"], metadata["suite"], _integer(metadata["world_index"], "world_index"),
+        _integer(metadata["world_seed"], "world_seed"), _integer(metadata["roadmap_seed"], "roadmap_seed"),
+        cache_path, cache_sha256,
+    )
+
+
+def _validated_graph(graph: Sequence[Sequence[tuple[int, float]]], base_rank: object) -> tuple[int, tuple[float, ...]]:
+    node_count = len(graph)
+    if node_count == 0:
+        raise ValueError("teacher graph is empty")
+    try:
+        ranks = tuple(_finite_float(value, "base_rank") for value in base_rank)  # type: ignore[union-attr]
+    except TypeError as exc:
+        raise ValueError("base_rank must be a one-dimensional sequence") from exc
+    if len(ranks) != node_count:
+        raise ValueError("base_rank length does not match graph")
+    for source, outgoing in enumerate(graph):
+        for target, weight in outgoing:
+            if isinstance(target, bool) or not isinstance(target, int) or not 0 <= target < node_count:
+                raise ValueError(f"graph edge {source} has an invalid target")
+            edge_weight = _finite_float(weight, f"graph edge {source}->{target}")
+            if edge_weight < 0.0:
+                raise ValueError("teacher search requires nonnegative edge weights")
+    return node_count, ranks
+
+
+def _path_from_parent(parent: Sequence[int | None], start_idx: int, goal_idx: int) -> tuple[int, ...]:
+    reversed_path: list[int] = []
+    node: int | None = goal_idx
+    while node is not None:
+        reversed_path.append(node)
+        if node == start_idx:
+            return tuple(reversed(reversed_path))
+        node = parent[node]
+        if len(reversed_path) > len(parent):
+            break
+    raise ValueError("teacher returned an invalid parent chain")
+
+
+def generate_teacher_trace(
+    graph: Sequence[Sequence[tuple[int, float]]],
+    start_idx: int,
+    goal_idx: int,
+    base_rank: Sequence[float],
+    metadata: Mapping[str, object],
+) -> TeacherTrace:
+    """Run the static C13-M direct no-reopen teacher without an optimal-path oracle."""
+    import heapq
+
+    node_count, ranks = _validated_graph(graph, base_rank)
+    if not isinstance(start_idx, int) or not isinstance(goal_idx, int) or not 0 <= start_idx < node_count or not 0 <= goal_idx < node_count:
+        raise ValueError("teacher start or goal is outside the graph")
+    split, suite, world_index, world_seed, roadmap_seed, cache_path, cache_sha256 = _trace_metadata(metadata)
+    g = [math.inf] * node_count
+    parent: list[int | None] = [None] * node_count
+    g[start_idx] = 0.0
+    open_nodes = {start_idx}
+    closed: set[int] = set()
+    heap: list[tuple[float, float, int]] = [(ranks[start_idx], 0.0, start_idx)]
+    raw_events: list[tuple[int, int, float, float, tuple[int, ...], tuple[float, ...], tuple[int | None, ...], tuple[float, ...], int, frozenset[int]]] = []
+    expansions = 0
+    reached_goal = False
+
+    while heap:
+        _, popped_g, node = heapq.heappop(heap)
+        if node in closed or node not in open_nodes or popped_g != g[node]:
+            continue
+        open_nodes.remove(node)
+        closed.add(node)
+        expansions += 1
+        if node == goal_idx:
+            reached_goal = True
+            break
+        for neighbor, raw_weight in graph[node]:
+            weight = float(raw_weight)
+            if neighbor in closed:
+                continue
+            candidate_g = g[node] + weight
+            if candidate_g < g[neighbor]:
+                g[neighbor] = candidate_g
+                parent[neighbor] = node
+                open_nodes.add(neighbor)
+                heapq.heappush(heap, (candidate_g + ranks[neighbor], candidate_g, neighbor))
+        ordered_open = tuple(sorted(open_nodes, key=lambda candidate: (g[candidate] + ranks[candidate], g[candidate], candidate)))
+        raw_events.append((
+            len(raw_events), node, g[node], ranks[node], ordered_open,
+            tuple(g[candidate] for candidate in ordered_open),
+            tuple(parent[candidate] for candidate in ordered_open),
+            tuple(ranks[candidate] for candidate in ordered_open), len(closed), frozenset(closed),
+        ))
+
+    if not reached_goal:
+        raise ValueError("teacher did not return a valid path")
+    teacher_path = _path_from_parent(parent, start_idx, goal_idx)
+    events: list[TraceEvent] = []
+    for event_index, node, expanded_g, expanded_rank, candidates, candidate_g, candidate_parent, candidate_rank, closed_count, closed_snapshot in raw_events:
+        positive = next((path_node for path_node in teacher_path if path_node not in closed_snapshot), None)
+        if positive is None or positive not in candidates:
+            raise ValueError("teacher event has no open path-frontier positive")
+        events.append(TraceEvent(
+            event_index=event_index, expanded_node=node, expanded_g=expanded_g, expanded_base_rank=expanded_rank,
+            open_nodes=candidates, open_g=candidate_g, open_parent=candidate_parent, open_base_rank=candidate_rank,
+            open_count=len(candidates), closed_count=closed_count, positive_node=positive,
+        ))
+    trace = TeacherTrace(
+        split=split, suite=suite, world_index=world_index, world_seed=world_seed, roadmap_seed=roadmap_seed,
+        feature_cache_path=cache_path, feature_cache_sha256=cache_sha256, node_count=node_count,
+        edge_count=sum(len(outgoing) for outgoing in graph), start_idx=start_idx, goal_idx=goal_idx,
+        events=tuple(events), teacher_path=teacher_path, teacher_cost=g[goal_idx],
+        teacher_expansions=expansions, teacher_valid=True,
+    )
+    validate_teacher_trace(trace, graph)
+    return trace
+
+
+def _event_maps(event: TraceEvent) -> tuple[dict[int, float], dict[int, int | None], dict[int, float]]:
+    lengths = (len(event.open_nodes), len(event.open_g), len(event.open_parent), len(event.open_base_rank))
+    if any(length != event.open_count for length in lengths):
+        raise ValueError("trace event open snapshot lengths are invalid")
+    if event.open_count <= 0:
+        raise ValueError("trace event open set is empty")
+    if len(set(event.open_nodes)) != event.open_count:
+        raise ValueError("trace event contains duplicate open nodes")
+    candidate_g = {node: _finite_float(value, "trace open_g") for node, value in zip(event.open_nodes, event.open_g)}
+    parent = {node: value for node, value in zip(event.open_nodes, event.open_parent)}
+    rank = {node: _finite_float(value, "trace open_base_rank") for node, value in zip(event.open_nodes, event.open_base_rank)}
+    return candidate_g, parent, rank
+
+
+def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[int, float]]]) -> None:
+    """Validate path-frontier labels and exact direct-search candidate replay."""
+    if trace.node_count != len(graph) or trace.node_count <= 0:
+        raise ValueError("trace node_count does not match graph")
+    if trace.edge_count != sum(len(outgoing) for outgoing in graph):
+        raise ValueError("trace edge_count does not match graph")
+    if not trace.teacher_valid:
+        raise ValueError("teacher trace is not valid")
+    if not (0 <= trace.start_idx < trace.node_count and 0 <= trace.goal_idx < trace.node_count):
+        raise ValueError("trace start or goal is invalid")
+    if not trace.teacher_path or tuple(trace.teacher_path)[0] != trace.start_idx or tuple(trace.teacher_path)[-1] != trace.goal_idx:
+        raise ValueError("trace teacher path is invalid")
+    if len(set(event.positive_node for event in trace.events)) != len(trace.events):
+        raise ValueError("trace has duplicate positive labels")
+
+    open_g: dict[int, float] = {trace.start_idx: 0.0}
+    open_parent: dict[int, int | None] = {trace.start_idx: None}
+    open_rank: dict[int, float] = {}
+    closed: set[int] = set()
+    path_cost = 0.0
+    for previous, current in zip(trace.teacher_path, trace.teacher_path[1:]):
+        costs = [float(weight) for target, weight in graph[previous] if target == current]
+        if not costs:
+            raise ValueError("trace teacher path uses a missing graph edge")
+        path_cost += min(costs)
+    if not math.isclose(path_cost, _finite_float(trace.teacher_cost, "teacher_cost"), rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("trace teacher cost does not match parent-chain path")
+
+    for expected_index, event in enumerate(trace.events):
+        if event.event_index != expected_index:
+            raise ValueError("trace event index is invalid")
+        event_g, event_parent, event_rank = _event_maps(event)
+        if event.expanded_node not in open_g:
+            raise ValueError("trace replay expanded node is not open")
+        if expected_index == 0:
+            open_rank[trace.start_idx] = _finite_float(event.expanded_base_rank, "expanded_base_rank")
+        priority_node = min(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node))
+        if event.expanded_node != priority_node:
+            raise ValueError("trace replay heap order changed")
+        if not math.isclose(event.expanded_g, open_g[event.expanded_node], rel_tol=0.0, abs_tol=1e-12):
+            raise ValueError("trace replay expanded g changed")
+        if not math.isclose(event.expanded_base_rank, open_rank[event.expanded_node], rel_tol=0.0, abs_tol=1e-12):
+            raise ValueError("trace replay expanded rank changed")
+        open_g.pop(event.expanded_node)
+        open_parent.pop(event.expanded_node)
+        open_rank.pop(event.expanded_node)
+        closed.add(event.expanded_node)
+        if event.closed_count != len(closed):
+            raise ValueError("trace closed count changed")
+        for neighbor, raw_weight in graph[event.expanded_node]:
+            weight = _finite_float(raw_weight, "graph edge weight")
+            if weight < 0.0:
+                raise ValueError("teacher search requires nonnegative edge weights")
+            if neighbor in closed:
+                continue
+            candidate_g = event.expanded_g + weight
+            if candidate_g < open_g.get(neighbor, math.inf):
+                if neighbor not in event_g:
+                    raise ValueError("trace replay is missing an open candidate")
+                open_g[neighbor] = candidate_g
+                open_parent[neighbor] = event.expanded_node
+                open_rank[neighbor] = event_rank[neighbor]
+        if set(event_g) != set(open_g):
+            raise ValueError("trace replay open candidates changed")
+        expected_nodes = tuple(sorted(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node)))
+        if tuple(event.open_nodes) != expected_nodes:
+            raise ValueError("trace replay open order changed")
+        for node in expected_nodes:
+            if not math.isclose(event_g[node], open_g[node], rel_tol=0.0, abs_tol=1e-12) or event_parent[node] != open_parent[node]:
+                raise ValueError("trace replay candidate g or parent changed")
+            if not math.isclose(event_rank[node], open_rank[node], rel_tol=0.0, abs_tol=1e-12):
+                raise ValueError("trace replay candidate rank changed")
+        if not isinstance(event.positive_node, int):
+            raise ValueError("trace positive is missing")
+        if event.positive_node in closed:
+            raise ValueError("trace positive is already closed")
+        if event.positive_node not in event_g:
+            raise ValueError("trace positive is not open")
+        expected_positive = next((node for node in trace.teacher_path if node not in closed), None)
+        if event.positive_node != expected_positive:
+            raise ValueError("trace positive does not match the path frontier")
+    if trace.teacher_expansions != len(trace.events) + 1:
+        raise ValueError("trace teacher expansion count changed")
+    if trace.events:
+        final_node = min(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node))
+        if final_node != trace.goal_idx:
+            raise ValueError("trace terminal goal pop changed")
+
+
+def trace_payload(trace: TeacherTrace) -> dict[str, object]:
+    """Return a canonical, audit-separated payload without leaking future teacher fields."""
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "model_causal": {
+            "split": trace.split, "suite": trace.suite, "world_index": trace.world_index,
+            "world_seed": trace.world_seed, "roadmap_seed": trace.roadmap_seed,
+            "feature_cache_path": trace.feature_cache_path, "feature_cache_sha256": trace.feature_cache_sha256,
+            "node_count": trace.node_count, "edge_count": trace.edge_count,
+            "start_idx": trace.start_idx, "goal_idx": trace.goal_idx,
+            "events": [{
+                "event_index": event.event_index, "expanded_node": event.expanded_node,
+                "expanded_g": event.expanded_g, "expanded_base_rank": event.expanded_base_rank,
+                "open_nodes": list(event.open_nodes), "open_g": list(event.open_g),
+                "open_base_rank": list(event.open_base_rank), "open_count": event.open_count,
+                "closed_count": event.closed_count,
+            } for event in trace.events],
+        },
+        "labels": {"positive_node": [event.positive_node for event in trace.events]},
+        "replay_audit": {"open_parent": [list(event.open_parent) for event in trace.events]},
+        "privileged_audit": {
+            "teacher_path": list(trace.teacher_path), "teacher_cost": trace.teacher_cost,
+            "teacher_expansions": trace.teacher_expansions, "teacher_valid": trace.teacher_valid,
+        },
+    }
+
+
+def trace_from_payload(payload: Mapping[str, object]) -> TeacherTrace:
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError("trace payload schema version changed")
+    sections = ("model_causal", "labels", "replay_audit", "privileged_audit")
+    if any(not isinstance(payload.get(name), Mapping) for name in sections):
+        raise ValueError("trace payload audit sections are incomplete")
+    causal = payload["model_causal"]  # type: ignore[assignment]
+    labels = payload["labels"]  # type: ignore[assignment]
+    replay = payload["replay_audit"]  # type: ignore[assignment]
+    privileged = payload["privileged_audit"]  # type: ignore[assignment]
+    events_raw = causal.get("events")  # type: ignore[union-attr]
+    positives = labels.get("positive_node")  # type: ignore[union-attr]
+    parents = replay.get("open_parent")  # type: ignore[union-attr]
+    if not isinstance(events_raw, Sequence) or isinstance(events_raw, (str, bytes)) or not isinstance(positives, Sequence) or not isinstance(parents, Sequence):
+        raise ValueError("trace payload events are invalid")
+    if len(events_raw) != len(positives) or len(events_raw) != len(parents):
+        raise ValueError("trace payload event sections disagree")
+    events: list[TraceEvent] = []
+    for index, raw in enumerate(events_raw):
+        if not isinstance(raw, Mapping) or not isinstance(parents[index], Sequence) or isinstance(parents[index], (str, bytes)):
+            raise ValueError("trace payload event is invalid")
+        fields = ("open_nodes", "open_g", "open_base_rank")
+        if any(not isinstance(raw.get(field), Sequence) or isinstance(raw.get(field), (str, bytes)) for field in fields):
+            raise ValueError("trace payload candidate fields are invalid")
+        events.append(TraceEvent(
+            event_index=_integer(raw.get("event_index"), "event_index"),
+            expanded_node=_integer(raw.get("expanded_node"), "expanded_node"),
+            expanded_g=_finite_float(raw.get("expanded_g"), "expanded_g"),
+            expanded_base_rank=_finite_float(raw.get("expanded_base_rank"), "expanded_base_rank"),
+            open_nodes=tuple(_integer(value, "open_node") for value in raw["open_nodes"]),
+            open_g=tuple(_finite_float(value, "open_g") for value in raw["open_g"]),
+            open_parent=tuple(None if value is None else _integer(value, "open_parent") for value in parents[index]),
+            open_base_rank=tuple(_finite_float(value, "open_base_rank") for value in raw["open_base_rank"]),
+            open_count=_integer(raw.get("open_count"), "open_count"),
+            closed_count=_integer(raw.get("closed_count"), "closed_count"),
+            positive_node=_integer(positives[index], "positive_node"),
+        ))
+    required = ("split", "suite", "feature_cache_path", "feature_cache_sha256")
+    if any(not isinstance(causal.get(field), str) for field in required):  # type: ignore[union-attr]
+        raise ValueError("trace payload metadata is invalid")
+    teacher_path = privileged.get("teacher_path")  # type: ignore[union-attr]
+    if not isinstance(teacher_path, Sequence) or isinstance(teacher_path, (str, bytes)):
+        raise ValueError("trace payload teacher path is invalid")
+    return TeacherTrace(
+        split=causal["split"], suite=causal["suite"], world_index=_integer(causal.get("world_index"), "world_index"),  # type: ignore[index,union-attr]
+        world_seed=_integer(causal.get("world_seed"), "world_seed"), roadmap_seed=_integer(causal.get("roadmap_seed"), "roadmap_seed"),  # type: ignore[union-attr]
+        feature_cache_path=causal["feature_cache_path"], feature_cache_sha256=causal["feature_cache_sha256"],  # type: ignore[index,union-attr]
+        node_count=_integer(causal.get("node_count"), "node_count"), edge_count=_integer(causal.get("edge_count"), "edge_count"),  # type: ignore[union-attr]
+        start_idx=_integer(causal.get("start_idx"), "start_idx"), goal_idx=_integer(causal.get("goal_idx"), "goal_idx"),  # type: ignore[union-attr]
+        events=tuple(events), teacher_path=tuple(_integer(value, "teacher_path node") for value in teacher_path),
+        teacher_cost=_finite_float(privileged.get("teacher_cost"), "teacher_cost"),  # type: ignore[union-attr]
+        teacher_expansions=_integer(privileged.get("teacher_expansions"), "teacher_expansions"),  # type: ignore[union-attr]
+        teacher_valid=privileged.get("teacher_valid") is True,  # type: ignore[union-attr]
+    )
+
+
+def trace_generation_fingerprint(
+    source_hashes: Mapping[str, str], cohort_record: Mapping[str, object], base_rank: Sequence[float],
+) -> str:
+    """Bind trace generation to frozen sources, cohort, ranks, schema, and generator code."""
+    rank_values = [_finite_float(value, "base_rank") for value in base_rank]
+    binding = {
+        "schema_version": SCHEMA_VERSION, "source_hashes": dict(source_hashes),
+        "cohort_record": dict(cohort_record),
+        "base_rank_sha256": hashlib.sha256(canonical_json_bytes(rank_values)).hexdigest(),
+        "generator_sha256": sha256_file(Path(__file__).resolve()),
+    }
+    return hashlib.sha256(canonical_json_bytes(binding)).hexdigest()
+
+
+def write_trace_shard(path: Path, traces: Sequence[TeacherTrace], generation_fingerprint: str) -> str:
+    if not isinstance(generation_fingerprint, str) or len(generation_fingerprint) != 64:
+        raise ValueError("generation fingerprint is invalid")
+    ordered = sorted(traces, key=lambda trace: (trace.split, trace.suite, trace.world_index))
+    if len({(trace.split, trace.suite, trace.world_index) for trace in ordered}) != len(ordered):
+        raise ValueError("trace shard contains duplicate world records")
+    payload = {"schema_version": SCHEMA_VERSION, "generation_fingerprint": generation_fingerprint, "traces": [trace_payload(trace) for trace in ordered]}
+    return write_canonical_json(Path(path), payload)
+
+
+def read_trace_shard(path: Path, expected_fingerprint: str) -> Sequence[TeacherTrace]:
+    payload = _read_json(Path(path), "trace shard")
+    if payload.get("schema_version") != SCHEMA_VERSION or payload.get("generation_fingerprint") != expected_fingerprint:
+        raise ValueError("trace shard fingerprint or schema changed")
+    raw_traces = payload.get("traces")
+    if not isinstance(raw_traces, Sequence) or isinstance(raw_traces, (str, bytes)):
+        raise ValueError("trace shard records are invalid")
+    traces = tuple(trace_from_payload(raw) for raw in raw_traces if isinstance(raw, Mapping))
+    if len(traces) != len(raw_traces):
+        raise ValueError("trace shard contains a non-object trace")
+    if tuple(sorted(traces, key=lambda trace: (trace.split, trace.suite, trace.world_index))) != traces:
+        raise ValueError("trace shard records are not canonical")
+    return traces

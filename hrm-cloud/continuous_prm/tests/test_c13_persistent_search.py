@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 import copy
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
+import tempfile
 
+import numpy as np
 import pytest
 
 import continuous_prm_c13_persistent_search as P
@@ -203,3 +208,86 @@ def test_audit_sources_rejects_generated_cache_from_temporary_snapshot(tmp_path:
 
     source = P.audit_sources(P.resolve_paths(repo))
     assert source.source_hashes["c13j_manifest"] == _sha256(c13j / "manifest.json")
+
+
+def _teacher_hand_graph() -> tuple[list[list[tuple[int, float]]], np.ndarray, dict[str, object]]:
+    """A six-node graph with an open-node relaxation and an f-score tie."""
+    graph = [[(1, 5.0), (2, 1.0), (3, 2.0)], [(4, 1.0)], [(1, 1.0)], [(5, 1.0)], [], []]
+    base_rank = np.asarray([0.0, 0.0, 4.0, 3.0, 0.0, 0.0], dtype=np.float64)
+    metadata: dict[str, object] = {"split": "train", "suite": "hand", "world_index": 3, "world_seed": 101, "roadmap_seed": 202, "feature_cache_path": "frozen/hand-cache.npz", "feature_cache_sha256": "a" * 64}
+    return graph, base_rank, metadata
+
+
+def _hand_trace() -> tuple[P.TeacherTrace, list[list[tuple[int, float]]]]:
+    graph, base_rank, metadata = _teacher_hand_graph()
+    return P.generate_teacher_trace(graph, 0, 4, base_rank, metadata), graph
+
+
+def test_teacher_trace_uses_direct_no_reopen_priority_and_post_relaxation_snapshots() -> None:
+    trace, _ = _hand_trace()
+    assert trace.teacher_path == (0, 2, 1, 4)
+    assert trace.teacher_cost == 3.0
+    assert trace.teacher_expansions == 4
+    assert [event.expanded_node for event in trace.events] == [0, 2, 1]
+    assert trace.events[0].event_index == 0
+    assert trace.events[0].open_nodes == (2, 3, 1)
+    assert trace.events[0].open_g == (1.0, 2.0, 5.0)
+    assert trace.events[1].open_nodes == (1, 3)
+    assert trace.events[1].open_g == (2.0, 2.0)
+    assert trace.events[1].open_parent == (2, 0)
+    assert all(event.expanded_node != trace.goal_idx for event in trace.events)
+
+
+def test_teacher_trace_labels_the_unique_open_path_frontier_after_return() -> None:
+    trace, graph = _hand_trace()
+    assert [event.positive_node for event in trace.events] == [2, 1, 4]
+    P.validate_teacher_trace(trace, graph)
+    for event in trace.events:
+        assert event.positive_node in event.open_nodes
+        assert event.positive_node != event.expanded_node
+        assert event.open_nodes.count(event.positive_node) == 1
+
+
+@pytest.mark.parametrize("event_index,positive_node,match", [(0, None, "positive"), (1, 0, "closed"), (0, 5, "open"), (2, 1, "duplicate")])
+def test_teacher_trace_validation_rejects_invalid_path_frontier_labels(event_index: int, positive_node: int | None, match: str) -> None:
+    trace, graph = _hand_trace()
+    events = list(trace.events)
+    events[event_index] = replace(events[event_index], positive_node=positive_node)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match=match):
+        P.validate_teacher_trace(replace(trace, events=tuple(events)), graph)
+
+
+def test_teacher_trace_replay_rejects_changed_candidate_g_or_parent_snapshot() -> None:
+    trace, graph = _hand_trace()
+    first = trace.events[1]
+    changed_g = replace(first, open_g=(9.0, first.open_g[1]))
+    changed_parent = replace(first, open_parent=(0, first.open_parent[1]))
+    for changed in (changed_g, changed_parent):
+        events = list(trace.events)
+        events[1] = changed
+        with pytest.raises(ValueError, match="replay"):
+            P.validate_teacher_trace(replace(trace, events=tuple(events)), graph)
+
+
+def test_teacher_trace_generation_does_not_call_shortest_path_oracle(monkeypatch: pytest.MonkeyPatch) -> None:
+    graph, base_rank, metadata = _teacher_hand_graph()
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("trace generation must not call an optimal-path oracle")
+    monkeypatch.setattr(P, "dijkstra", forbidden, raising=False)
+    monkeypatch.setattr(P, "shortest_path", forbidden, raising=False)
+    trace = P.generate_teacher_trace(graph, 0, 4, base_rank, metadata)
+    assert trace.teacher_valid is True
+
+
+def test_teacher_trace_payload_and_shard_are_byte_identical_across_duplicate_passes() -> None:
+    first, _ = _hand_trace()
+    second, _ = _hand_trace()
+    assert P.canonical_json_bytes(P.trace_payload(first)) == P.canonical_json_bytes(P.trace_payload(second))
+    fingerprint = P.trace_generation_fingerprint(source_hashes={"source": "b" * 64}, cohort_record={"world_seed": 101, "roadmap_seed": 202}, base_rank=np.asarray([0.0, 0.0, 4.0, 3.0, 0.0, 0.0]))
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as temporary:
+        left = Path(temporary) / "left.json"
+        right = Path(temporary) / "right.json"
+        assert P.write_trace_shard(left, [first], fingerprint) == _sha256(left)
+        assert P.write_trace_shard(right, [second], fingerprint) == _sha256(right)
+        assert left.read_bytes() == right.read_bytes()
+        assert P.read_trace_shard(left, fingerprint) == (first,)
