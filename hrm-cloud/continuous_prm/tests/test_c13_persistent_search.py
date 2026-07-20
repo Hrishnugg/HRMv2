@@ -1283,22 +1283,10 @@ def test_task7_audit_trace_counts_and_development_embargo(tmp_path: Path, monkey
 
 
 def test_task7_evaluation_binding_and_drift_guard(tmp_path: Path) -> None:
-    cfg = P.resolve_paths(tmp_path, tmp_path / "run")
-    checkpoint = tmp_path / "selected.pt"; selected_model = P.PersistentSearchHRM()
-    torch.save({"model": selected_model.state_dict()}, checkpoint)
-    state_hash = P._model_state_sha256(selected_model)
-    source_hashes = {"implementation": _sha256(Path(P.__file__)), "checkpoint": "a" * 64,
-                     "preregistration": "b" * 64}
-    registry = {f"development/suite-{s}/{i}": {"split": "development", "suite": f"suite-{s}",
-        "world_index": i, "world_seed": s * 10 + i, "roadmap_seed": s * 10 + i + 17,
-        "feature_cache_sha256": "c" * 64, "node_count": 192, "edge_count": 768,
-        "feature_cache_path": "frozen.npz"} for s in range(6) for i in range(4)}
-    binding = P.evaluation_binding_payload(cfg, checkpoint, state_hash, source_hashes,
-                                           {"train": "e" * 64, "validation": "f" * 64}, registry)
+    cfg, path, binding = _task7_bound_evaluation_fixture(tmp_path)
     assert {"evaluation_implementation_sha256", "bootstrap_seeds", "gate_payload", "source_hashes",
             "trace_hashes", "registry_fingerprint", "binding_fingerprint"}.issubset(binding)
-    path = cfg.out_dir / "evaluation_binding.json"; path.parent.mkdir(parents=True)
-    path.write_bytes(P.canonical_json_bytes(binding)); P.verify_evaluation_binding(cfg, path)
+    P.verify_evaluation_binding(cfg, path)
     changed = dict(binding); changed["checkpoint_sha256"] = "0" * 64
     changed["binding_fingerprint"] = P.hash_canonical({k: v for k, v in changed.items() if k != "binding_fingerprint"})
     path.write_bytes(P.canonical_json_bytes(changed))
@@ -1308,7 +1296,7 @@ def test_task7_evaluation_binding_and_drift_guard(tmp_path: Path) -> None:
 def test_task7_report_integrity_and_pipeline_semantics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = P.resolve_paths(tmp_path, tmp_path / "run"); results = cfg.out_dir / "results"; results.mkdir(parents=True)
     gate = {"overall_verdict": "c13p_no_persistent_ranking_signal", "g0": {"passes": True}, "g1": {"passes": False},
-            "g2": {"passes": True}, "claim_safe_interpretation": "The preregistered ranking gate failed."}
+            "g2": {"passes": True}, "claim_safe_interpretation": P.CLAIM_SAFE_INTERPRETATIONS["c13p_no_persistent_ranking_signal"]}
     for name, value in (("gate_verdict.json", gate), ("verification.json", {"passes": True}),
                         ("offline_summary.json", {}), ("online_summary.json", {}),
                         ("checkpoint_selection.json", {"epoch": 1})):
@@ -1319,6 +1307,11 @@ def test_task7_report_integrity_and_pipeline_semantics(tmp_path: Path, monkeypat
     (cfg.out_dir / "evaluation_binding.json").write_bytes(P.canonical_json_bytes({"checkpoint_sha256": "b" * 64}))
     report = P.render_report(cfg); assert gate["overall_verdict"] in report and "no self-bootstrap" in report.lower()
     (results / "C13P_RESULT.md").write_text(report, encoding="utf-8")
+    gate["claim_safe_interpretation"] = "author override"
+    (results / "gate_verdict.json").write_bytes(P.canonical_json_bytes(gate))
+    with pytest.raises(ValueError, match="claim-safe|verdict"): P.render_report(cfg)
+    gate["claim_safe_interpretation"] = P.CLAIM_SAFE_INTERPRETATIONS["c13p_no_persistent_ranking_signal"]
+    (results / "gate_verdict.json").write_bytes(P.canonical_json_bytes(gate))
     paths = {entry["path"] for entry in P.build_integrity_manifest(cfg)["artifacts"].values()}
     assert {"manifest.json", "source_audit.json", "results/gate_verdict.json", "results/C13P_RESULT.md"}.issubset(paths)
     calls = []
@@ -1528,3 +1521,129 @@ def test_task7_review_train_stage_real_finalization_with_only_expensive_kernels_
     source = inspect.getsource(P.verify_pipeline)
     assert "run_audit_stage" not in source and "run_trace_stage" not in source and "train_stationary_model" not in source
     assert "_verify_development_evidence" in source and "verify_integrity" in source
+
+
+def _task7_bound_evaluation_fixture(tmp_path: Path) -> tuple[P.PersistentSearchConfig, Path, dict[str, object]]:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); root = cfg.out_dir; root.mkdir(parents=True)
+    prereg = tmp_path / "design.md"; prereg.write_text("frozen design", encoding="utf-8")
+    source_impl = tmp_path / "source.py"; source_impl.write_text("# frozen source", encoding="utf-8")
+    source_checkpoint = tmp_path / "source.pt"; source_checkpoint.write_bytes(b"frozen source checkpoint")
+    source_hashes = {"implementation": _sha256(source_impl), "preregistration": _sha256(prereg), "checkpoint": _sha256(source_checkpoint)}
+    audit = {"schema_version": "c13p-source-audit-v1", "source_hashes": source_hashes,
+             "preregistration_path": str(prereg), "implementation_path": str(source_impl), "checkpoint_path": str(source_checkpoint)}
+    (root / "source_audit.json").write_bytes(P.canonical_json_bytes(audit))
+    (root / "manifest.json").write_bytes(P.canonical_json_bytes({"schema_version": P.SCHEMA_VERSION}))
+    trace_hashes = {}
+    for split in ("train", "validation"):
+        promoted = root / "traces" / split / "traces.json"; promoted.parent.mkdir(parents=True); promoted.write_bytes(f"{split}\n".encode())
+        trace_hashes[split] = _sha256(promoted)
+        duplicates = root / "traces" / "duplicates" / split; duplicates.mkdir(parents=True)
+        (duplicates / "first.json").write_bytes(promoted.read_bytes()); (duplicates / "second.json").write_bytes(promoted.read_bytes())
+    (root / "traces" / "trace_manifest.json").write_bytes(P.canonical_json_bytes({
+        "schema_version": P.TRACE_MANIFEST_SCHEMA_VERSION,
+        "splits": {"train": {"events": 1}, "validation": {"events": 1}}}))
+    model = P.PersistentSearchHRM(); selected = root / "checkpoints" / "selected.pt"; selected.parent.mkdir()
+    torch.save({"model": model.state_dict()}, selected)
+    registry = _expected_development_registry()
+    binding = P.evaluation_binding_payload(cfg, selected, P._model_state_sha256(model), source_hashes, trace_hashes, registry)
+    path = root / "evaluation_binding.json"; path.write_bytes(P.canonical_json_bytes(binding))
+    return cfg, path, binding
+
+
+def test_task7_rereview_evaluation_binding_rejects_every_drift_category(tmp_path: Path) -> None:
+    cfg, path, original = _task7_bound_evaluation_fixture(tmp_path)
+    assert set(original["bound_files"]) == set(P.EVALUATION_BOUND_FILE_LABELS)
+    assert P.verify_evaluation_binding(cfg)["binding_fingerprint"] == original["binding_fingerprint"]
+    for field, value in (("implementation_sha256", "0" * 64), ("config_fingerprint", "1" * 64), ("model_state_sha256", "2" * 64),
+                         ("gate_payload_sha256", "3" * 64), ("registry_fingerprint", "4" * 64)):
+        changed = copy.deepcopy(original); changed[field] = value
+        changed["binding_fingerprint"] = P.hash_canonical({k: v for k, v in changed.items() if k != "binding_fingerprint"})
+        path.write_bytes(P.canonical_json_bytes(changed))
+        with pytest.raises(ValueError, match="binding|model|registry|config|gate|drift"): P.verify_evaluation_binding(cfg)
+    missing = copy.deepcopy(original); missing["bound_files"].pop("trace_validation_second")
+    missing["binding_fingerprint"] = P.hash_canonical({k: v for k, v in missing.items() if k != "binding_fingerprint"})
+    path.write_bytes(P.canonical_json_bytes(missing))
+    with pytest.raises(ValueError, match="inventory|bound|incomplete"): P.verify_evaluation_binding(cfg)
+    path.write_bytes(P.canonical_json_bytes(original))
+    for label in ("preregistration", "trace_train"):
+        raw = original["bound_files"][label]; candidate = Path(raw["path"]) if Path(str(raw["path"])).is_absolute() else cfg.out_dir / str(raw["path"])
+        before = candidate.read_bytes(); candidate.write_bytes(before + b"drift")
+        with pytest.raises(ValueError, match="bound|trace|drift"): P.verify_evaluation_binding(cfg)
+        candidate.write_bytes(before)
+
+
+def test_task7_rereview_develop_chain_precedes_every_development_probe() -> None:
+    source = inspect.getsource(P.run_develop_stage)
+    assert source.index("verify_evaluation_binding") < source.index("_stage_inputs") < source.index("_fail_if_partial")
+    assert source.index("_stage_inputs") < source.index("traces/development") if "traces/development" in source else True
+
+
+@pytest.mark.parametrize("phase", ["write", "flush", "fsync", "close", "replace"])
+def test_task7_rereview_atomic_failure_cleans_owned_temp_and_preserves_siblings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str) -> None:
+    destination = tmp_path / "artifact.json"; destination.write_bytes(b"original")
+    sibling = tmp_path / "sibling.tmp"; sibling.write_bytes(b"sibling")
+    real_fdopen, real_replace, real_fsync = P.os.fdopen, P.os.replace, P.os.fsync
+    class FailingHandle:
+        def __init__(self, fd: int, mode: str): self.handle = real_fdopen(fd, mode)
+        def __enter__(self): return self
+        def write(self, data: bytes):
+            if phase == "write": raise OSError("write failure")
+            return self.handle.write(data)
+        def flush(self):
+            if phase == "flush": raise OSError("flush failure")
+            return self.handle.flush()
+        def fileno(self): return self.handle.fileno()
+        def __exit__(self, *_args):
+            self.handle.close()
+            if phase == "close": raise OSError("close failure")
+    monkeypatch.setattr(P.os, "fdopen", lambda fd, mode: FailingHandle(fd, mode))
+    if phase == "fsync": monkeypatch.setattr(P.os, "fsync", lambda _fd: (_ for _ in ()).throw(OSError("fsync failure")))
+    if phase == "replace": monkeypatch.setattr(P.os, "replace", lambda *_args: (_ for _ in ()).throw(OSError("replace failure")))
+    with pytest.raises(OSError, match="failure"): P.atomic_write_bytes(destination, b"new")
+    assert destination.read_bytes() == b"original" and sibling.read_bytes() == b"sibling"
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["artifact.json", "sibling.tmp"]
+    monkeypatch.setattr(P.os, "replace", real_replace); monkeypatch.setattr(P.os, "fsync", real_fsync)
+
+
+def test_task7_rereview_partial_stage_conflict_hard_fails_after_binding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); partial = cfg.out_dir / "traces" / "development" / "traces.json"
+    partial.parent.mkdir(parents=True); partial.write_bytes(b"partial")
+    monkeypatch.setattr(P, "verify_evaluation_binding", lambda _cfg: {})
+    monkeypatch.setattr(P, "_stage_inputs", lambda *_args: {"train": "a" * 64})
+    with pytest.raises(ValueError, match="partial|conflicting|new output directory"): P.run_develop_stage(cfg)
+
+
+def test_task7_rereview_report_interpretation_is_canonical_and_override_refused() -> None:
+    for verdict in P.CLAIM_SAFE_INTERPRETATIONS:
+        assert P.claim_safe_interpretation(verdict) == P.CLAIM_SAFE_INTERPRETATIONS[verdict]
+    with pytest.raises(ValueError, match="interpretation|verdict"): P.claim_safe_interpretation("author_override")
+
+
+def test_task7_rereview_completed_stage_sources_call_semantic_verifiers() -> None:
+    assert "_verify_audit_evidence" in inspect.getsource(P.run_audit_stage)
+    assert "_verify_trace_evidence" in inspect.getsource(P.run_trace_stage)
+    assert "_verify_smoke_evidence" in inspect.getsource(P.run_smoke_stage)
+
+
+def test_task7_rereview_integrity_rejects_missing_expected_and_training_state(tmp_path: Path) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); marker = cfg.out_dir / "bindings" / "train.json"; marker.parent.mkdir(parents=True)
+    marker.write_bytes(b"completed")
+    with pytest.raises(ValueError, match="missing|training-state|canonical"): P.build_integrity_manifest(cfg)
+
+
+def test_task7_rereview_verify_only_runtime_forbids_writes_and_training(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = replace(_task7_source(tmp_path), c13j_root=tmp_path / "source-j", c13m_root=tmp_path / "source-m")
+    source.c13j_root.mkdir(); source.c13m_root.mkdir(); cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    monkeypatch.setattr(P, "audit_sources", lambda _: source); P.run_audit_stage(cfg)
+    def forbidden(*_args: object, **_kwargs: object): raise AssertionError("verify-only attempted a write or training")
+    monkeypatch.setattr(P, "atomic_write_bytes", forbidden); monkeypatch.setattr(P, "_atomic_json", forbidden)
+    monkeypatch.setattr(P, "_atomic_frame", forbidden); monkeypatch.setattr(P, "train_stationary_model", forbidden)
+    monkeypatch.setattr(P.os, "replace", forbidden)
+    P.verify_pipeline(cfg)
+
+
+def test_task7_rereview_verifier_reconstructs_exact_payload_schemas_and_event_counts() -> None:
+    source = inspect.getsource(P._verify_development_evidence)
+    assert "GATE_VERDICT_KEYS" in source and "VERIFICATION_KEYS" in source
+    assert "claim_safe_interpretation" in source and "self_bootstrap_performed" in source and "confirmation_performed" in source
+    assert "trace_event_counts" in source and "evaluation_binding_fingerprint" in source

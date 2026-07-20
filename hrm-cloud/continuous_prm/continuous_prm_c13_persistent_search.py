@@ -1769,6 +1769,31 @@ G0_PRIMITIVES = (
     "cohort_uniqueness", "trace_duplicates", "leakage_boundary", "checkpoint_identity",
     "projection_duplicates", "timings", "paths", "binding_chain",
 )
+EVALUATION_BOUND_FILE_LABELS = frozenset({
+    "implementation", "source_audit", "manifest", "preregistration", "source_implementation",
+    "source_checkpoint", "selected_checkpoint", "trace_manifest", "trace_train", "trace_validation",
+    "trace_train_first", "trace_train_second", "trace_validation_first", "trace_validation_second",
+})
+CLAIM_SAFE_INTERPRETATIONS = {
+    "c13p_invalid_no_mechanism_verdict": "Execution integrity failed, so no mechanism claim is permitted.",
+    "c13p_no_persistent_ranking_signal": "Persistent state did not satisfy the preregistered offline ranking gate.",
+    "c13p_offline_signal_failed_free_running_search": "Offline memory signal did not translate into preregistered free-running search value.",
+    "c13p_persistent_search_pilot_passed": "Persistent state satisfied this development pilot; only a separate untouched confirmation may support a broader claim.",
+}
+GATE_VERDICT_KEYS = frozenset({"schema_version", "g0", "g1", "g2", "overall_verdict", "claim_safe_interpretation", "self_bootstrap_performed", "confirmation_performed"})
+VERIFICATION_KEYS = frozenset({
+    "schema_version", "passes", "development_trace_first_sha256", "development_trace_second_sha256",
+    "ranking_projection_first_sha256", "ranking_projection_second_sha256", "search_projection_first_sha256",
+    "search_projection_second_sha256", "offline_projection_sha256", "online_projection_sha256",
+    "duplicate_projections_equal", "timings_finite_nonnegative", "development_worlds", "online_rows",
+    "registry_fingerprint", "evaluation_binding_fingerprint", "trace_event_counts",
+})
+
+
+def claim_safe_interpretation(verdict: str) -> str:
+    if verdict not in CLAIM_SAFE_INTERPRETATIONS: raise ValueError("unknown verdict cannot select a claim-safe interpretation")
+    return CLAIM_SAFE_INTERPRETATIONS[verdict]
+
 TRACE_MANIFEST_SCHEMA_VERSION = "c13p-trace-manifest-v1"
 SMOKE_SCHEMA_VERSION = "c13p-smoke-v1"
 EVALUATION_BINDING_SCHEMA_VERSION = "c13p-evaluation-binding-v2"
@@ -1924,6 +1949,18 @@ def _validate_stage_marker(cfg: PersistentSearchConfig, stage: str) -> Mapping[s
     require_stage_binding(marker_path, expected)
     if stage == "audit":
         _verify_audit_evidence(cfg)
+    elif stage == "trace":
+        _verify_trace_evidence(cfg)
+    elif stage == "smoke":
+        _verify_smoke_evidence(cfg)
+    elif stage == "train":
+        _verify_train_evidence(cfg)
+    elif stage == "develop":
+        _verify_development_evidence(cfg)
+    elif stage == "report":
+        _verify_development_evidence(cfg); verify_integrity(cfg)
+        if (Path(cfg.out_dir) / "results" / "C13P_RESULT.md").read_text(encoding="utf-8") != render_report(cfg):
+            raise ValueError("generated report drifted; new output directory required")
     return observed
 
 
@@ -2020,7 +2057,10 @@ def run_audit_stage(cfg: PersistentSearchConfig) -> None:
                 "source_fingerprint": hash_canonical(audit["source_hashes"]), "source_audit_fingerprint": hash_canonical(audit)}
     binding = stage_binding(cfg, "audit", {"sources": hash_canonical(audit["source_hashes"])})
     marker = _marker_path(cfg, "audit")
-    if marker.is_file(): require_stage_binding(marker, binding); return
+    if marker.is_file():
+        require_stage_binding(marker, binding)
+        _verify_audit_evidence(cfg)
+        return
     manifest_path, audit_path = Path(cfg.out_dir) / "manifest.json", Path(cfg.out_dir) / "source_audit.json"
     _atomic_json(manifest_path, manifest); _atomic_json(audit_path, audit)
     _write_stage_marker(cfg, "audit", binding, ((manifest_path, SCHEMA_VERSION), (audit_path, "c13p-source-audit-v1")))
@@ -2092,7 +2132,10 @@ def _generate_trace_pass(cfg: PersistentSearchConfig, split: str, records: objec
 def run_trace_stage(cfg: PersistentSearchConfig) -> None:
     _fail_if_partial(cfg, "trace"); audit = _read_source_audit(cfg); binding = stage_binding(cfg, "trace", _stage_inputs(cfg, "trace"))
     marker = _marker_path(cfg, "trace")
-    if marker.is_file(): require_stage_binding(marker, binding); return
+    if marker.is_file():
+        require_stage_binding(marker, binding)
+        _verify_trace_evidence(cfg)
+        return
     raw_records = audit.get("trace_records")
     if not isinstance(raw_records, Mapping): raise ValueError("source audit trace records are missing")
     root = Path(cfg.out_dir); owned = []
@@ -2129,9 +2172,44 @@ def _trace_split(cfg: PersistentSearchConfig, split: str) -> tuple[Sequence[Teac
     return read_trace_shard(Path(cfg.out_dir) / "traces" / split / "traces.json", fingerprint), fingerprint
 
 
+
+def _verify_trace_evidence(cfg: PersistentSearchConfig) -> Mapping[str, int]:
+    manifest = _validate_duplicate_trace_manifest(cfg); audit = _read_source_audit(cfg)
+    raw_records, splits = audit.get("trace_records"), manifest.get("splits")
+    if not isinstance(raw_records, Mapping) or not isinstance(splits, Mapping): raise ValueError("trace evidence is incomplete")
+    event_counts: dict[str, int] = {}
+    for split, expected_count in (("train", TRAIN_WORLDS), ("validation", VALIDATION_WORLDS)):
+        traces, _ = _trace_split(cfg, split); records = raw_records.get(split); split_manifest = splits.get(split)
+        if not isinstance(records, Sequence) or not isinstance(split_manifest, Mapping) or len(traces) != expected_count or len(records) != expected_count:
+            raise ValueError(f"{split} trace count drifted")
+        expected_ids = [str(record.get("world_id")) for record in records if isinstance(record, Mapping)]
+        actual_ids = [_trace_world_id(trace) for trace in traces]
+        if actual_ids != expected_ids or len(set(actual_ids)) != expected_count: raise ValueError(f"{split} trace identities drifted")
+        events = sum(len(trace.events) for trace in traces); event_counts[split] = events
+        if split_manifest.get("worlds") != expected_count or split_manifest.get("events") != events: raise ValueError(f"{split} trace event counts drifted")
+        if split_manifest.get("sha256") != sha256_file(Path(cfg.out_dir) / "traces" / split / "traces.json"): raise ValueError(f"{split} trace manifest hash drifted")
+        if split_manifest.get("record_fingerprint") != hash_canonical(list(records)): raise ValueError(f"{split} trace record fingerprint drifted")
+    return event_counts
+
+
+def _verify_smoke_evidence(cfg: PersistentSearchConfig) -> Mapping[str, object]:
+    smoke = _read_json(Path(cfg.out_dir) / "results" / "smoke.json", "smoke evidence")
+    expected_keys = {"schema_version", "passes", "hand_events", "training_world_id", "loss", "configuration_changed"}
+    if set(smoke) != expected_keys or smoke.get("schema_version") != SMOKE_SCHEMA_VERSION or smoke.get("passes") is not True or smoke.get("configuration_changed") is not False:
+        raise ValueError("smoke evidence schema or verdict drifted")
+    traces, _ = _trace_split(cfg, "train")
+    if not traces or smoke.get("training_world_id") != _trace_world_id(traces[0]) or not isinstance(smoke.get("hand_events"), int) or smoke["hand_events"] <= 0:
+        raise ValueError("smoke evidence fixture drifted")
+    if not isinstance(smoke.get("loss"), (int, float)) or not math.isfinite(float(smoke["loss"])): raise ValueError("smoke loss drifted")
+    return smoke
+
+
 def run_smoke_stage(cfg: PersistentSearchConfig) -> None:
     _fail_if_partial(cfg, "smoke"); binding = stage_binding(cfg, "smoke", _stage_inputs(cfg, "smoke")); marker = _marker_path(cfg, "smoke")
-    if marker.is_file(): require_stage_binding(marker, binding); return
+    if marker.is_file():
+        require_stage_binding(marker, binding)
+        _verify_smoke_evidence(cfg)
+        return
     traces, _ = _trace_split(cfg, "train"); audit = _read_source_audit(cfg); records = audit.get("trace_records")
     if not isinstance(records, Mapping) or not isinstance(records.get("train"), Sequence) or not traces: raise ValueError("smoke training fixture is missing")
     graph = [[(1, 1.0), (2, 2.0)], [(3, 1.0)], [(3, 1.0)], []]
@@ -2220,27 +2298,39 @@ def evaluation_binding_payload(cfg: PersistentSearchConfig, checkpoint_path: Pat
         "gate_payload_sha256": hash_canonical(_GATE_PAYLOAD), "development_registry": registry,
         "registry_fingerprint": hash_canonical(registry),
     }
-    bound_candidates: dict[str, tuple[Path, str]] = {"implementation": (Path(__file__).resolve(), "python-source-v1")}
+    bound_candidates: dict[str, tuple[Path, str]] = {
+        "implementation": (Path(__file__).resolve(), "python-source-v1"),
+        "selected_checkpoint": (checkpoint, "c13p-training-checkpoint-v1"),
+    }
     audit_path = Path(cfg.out_dir) / "source_audit.json"
-    if audit_path.is_file():
-        audit = _read_json(audit_path, "source audit")
-        bound_candidates.update({"source_audit": (audit_path, "c13p-source-audit-v1"), "manifest": (Path(cfg.out_dir) / "manifest.json", SCHEMA_VERSION)})
-        for label, field in (("preregistration", "preregistration_path"), ("source_implementation", "implementation_path"), ("source_checkpoint", "checkpoint_path")):
-            raw = audit.get(field)
-            if isinstance(raw, str): bound_candidates[label] = (Path(raw), _schema_for(Path(raw)))
-        for split in ("train", "validation"):
-            bound_candidates[f"trace_{split}"] = (Path(cfg.out_dir) / "traces" / split / "traces.json", SCHEMA_VERSION)
-            for pass_name in ("first", "second"):
-                bound_candidates[f"trace_{split}_{pass_name}"] = (Path(cfg.out_dir) / "traces" / "duplicates" / split / f"{pass_name}.json", SCHEMA_VERSION)
-        bound_candidates["trace_manifest"] = (Path(cfg.out_dir) / "traces" / "trace_manifest.json", TRACE_MANIFEST_SCHEMA_VERSION)
+    if not audit_path.is_file(): raise ValueError("evaluation binding source audit is missing")
+    audit = _read_json(audit_path, "source audit")
+    bound_candidates.update({"source_audit": (audit_path, "c13p-source-audit-v1"), "manifest": (Path(cfg.out_dir) / "manifest.json", SCHEMA_VERSION)})
+    for label, field in (("preregistration", "preregistration_path"), ("source_implementation", "implementation_path"), ("source_checkpoint", "checkpoint_path")):
+        raw = audit.get(field)
+        if not isinstance(raw, str): raise ValueError(f"evaluation binding source path is missing: {field}")
+        bound_candidates[label] = (Path(raw), _schema_for(Path(raw)))
+    for split in ("train", "validation"):
+        bound_candidates[f"trace_{split}"] = (Path(cfg.out_dir) / "traces" / split / "traces.json", SCHEMA_VERSION)
+        for pass_name in ("first", "second"):
+            bound_candidates[f"trace_{split}_{pass_name}"] = (Path(cfg.out_dir) / "traces" / "duplicates" / split / f"{pass_name}.json", SCHEMA_VERSION)
+    trace_manifest_path = Path(cfg.out_dir) / "traces" / "trace_manifest.json"
+    bound_candidates["trace_manifest"] = (trace_manifest_path, TRACE_MANIFEST_SCHEMA_VERSION)
+    if set(bound_candidates) != EVALUATION_BOUND_FILE_LABELS: raise ValueError("evaluation binding bound-file inventory is incomplete")
+    missing = sorted(label for label, (candidate, _) in bound_candidates.items() if not candidate.is_file())
+    if missing: raise ValueError(f"evaluation binding bound files are missing: {missing}")
     payload["bound_files"] = {label: _artifact_entry(candidate, Path(cfg.out_dir), schema)
-                              for label, (candidate, schema) in sorted(bound_candidates.items()) if candidate.is_file()}
-
+                              for label, (candidate, schema) in sorted(bound_candidates.items())}
+    trace_manifest = _read_json(trace_manifest_path, "trace manifest"); splits = trace_manifest.get("splits")
+    if not isinstance(splits, Mapping): raise ValueError("evaluation binding trace event counts are missing")
+    payload["trace_event_counts"] = {split: _integer(splits[split].get("events"), f"{split} events") for split in ("train", "validation")}
     payload["binding_fingerprint"] = hash_canonical(payload); return payload
 
 def verify_evaluation_binding(cfg: PersistentSearchConfig, path: Path | None = None) -> Mapping[str, object]:
     binding_path = Path(path) if path is not None else Path(cfg.out_dir) / "evaluation_binding.json"
     binding = _read_json(binding_path, "evaluation binding"); fingerprint = binding.get("binding_fingerprint")
+    expected_keys = frozenset({"schema_version", "experiment_schema_version", "checkpoint_path", "checkpoint_sha256", "model_state_sha256", "evaluation_implementation_sha256", "implementation_sha256", "config_fingerprint", "source_hashes", "trace_hashes", "trace_event_counts", "bootstrap_seeds", "gate_payload", "gate_payload_sha256", "development_registry", "registry_fingerprint", "bound_files", "binding_fingerprint"})
+    if set(binding) != expected_keys: raise ValueError("evaluation binding schema keys drifted; new output directory required")
     unsigned = {key: value for key, value in binding.items() if key != "binding_fingerprint"}
     if fingerprint != hash_canonical(unsigned): raise ValueError("evaluation binding fingerprint drifted; new output directory required")
     expected = {"schema_version": EVALUATION_BINDING_SCHEMA_VERSION, "experiment_schema_version": cfg.schema_version,
@@ -2261,9 +2351,8 @@ def verify_evaluation_binding(cfg: PersistentSearchConfig, path: Path | None = N
     audit_path = Path(cfg.out_dir) / "source_audit.json"
     if audit_path.is_file() and source_hashes != _read_json(audit_path, "source audit").get("source_hashes"):
         raise ValueError("evaluation binding source audit drifted; new output directory required")
-    return binding
     bound_files = binding.get("bound_files")
-    if not isinstance(bound_files, Mapping) or "implementation" not in bound_files:
+    if not isinstance(bound_files, Mapping) or set(bound_files) != EVALUATION_BOUND_FILE_LABELS:
         raise ValueError("evaluation binding bound source inventory is incomplete; new output directory required")
     root = Path(cfg.out_dir).resolve()
     for label, raw in bound_files.items():
@@ -2274,10 +2363,15 @@ def verify_evaluation_binding(cfg: PersistentSearchConfig, path: Path | None = N
         if not candidate.is_file() or raw.get("sha256") != sha256_file(candidate) or raw.get("size") != candidate.stat().st_size:
             raise ValueError(f"evaluation binding bound source drifted: {label}; new output directory required")
     trace_hashes = binding.get("trace_hashes")
-    if (root / "traces" / "train" / "traces.json").is_file() and (not isinstance(trace_hashes, Mapping) or any(trace_hashes.get(split) != sha256_file(root / "traces" / split / "traces.json") for split in ("train", "validation"))):
+    if not isinstance(trace_hashes, Mapping) or set(trace_hashes) != {"train", "validation"} or any(trace_hashes.get(split) != sha256_file(root / "traces" / split / "traces.json") for split in ("train", "validation")):
         raise ValueError("evaluation binding promoted trace hashes drifted; new output directory required")
-    if isinstance(binding.get("model_state_sha256"), str) and checkpoint.suffix == ".pt":
-        _load_selected_model(binding)
+    trace_manifest = _read_json(root / "traces" / "trace_manifest.json", "trace manifest"); splits = trace_manifest.get("splits")
+    if not isinstance(splits, Mapping): raise ValueError("evaluation binding trace manifest drifted")
+    expected_events = {split: _integer(splits[split].get("events"), f"{split} events") for split in ("train", "validation")}
+    if binding.get("trace_event_counts") != expected_events: raise ValueError("evaluation binding trace event counts drifted")
+    if bound_files["selected_checkpoint"].get("sha256") != binding.get("checkpoint_sha256"): raise ValueError("evaluation binding selected checkpoint inventory drifted")
+    _load_selected_model(binding)
+    return binding
 
 
 def _load_selected_model(binding: Mapping[str, object]) -> PersistentSearchHRM:
@@ -2306,9 +2400,58 @@ def _atomic_frame(path: Path, frame: pd.DataFrame) -> str:
     atomic_write_bytes(path, frame.to_csv(index=False, lineterminator="\n").encode("utf-8")); return sha256_file(path)
 
 
+def _verify_train_evidence(cfg: PersistentSearchConfig) -> Mapping[str, object]:
+    _verify_training_trace_evidence(cfg)
+    evaluation = verify_evaluation_binding(cfg)
+    root = Path(cfg.out_dir)
+    selection = _read_json(root / "results" / "checkpoint_selection.json", "checkpoint selection")
+    selection_keys = {"schema_version", "epoch", "validation_loss", "selection_rule", "checkpoint_path",
+                      "checkpoint_sha256", "model_state_sha256", "training_binding_fingerprint", "history_sha256"}
+    if set(selection) != selection_keys or selection.get("schema_version") != "c13p-checkpoint-selection-v1":
+        raise ValueError("checkpoint selection schema drifted; new output directory required")
+    if selection.get("selection_rule") != "validation_loss_minimum_earliest_epoch":
+        raise ValueError("checkpoint selection rule drifted; new output directory required")
+    history_path = root / "results" / "training_history.csv"
+    if selection.get("history_sha256") != sha256_file(history_path):
+        raise ValueError("checkpoint selection history hash drifted; new output directory required")
+    if (selection.get("checkpoint_path"), selection.get("checkpoint_sha256"), selection.get("model_state_sha256")) != (
+            evaluation.get("checkpoint_path"), evaluation.get("checkpoint_sha256"), evaluation.get("model_state_sha256")):
+        raise ValueError("checkpoint selection disagrees with evaluation binding; new output directory required")
+    history = pd.read_csv(history_path); chosen = select_checkpoint(history)
+    if chosen.selected_epoch != selection.get("epoch") or not math.isclose(chosen.selected_validation_loss,
+            float(selection.get("validation_loss")), rel_tol=0.0, abs_tol=1.e-12):
+        raise ValueError("checkpoint selection cannot be reconstructed from canonical history")
+    if chosen.checkpoint_sha256 != selection.get("checkpoint_sha256"):
+        raise ValueError("selected training checkpoint hash drifted")
+    state_root = root / ".training-state"
+    state_history, latest = state_root / "results" / "training_history.csv", state_root / "checkpoints" / "latest.pt"
+    if not state_history.is_file() or not latest.is_file():
+        raise ValueError("canonical training-state history or latest checkpoint is missing")
+    state_frame = pd.read_csv(state_history).sort_values("epoch", kind="stable").reset_index(drop=True)
+    if not state_frame.equals(history.sort_values("epoch", kind="stable").reset_index(drop=True)):
+        raise ValueError("canonical history drifted from durable training-state")
+    latest_payload = torch.load(latest, map_location="cpu", weights_only=False)
+    required_latest = {"model", "optimizer", "completed_epoch", "binding", "binding_fingerprint", "rng"}
+    if not isinstance(latest_payload, Mapping) or not required_latest.issubset(latest_payload) or latest_payload.get("completed_epoch") != int(history["epoch"].max()):
+        raise ValueError("latest training-state checkpoint resume payload is incomplete")
+    if latest_payload.get("binding_fingerprint") != selection.get("training_binding_fingerprint"): raise ValueError("latest checkpoint training binding drifted")
+    row = history.loc[history["epoch"] == chosen.selected_epoch]
+    if len(row) != 1: raise ValueError("selected epoch is not unique in training history")
+    epoch_checkpoint = Path(str(row.iloc[0]["checkpoint_path"])).resolve()
+    if not epoch_checkpoint.is_relative_to(state_root.resolve()) or not epoch_checkpoint.is_file() or sha256_file(epoch_checkpoint) != chosen.checkpoint_sha256:
+        raise ValueError("selected epoch checkpoint is missing or drifted from training-state")
+    payload = torch.load(epoch_checkpoint, map_location="cpu", weights_only=False)
+    required_checkpoint = {"model", "optimizer", "completed_epoch", "binding", "binding_fingerprint", "rng"}
+    if not isinstance(payload, Mapping) or not required_checkpoint.issubset(payload) or payload.get("completed_epoch") != chosen.selected_epoch:
+        raise ValueError("selected training checkpoint resume payload is incomplete")
+    if payload.get("binding_fingerprint") != selection.get("training_binding_fingerprint"):
+        raise ValueError("selected checkpoint training binding drifted")
+    return {"evaluation": evaluation, "selection": selection, "history_rows": len(history)}
+
+
 def run_train_stage(cfg: PersistentSearchConfig) -> None:
     _fail_if_partial(cfg, "train"); binding = stage_binding(cfg, "train", _stage_inputs(cfg, "train")); marker = _marker_path(cfg, "train")
-    if marker.is_file(): require_stage_binding(marker, binding); verify_evaluation_binding(cfg); return
+    if marker.is_file(): require_stage_binding(marker, binding); _verify_train_evidence(cfg); return
     train_traces, validation_traces, audit, trace_manifest = _verify_training_trace_evidence(cfg)
     if not torch.cuda.is_available(): raise RuntimeError("official C13-P training requires CUDA before model or optimizer allocation")
     records = audit.get("trace_records")
@@ -2393,6 +2536,50 @@ def _g0_payload(primitives: Mapping[str, Mapping[str, object]]) -> dict[str, obj
             "passes": all(value["passes"] is True for value in normalized.values())}
 
 
+def _read_development_traces(cfg: PersistentSearchConfig) -> Sequence[TeacherTrace]:
+    path = Path(cfg.out_dir) / "traces" / "development" / "traces.json"
+    payload = _read_json(path, "development trace shard")
+    fingerprint = payload.get("generation_fingerprint")
+    if not isinstance(fingerprint, str): raise ValueError("development generation fingerprint is missing")
+    return read_trace_shard(path, fingerprint)
+
+
+def _gate_verdict_payload(g0: Mapping[str, object], g1: Mapping[str, object], g2: Mapping[str, object]) -> dict[str, object]:
+    verdict = overall_verdict(g0, g1, g2)
+    payload = {"schema_version": "c13p-gate-verdict-v1", "g0": _json_safe(g0), "g1": _json_safe(g1), "g2": _json_safe(g2),
+               "overall_verdict": verdict, "claim_safe_interpretation": claim_safe_interpretation(verdict),
+               "self_bootstrap_performed": False, "confirmation_performed": False}
+    if set(payload) != GATE_VERDICT_KEYS: raise ValueError("gate verdict construction is incomplete")
+    return payload
+
+
+def _development_verification_payload(cfg: PersistentSearchConfig, evaluation: Mapping[str, object],
+                                      g0: Mapping[str, object], registry: Mapping[str, Mapping[str, object]],
+                                      development_worlds: int, development_events: int, online_rows: int) -> dict[str, object]:
+    root = Path(cfg.out_dir); duplicate_root = root / "traces" / "duplicates" / "development"
+    projection_root = root / "results" / "verification"; trace_counts = evaluation.get("trace_event_counts")
+    if not isinstance(trace_counts, Mapping) or set(trace_counts) != {"train", "validation"}:
+        raise ValueError("evaluation trace event counts are incomplete")
+    payload = {"schema_version": "c13p-verification-v1", "passes": bool(g0["passes"]),
+        "development_trace_first_sha256": sha256_file(duplicate_root / "first.json"),
+        "development_trace_second_sha256": sha256_file(duplicate_root / "second.json"),
+        "ranking_projection_first_sha256": sha256_file(projection_root / "ranking_projection_first.csv"),
+        "ranking_projection_second_sha256": sha256_file(projection_root / "ranking_projection_second.csv"),
+        "search_projection_first_sha256": sha256_file(projection_root / "search_projection_first.csv"),
+        "search_projection_second_sha256": sha256_file(projection_root / "search_projection_second.csv"),
+        "offline_projection_sha256": sha256_file(projection_root / "ranking_projection_first.csv"),
+        "online_projection_sha256": sha256_file(projection_root / "search_projection_first.csv"),
+        "duplicate_projections_equal": g0["primitives"]["projection_duplicates"]["passes"],
+        "timings_finite_nonnegative": g0["primitives"]["timings"]["passes"],
+        "development_worlds": development_worlds, "online_rows": online_rows,
+        "registry_fingerprint": hash_canonical(registry),
+        "evaluation_binding_fingerprint": evaluation["binding_fingerprint"],
+        "trace_event_counts": {"train": int(trace_counts["train"]), "validation": int(trace_counts["validation"]),
+                               "development": int(development_events)}}
+    if set(payload) != VERIFICATION_KEYS: raise ValueError("verification construction is incomplete")
+    return payload
+
+
 def _compute_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], registry: Mapping[str, Mapping[str, object]],
                 ranking: pd.DataFrame, search: pd.DataFrame) -> dict[str, object]:
     root = Path(cfg.out_dir); audit = _verify_audit_evidence(cfg); source = audit_sources(cfg)
@@ -2409,36 +2596,69 @@ def _compute_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], r
     search_duplicate = _duplicate_file_evidence(search_first, search_second)
     trace_duplicates = {split: _duplicate_file_evidence(root / "traces" / "duplicates" / split / "first.json",
                                                          root / "traces" / "duplicates" / split / "second.json") for split in ("train", "validation", "development")}
-    checkpoint_columns = [column for column in ("checkpoint_sha256", "model_state_sha256") if column in ranking.columns or column in search.columns]
-    checkpoint_ok = all(set(frame[column].astype(str)) == {str(evaluation[column])} for frame in (ranking, search)
-                        for column in checkpoint_columns if column in frame)
+    checkpoint_columns = ["checkpoint_sha256", "model_state_sha256"]
+    checkpoint_ok = all(column in frame and set(frame[column].astype(str)) == {str(evaluation[column])}
+                        for frame in (ranking, search) for column in checkpoint_columns)
     timing_ok = True
     try: validate_timing_columns(search)
     except ValueError: timing_ok = False
-    try: _validate_stage_marker(cfg, "train"); binding_ok = True
-    except ValueError: binding_ok = False
+    chain: dict[str, str] = {}
+    try:
+        for stage in ("audit", "trace", "smoke", "train"):
+            _validate_stage_marker(cfg, stage); chain[stage] = _marker_hash(cfg, stage)
+        binding_ok = set(chain) == {"audit", "trace", "smoke", "train"}
+    except ValueError:
+        binding_ok = False
     trace_manifest = _validate_duplicate_trace_manifest(cfg)
+    bound_files = evaluation.get("bound_files")
+    def bound_entry_matches(entry: object) -> bool:
+        if not isinstance(entry, Mapping) or set(entry) != STAGE_OUTPUT_KEYS or not _is_sha256(entry.get("sha256")): return False
+        recorded = entry.get("path")
+        candidate = Path(str(recorded)).resolve() if isinstance(recorded, str) and Path(recorded).is_absolute() else (root / str(recorded)).resolve()
+        return (candidate.is_file() and entry.get("sha256") == sha256_file(candidate)
+                and entry.get("size") == candidate.stat().st_size)
+    source_integrity_ok = (isinstance(bound_files, Mapping)
+                           and set(bound_files) == EVALUATION_BOUND_FILE_LABELS
+                           and all(bound_entry_matches(entry) for entry in bound_files.values()))
+    development_traces = _read_development_traces(cfg); development_ids = [_trace_world_id(trace) for trace in development_traces]
+    privileged_fields_absent, causal_events_checked = True, 0
+    for trace in development_traces:
+        for event in trace.events:
+            causal = _event_causal(event); validate_model_causal_fields(causal); causal_events_checked += 1
+            if set(causal) != MODEL_CAUSAL_KEYS or any(token in key.casefold() for key in causal for token in FORBIDDEN_INPUT_TOKENS): privileged_fields_absent = False
+    promoted_development = root / "traces" / "development" / "traces.json"
+    promoted_equal = promoted_development.is_file() and all(
+        promoted_development.read_bytes() == (root / "traces" / "duplicates" / "development" / name).read_bytes()
+        for name in ("first.json", "second.json"))
+    leakage_ok = (trace_manifest.get("development_generated") is False and set(development_ids) == set(identities["development"])
+                  and set(development_ids).isdisjoint(identities["train"] + identities["validation"])
+                  and privileged_fields_absent and causal_events_checked > 0 and promoted_equal)
     primitives = {
         "source_binding": {"passes": audit.get("source_hashes") == evaluation.get("source_hashes"), "source_hashes": audit.get("source_hashes")},
-        "source_integrity": {"passes": bool(evaluation.get("bound_files")), "bound_files": evaluation.get("bound_files")},
+        "source_integrity": {"passes": source_integrity_ok, "expected_labels": sorted(EVALUATION_BOUND_FILE_LABELS), "bound_files": bound_files},
         "cohort_replay": {"passes": registry == _registry_from_records(records["development"]), "registry_fingerprint": hash_canonical(registry)},
         "cache_hashes": {"passes": cache_ok, "checked": len(cache_rows)},
         "cohort_counts": {"passes": counts == {"train": 96, "validation": 24, "development": 24}, "counts": counts},
         "cohort_uniqueness": {"passes": all(len(values) == len(set(values)) for values in identities.values()), "world_ids": identities},
         "trace_duplicates": {"passes": all(value["passes"] for value in trace_duplicates.values()), "splits": trace_duplicates},
-        "leakage_boundary": {"passes": trace_manifest.get("development_generated") is False and all(not value.startswith("development/") for split in ("train", "validation") for value in identities[split]), "training_world_ids": identities["train"] + identities["validation"]},
+        "leakage_boundary": {"passes": leakage_ok, "training_world_ids": identities["train"] + identities["validation"],
+                             "development_world_ids": development_ids, "causal_events_checked": causal_events_checked,
+                             "allowed_model_fields": sorted(MODEL_CAUSAL_KEYS), "forbidden_tokens": list(FORBIDDEN_INPUT_TOKENS), "privileged_fields_absent": privileged_fields_absent, "promoted_duplicate_equal": promoted_equal},
         "checkpoint_identity": {"passes": checkpoint_ok and bool(checkpoint_columns), "columns": checkpoint_columns, "checkpoint_sha256": evaluation.get("checkpoint_sha256"), "model_state_sha256": evaluation.get("model_state_sha256")},
         "projection_duplicates": {"passes": ranking_duplicate["passes"] and search_duplicate["passes"], "ranking": ranking_duplicate, "search": search_duplicate},
         "timings": {"passes": timing_ok, "rows": len(search)},
         "paths": {"passes": "valid" in search and bool(search["valid"].map(lambda value: type(value) is bool).all()) and bool(search["valid"].all()), "valid_rows": int(search["valid"].sum()) if "valid" in search else 0},
-        "binding_chain": {"passes": binding_ok, "train_marker_fingerprint": _marker_hash(cfg, "train") if binding_ok else None},
+        "binding_chain": {"passes": binding_ok, "stage_marker_fingerprints": chain, "required_stages": ["audit", "trace", "smoke", "train"]},
     }
     return _g0_payload(primitives)
 
 
 def run_develop_stage(cfg: PersistentSearchConfig) -> None:
     evaluation = verify_evaluation_binding(cfg)  # the embargo ends only after all bound evidence is rehashed
-    _fail_if_partial(cfg, "develop"); binding = stage_binding(cfg, "develop", _stage_inputs(cfg, "develop")); marker = _marker_path(cfg, "develop")
+    inputs = _stage_inputs(cfg, "develop")  # revalidates the complete audit -> trace -> smoke -> train chain
+    binding = stage_binding(cfg, "develop", inputs)
+    _fail_if_partial(cfg, "develop")
+    marker = _marker_path(cfg, "develop")
     if marker.is_file():
         require_stage_binding(marker, binding)
         _verify_development_evidence(cfg)
@@ -2490,22 +2710,9 @@ def run_develop_stage(cfg: PersistentSearchConfig) -> None:
     g1 = g1_verdict(offline_summary_first, BOOTSTRAP_SEEDS["g1_mrr"], cfg.bootstrap_resamples, expected_development=registry)
     g2 = g2_verdict(online_first, {"g2_exp_reset": BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": BOOTSTRAP_SEEDS["g2_exp_c13m"]},
                     cfg.bootstrap_resamples, expected_development=registry)
-    verdict = overall_verdict(g0, g1, g2)
-    interpretations = {"c13p_invalid_no_mechanism_verdict": "Execution integrity failed, so no mechanism claim is permitted.",
-        "c13p_no_persistent_ranking_signal": "Persistent state did not satisfy the preregistered offline ranking gate.",
-        "c13p_offline_signal_failed_free_running_search": "Offline memory signal did not translate into preregistered free-running search value.",
-        "c13p_persistent_search_pilot_passed": "Persistent state satisfied this development pilot; only a separate untouched confirmation may support a broader claim."}
-    gate = {"schema_version": "c13p-gate-verdict-v1", "g0": _json_safe(g0), "g1": _json_safe(g1), "g2": _json_safe(g2),
-            "overall_verdict": verdict, "claim_safe_interpretation": interpretations[verdict],
-            "self_bootstrap_performed": False, "confirmation_performed": False}
-    verification = {"schema_version": "c13p-verification-v1", "passes": bool(g0["passes"]),
-        "development_trace_first_sha256": sha256_file(duplicate_root / "first.json"), "development_trace_second_sha256": sha256_file(duplicate_root / "second.json"),
-        "ranking_projection_first_sha256": sha256_file(ranking_projection_first), "ranking_projection_second_sha256": sha256_file(ranking_projection_second),
-        "search_projection_first_sha256": sha256_file(search_projection_first), "search_projection_second_sha256": sha256_file(search_projection_second),
-        "offline_projection_sha256": sha256_file(ranking_projection_first), "online_projection_sha256": sha256_file(search_projection_first),
-        "duplicate_projections_equal": g0["primitives"]["projection_duplicates"]["passes"], "timings_finite_nonnegative": g0["primitives"]["timings"]["passes"], "development_worlds": len(traces),
-        "online_rows": len(online_first), "registry_fingerprint": hash_canonical(registry),
-        "evaluation_binding_fingerprint": evaluation["binding_fingerprint"]}
+    gate = _gate_verdict_payload(g0, g1, g2)
+    verification = _development_verification_payload(cfg, evaluation, g0, registry, len(traces),
+                                                       sum(len(trace.events) for trace in traces), len(online_first))
     gate_path, verification_path = root / "results" / "gate_verdict.json", root / "results" / "verification.json"
     _atomic_json(gate_path, gate); _atomic_json(verification_path, verification)
     _write_stage_marker(cfg, "develop", binding, ((development_path, SCHEMA_VERSION), (ranking_path, "c13p-ranking-raw-v1"),
@@ -2525,13 +2732,16 @@ def render_report(cfg: PersistentSearchConfig) -> str:
     manifest = _read_json(root / "manifest.json", "manifest"); audit = _read_json(root / "source_audit.json", "source audit")
     evaluation = _read_json(root / "evaluation_binding.json", "evaluation binding")
     verdict, interpretation = gate.get("overall_verdict"), gate.get("claim_safe_interpretation")
-    if not isinstance(verdict, str) or not isinstance(interpretation, str): raise ValueError("gate verdict cannot drive the generated report")
+    if not isinstance(verdict, str) or not isinstance(interpretation, str) or interpretation != claim_safe_interpretation(verdict):
+        raise ValueError("gate verdict or claim-safe interpretation cannot drive the generated report")
+    if gate.get("self_bootstrap_performed", False) is not False or gate.get("confirmation_performed", False) is not False: raise ValueError("report cannot claim bootstrap or confirmation")
     history = (root / "results" / "training_history.csv").read_text(encoding="utf-8").strip()
     return ("# C13-P Persistent Search-State HRM Result\n\nThis report is generated from verified raw artifacts and the frozen gate verdict.\n\n"
         f"## Final verdict\n\n{verdict}\n\n{interpretation}\n\nNo self-bootstrap was performed. No confirmation cohort was generated or evaluated.\n\n"
         f"## Frozen fingerprints and cohorts\n\nCohorts: {json.dumps(manifest.get('cohort_counts'), sort_keys=True)}\n\n"
         f"Source hashes: {json.dumps(audit.get('source_hashes'), sort_keys=True)}\n\nCheckpoint: {evaluation.get('checkpoint_sha256')}\n\n"
         f"Train/validation traces: {json.dumps(evaluation.get('trace_hashes'), sort_keys=True)}\n\n"
+        f"Trace event counts: {json.dumps(verification.get('trace_event_counts'), sort_keys=True)}\n\n"
         f"Evaluation implementation: {evaluation.get('evaluation_implementation_sha256')}\n\nRegistry: {evaluation.get('registry_fingerprint')}\n\n"
         f"## Training and checkpoint selection\n\nSelection: {json.dumps(selection, sort_keys=True)}\n\n{history}\n\n"
         f"## Offline ranking pooled and six suites\n\n{json.dumps(offline, indent=2, sort_keys=True)}\n\n"
@@ -2558,6 +2768,22 @@ def build_integrity_manifest(cfg: PersistentSearchConfig) -> dict[str, object]:
     expected_relative.update(relative for outputs in _STAGE_OUTPUTS.values() for relative in outputs)
     expected_relative.discard("integrity.json")
     expected_relative.update(f"bindings/{stage}.json" for stage in STAGES if stage != "report")
+    completed = [index for index, stage in enumerate(STAGES) if (root / "bindings" / f"{stage}.json").is_file()]
+    if completed:
+        highest = max(completed)
+        required_relative = {relative for stage in STAGES[:highest + 1] for relative in _STAGE_OUTPUTS[stage]}
+        required_relative.discard("integrity.json")
+        required_relative.update(f"bindings/{stage}.json" for stage in STAGES[:highest + 1] if stage != "report")
+        missing = sorted(relative for relative in required_relative if not (root / relative).is_file())
+        if missing: raise ValueError(f"C13-P integrity canonical artifacts are missing: {missing}")
+        if highest >= STAGES.index("train"):
+            state_root = root / ".training-state"
+            required_state = (state_root / "results" / "training_history.csv", state_root / "checkpoints" / "latest.pt")
+            missing_state = [path.relative_to(root).as_posix() for path in required_state if not path.is_file()]
+            if not (state_root / "checkpoints").is_dir() or not tuple((state_root / "checkpoints").glob("epoch_*.pt")):
+                missing_state.append(".training-state/checkpoints/epoch_*.pt")
+            if missing_state: raise ValueError(f"C13-P integrity training-state artifacts are missing: {missing_state}")
+
     candidates = {root / relative for relative in expected_relative if (root / relative).is_file()}
     state_root = root / ".training-state"
     if state_root.is_dir(): candidates.update(path for path in state_root.rglob("*") if path.is_file())
@@ -2623,6 +2849,13 @@ def _verify_development_evidence(cfg: PersistentSearchConfig) -> None:
     if hash_canonical(g0) != hash_canonical(gate.get("g0")) or hash_canonical(g1) != hash_canonical(gate.get("g1")) or hash_canonical(g2) != hash_canonical(gate.get("g2")):
         raise ValueError("development gate primitives disagree with verified raw artifacts")
     if gate.get("overall_verdict") != overall_verdict(g0, g1, g2): raise ValueError("development overall verdict is inconsistent")
+    expected_gate = _gate_verdict_payload(g0, g1, g2)
+    if set(gate) != GATE_VERDICT_KEYS or gate != expected_gate:
+        raise ValueError("gate verdict schema or reconstructed payload drifted")
+    if gate.get("claim_safe_interpretation") != claim_safe_interpretation(str(gate.get("overall_verdict"))):
+        raise ValueError("gate claim-safe interpretation drifted")
+    if gate.get("self_bootstrap_performed") is not False or gate.get("confirmation_performed") is not False:
+        raise ValueError("gate bootstrap or confirmation declaration drifted")
     verification = _read_json(root / "results" / "verification.json", "verification")
     projection_root = root / "results" / "verification"
     ranking_bytes, search_bytes = _frame_projection_bytes(ranking), _frame_projection_bytes(search)
@@ -2638,6 +2871,13 @@ def _verify_development_evidence(cfg: PersistentSearchConfig) -> None:
         raise ValueError("development verification verdict drifted")
     if verification.get("offline_projection_sha256") != hashlib.sha256(_frame_projection_bytes(ranking)).hexdigest():
         raise ValueError("offline deterministic projection hash drifted")
+    development_traces = _read_development_traces(cfg)
+    expected_verification = _development_verification_payload(
+        cfg, evaluation, g0, registry, len(development_traces),
+        sum(len(trace.events) for trace in development_traces), len(search))
+    if set(verification) != VERIFICATION_KEYS or verification != expected_verification:
+        raise ValueError("development verification schema or reconstructed payload drifted")
+    if verification.get("trace_event_counts") != expected_verification["trace_event_counts"] or verification.get("evaluation_binding_fingerprint") != evaluation.get("binding_fingerprint"): raise ValueError("development verification event counts or binding drifted")
     if verification.get("online_projection_sha256") != hashlib.sha256(_frame_projection_bytes(search)).hexdigest():
         raise ValueError("online deterministic projection hash drifted")
     validate_timing_columns(search)
