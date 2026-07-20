@@ -1219,3 +1219,116 @@ def test_task6_direct_search_rejects_prepared_endpoint_mismatches_for_dynamic_an
             P.dynamic_best_first(graph, prepared, start_idx, goal_idx, model, "persistent", cfg)
         with pytest.raises(ValueError, match="endpoint|start|goal"):
             P.static_c13m_search(graph, prepared, start_idx, goal_idx, cfg)
+
+
+def _task7_source(tmp_path: Path) -> P.SourceContext:
+    cache = tmp_path / "cache.npz"; cache.write_bytes(b"frozen")
+    checkpoint = tmp_path / "checkpoint.pt"; checkpoint.write_bytes(b"checkpoint")
+    shapes = {"train": (3, 32), "validation": (3, 8), "development": (6, 4)}
+    records: dict[str, list[dict[str, object]]] = {}
+    for split, (suite_count, per_suite) in shapes.items():
+        rows = []
+        for suite_index in range(suite_count):
+            for world_index in range(per_suite):
+                seed = 100_000 * (1 + tuple(shapes).index(split)) + suite_index * 100 + world_index
+                rows.append({"split": split, "suite": f"suite-{suite_index}", "suite_world_index": world_index,
+                             "global_world_index": len(rows), "world_seed": seed, "roadmap_seed": seed + 17,
+                             "nodes": 192, "edges": 384, "cache": str(cache), "cache_sha256": _sha256(cache),
+                             "cache_status": "reused"})
+        records[split] = rows
+    implementation = tmp_path / "implementation.py"; implementation.write_text("# frozen\n", encoding="utf-8")
+    design = tmp_path / "design.md"; design.write_text("frozen\n", encoding="utf-8")
+    hashes = {"implementation": _sha256(implementation), "preregistration": _sha256(design),
+              "checkpoint": _sha256(checkpoint)}
+    return P.SourceContext(tmp_path, tmp_path, design, implementation, {"cohort_records": copy.deepcopy(records)},
+                           hashes, records, checkpoint, _sha256(checkpoint))
+
+
+def test_task7_stage_cli_atomicity_and_immutable_binding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    assert P.STAGES == ("audit", "trace", "smoke", "train", "develop", "report")
+    args = P.parse_args(["--stage", "full", "--out-dir", "somewhere", "--verify-only"])
+    assert (args.stage, args.out_dir, args.verify_only) == ("full", "somewhere", True)
+    destination = tmp_path / "nested" / "artifact.json"; destination.parent.mkdir()
+    sibling = destination.with_name("unowned.tmp"); sibling.write_bytes(b"keep")
+    calls = []; real_fsync = P.os.fsync
+    monkeypatch.setattr(P.os, "fsync", lambda fd: (calls.append(fd), real_fsync(fd))[1])
+    P.atomic_write_bytes(destination, b"canonical\n")
+    assert destination.read_bytes() == b"canonical\n" and len(calls) == 1 and sibling.read_bytes() == b"keep"
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    expected = P.stage_binding(cfg, "trace", {"audit": "a" * 64})
+    output = cfg.out_dir / "traces/train/traces.json"; output.parent.mkdir(parents=True); output.write_bytes(b"trace\n")
+    marker = cfg.out_dir / "bindings/trace.json"; marker.parent.mkdir(parents=True)
+    marker.write_bytes(P.canonical_json_bytes({**expected, "outputs": {"traces/train/traces.json": {
+        "sha256": _sha256(output), "size": output.stat().st_size, "schema": P.SCHEMA_VERSION}}}))
+    P.require_stage_binding(marker, expected); output.write_bytes(b"drift")
+    with pytest.raises(ValueError, match="drift|required|new output directory"): P.require_stage_binding(marker, expected)
+
+
+def test_task7_audit_trace_counts_and_development_embargo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = _task7_source(tmp_path); cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    monkeypatch.setattr(P, "audit_sources", lambda _: source); P.run_audit_stage(cfg)
+    manifest = json.loads((cfg.out_dir / "manifest.json").read_text(encoding="utf-8"))
+    audit = json.loads((cfg.out_dir / "source_audit.json").read_text(encoding="utf-8"))
+    assert manifest["cohort_counts"] == {"development": 24, "train": 96, "validation": 24}
+    assert len(audit["trace_records"]["train"]) == 96 and len(audit["development_registry"]) == 24
+    observed = []
+    def fake_pass(_cfg: object, split: str, records: object, _audit: object, destination: Path) -> dict[str, object]:
+        observed.append(split); assert "development" not in str(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(P.canonical_json_bytes({"split": split, "count": len(records)}))
+        return {"sha256": _sha256(destination), "worlds": len(records), "events": len(records)}
+    monkeypatch.setattr(P, "_generate_trace_pass", fake_pass); P.run_trace_stage(cfg)
+    assert observed == ["train", "validation", "train", "validation"]
+    assert not (cfg.out_dir / "traces/development").exists()
+
+
+def test_task7_evaluation_binding_and_drift_guard(tmp_path: Path) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    checkpoint = tmp_path / "selected.pt"; checkpoint.write_bytes(b"selected")
+    source_hashes = {"implementation": _sha256(Path(P.__file__)), "checkpoint": "a" * 64,
+                     "preregistration": "b" * 64}
+    registry = {f"development/suite-{s}/{i}": {"split": "development", "suite": f"suite-{s}",
+        "world_index": i, "world_seed": s * 10 + i, "roadmap_seed": s * 10 + i + 17,
+        "feature_cache_sha256": "c" * 64, "node_count": 192, "edge_count": 768,
+        "feature_cache_path": "frozen.npz"} for s in range(6) for i in range(4)}
+    binding = P.evaluation_binding_payload(cfg, checkpoint, "d" * 64, source_hashes,
+                                           {"train": "e" * 64, "validation": "f" * 64}, registry)
+    assert {"evaluation_implementation_sha256", "bootstrap_seeds", "gate_payload", "source_hashes",
+            "trace_hashes", "registry_fingerprint", "binding_fingerprint"}.issubset(binding)
+    path = cfg.out_dir / "evaluation_binding.json"; path.parent.mkdir(parents=True)
+    path.write_bytes(P.canonical_json_bytes(binding)); P.verify_evaluation_binding(cfg, path)
+    changed = dict(binding); changed["checkpoint_sha256"] = "0" * 64
+    changed["binding_fingerprint"] = P.hash_canonical({k: v for k, v in changed.items() if k != "binding_fingerprint"})
+    path.write_bytes(P.canonical_json_bytes(changed))
+    with pytest.raises(ValueError, match="binding|checkpoint|drift"): P.verify_evaluation_binding(cfg, path)
+
+
+def test_task7_report_integrity_and_pipeline_semantics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); results = cfg.out_dir / "results"; results.mkdir(parents=True)
+    gate = {"overall_verdict": "c13p_no_persistent_ranking_signal", "g0": {"passes": True}, "g1": {"passes": False},
+            "g2": {"passes": True}, "claim_safe_interpretation": "The preregistered ranking gate failed."}
+    for name, value in (("gate_verdict.json", gate), ("verification.json", {"passes": True}),
+                        ("offline_summary.json", {}), ("online_summary.json", {}),
+                        ("checkpoint_selection.json", {"epoch": 1})):
+        (results / name).write_bytes(P.canonical_json_bytes(value))
+    (results / "training_history.csv").write_text("epoch\n1\n", encoding="utf-8")
+    (cfg.out_dir / "manifest.json").write_bytes(P.canonical_json_bytes({"cohort_counts": {"train": 96, "validation": 24, "development": 24}}))
+    (cfg.out_dir / "source_audit.json").write_bytes(P.canonical_json_bytes({"source_hashes": {"x": "a" * 64}}))
+    (cfg.out_dir / "evaluation_binding.json").write_bytes(P.canonical_json_bytes({"checkpoint_sha256": "b" * 64}))
+    report = P.render_report(cfg); assert gate["overall_verdict"] in report and "no self-bootstrap" in report.lower()
+    (results / "C13P_RESULT.md").write_text(report, encoding="utf-8")
+    paths = {entry["path"] for entry in P.build_integrity_manifest(cfg)["artifacts"].values()}
+    assert {"manifest.json", "source_audit.json", "results/gate_verdict.json", "results/C13P_RESULT.md"}.issubset(paths)
+    calls = []
+    for stage in P.STAGES: monkeypatch.setattr(P, f"run_{stage}_stage", lambda _cfg, name=stage: calls.append(name))
+    monkeypatch.setattr(P, "stage_is_complete", lambda _cfg, stage: stage in {"audit", "trace"})
+    P.run_pipeline(cfg, None); assert calls == ["smoke"]
+    calls.clear(); P.run_pipeline(cfg, "full"); assert calls == ["smoke", "train", "develop", "report"]
+
+
+def test_task7_integrity_covers_frozen_design_implementation_test_and_source_checkpoint(tmp_path: Path) -> None:
+    source = _task7_source(tmp_path); cfg = P.resolve_paths(tmp_path, tmp_path / "run"); cfg.out_dir.mkdir()
+    audit = {"preregistration_path": str(source.preregistration), "implementation_path": str(Path(P.__file__)),
+             "checkpoint_path": str(source.checkpoint_path)}; (cfg.out_dir / "source_audit.json").write_bytes(P.canonical_json_bytes(audit))
+    paths = {entry["path"] for entry in P.build_integrity_manifest(cfg)["artifacts"].values()}
+    assert {str(source.preregistration.resolve()), str(Path(P.__file__).resolve()), str(source.checkpoint_path.resolve()), str(Path(P.__file__).resolve().parent / "tests" / "test_c13_persistent_search.py")} <= paths
