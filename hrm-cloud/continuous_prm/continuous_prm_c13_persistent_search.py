@@ -868,12 +868,13 @@ def _canonical_graph_sha256(graph: Sequence[Sequence[tuple[int, float]]]) -> str
 def _prepared_world_provenance(identity: Mapping[str, object] | None, graph: Sequence[Sequence[tuple[int, float]]], start_idx: int, goal_idx: int, cache_path: str, cache_sha256: str) -> dict[str, object]:
     if not isinstance(identity, Mapping): raise ValueError("prepared world audited provenance is required")
     required = {"split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count"}
-    if not required.issubset(identity) or identity.get("split") != "development": raise ValueError("prepared world audited identity is incomplete")
+    split = identity.get("split")
+    if not required.issubset(identity) or split not in ("train", "validation", "development"): raise ValueError("prepared world audited split or identity is incomplete")
     suite = identity.get("suite"); world_index = _integer(identity.get("world_index"), "prepared world_index")
     if not isinstance(suite, str) or not suite or start_idx != 0 or goal_idx != 1: raise ValueError("prepared world identity or canonical endpoints are invalid")
     count = len(graph); edge_count = sum(len(outgoing) for outgoing in graph)
     canonical = {
-        "world_id": f"development/{suite}/{world_index}", "split": "development", "suite": suite, "world_index": world_index,
+        "world_id": f"{split}/{suite}/{world_index}", "split": split, "suite": suite, "world_index": world_index,
         "world_seed": _integer(identity.get("world_seed"), "prepared world_seed"), "roadmap_seed": _integer(identity.get("roadmap_seed"), "prepared roadmap_seed"),
         "feature_cache_path": cache_path, "feature_cache_sha256": cache_sha256, "node_count": count, "edge_count": edge_count,
         "start_idx": start_idx, "goal_idx": goal_idx, "graph_sha256": _canonical_graph_sha256(graph),
@@ -918,6 +919,7 @@ def prepare_world_representation(feature_cache: Mapping[str, np.ndarray], graph:
     with torch.no_grad(): embedding = encoder(torch.as_tensor(tokens.astype(np.float32, copy=False), device=next(encoder.parameters()).device).flatten(1))
     if tuple(embedding.shape) != (len(tokens), HIDDEN_DIM): raise ValueError("encoder output width changed")
     prepared_arrays = {"node_tokens": _frozen_array(tokens, np.float32), "node_embeddings": _frozen_array(embedding.cpu().numpy(), np.float32), "euclidean_rank": _frozen_array(euclid, np.float64), "local_values": _frozen_array(local, np.float64), "base_rank": _frozen_array(euclid + LOCAL_ALPHA * (local - euclid), np.float64)}
+    provenance.pop("provenance_fingerprint", None)
     provenance.update({"array_sha256": {name: _array_sha256(value) for name, value in prepared_arrays.items()}, "encoder_checkpoint_sha256": getattr(encoder, "c13p_checkpoint_sha256", None), "encoder_state_sha256": _module_state_sha256(encoder), "encoder_token_shape": tuple(getattr(encoder, "c13p_token_shape", ()))})
     provenance["provenance_fingerprint"] = _prepared_fingerprint(provenance)
     return PreparedWorld(**prepared_arrays, **provenance)
@@ -1395,6 +1397,7 @@ def _search_inputs(graph: Sequence[Sequence[tuple[int, float]]], prepared: Prepa
     validate_prepared_world(prepared, graph); count, ranks = _validated_graph(graph, prepared.base_rank)
     if np.asarray(prepared.node_embeddings).shape != (count, HIDDEN_DIM): raise ValueError("prepared representation does not match search graph")
     if not isinstance(start_idx, int) or not isinstance(goal_idx, int) or not 0 <= start_idx < count or not 0 <= goal_idx < count: raise ValueError("search start or goal is outside the graph")
+    if start_idx != prepared.start_idx or goal_idx != prepared.goal_idx: raise ValueError("search endpoints do not match prepared provenance")
     if not isinstance(cfg.max_expansions, int) or cfg.max_expansions <= 0: raise ValueError("search expansion budget is invalid")
     return count, ranks
 
@@ -1451,10 +1454,9 @@ def dynamic_best_first(graph: Sequence[Sequence[tuple[int, float]]], prepared: P
                 else:
                     reset = reset_carry_for_event(model, causal, 1, device, torch.float32); context, _ = model.update_event(event_features, reset)
                 elapsed_model += time.perf_counter() - tick
-                if True:
-                    tick = time.perf_counter(); candidate_embeddings, candidate_scalars, candidate_nodes = candidate_tensors_from_causal(causal, embeddings, side_len); rep += time.perf_counter() - tick; tick = time.perf_counter(); logits = model.score_candidates(candidate_embeddings, context, candidate_scalars); elapsed_model += time.perf_counter() - tick
-                    if logits.ndim != 1 or len(logits) != len(candidate_nodes) or not bool(torch.isfinite(logits).all()): raise ValueError("online scorer logits are invalid")
-                    calls += 1; candidates += len(candidate_nodes); queue = [(-float(logit), g[candidate] + ranks[candidate], g[candidate], candidate) for candidate, logit in zip(candidate_nodes, logits.detach().cpu().tolist())]; heapq.heapify(queue)
+                tick = time.perf_counter(); candidate_embeddings, candidate_scalars, candidate_nodes = candidate_tensors_from_causal(causal, embeddings, side_len); rep += time.perf_counter() - tick; tick = time.perf_counter(); logits = model.score_candidates(candidate_embeddings, context, candidate_scalars); elapsed_model += time.perf_counter() - tick
+                if logits.ndim != 1 or len(logits) != len(candidate_nodes) or not bool(torch.isfinite(logits).all()): raise ValueError("online scorer logits are invalid")
+                calls += 1; candidates += len(candidate_nodes); queue = [(-float(logit), g[candidate] + ranks[candidate], g[candidate], candidate) for candidate, logit in zip(candidate_nodes, logits.detach().cpu().tolist())]; heapq.heapify(queue)
                 book += time.perf_counter() - started
     finally:
         if was_training: model.train()
@@ -1734,7 +1736,7 @@ def validate_prepared_world(prepared: PreparedWorld, graph: Sequence[Sequence[tu
     arrays = {name: getattr(prepared, name) for name in _PREPARED_ARRAY_FIELDS}
     if any(not isinstance(array, np.ndarray) or array.flags.writeable or not np.all(np.isfinite(array)) or _array_sha256(array) != prepared.array_sha256[name] for name, array in arrays.items()): raise ValueError("prepared array hash or immutability drifted")
     cache_path = Path(prepared.feature_cache_path)
-    if cache_path.is_file() and sha256_file(cache_path) != prepared.feature_cache_sha256: raise ValueError("prepared feature cache drifted")
+    if not cache_path.is_file() or sha256_file(cache_path) != prepared.feature_cache_sha256: raise ValueError("prepared feature cache drifted")
     count = prepared.node_count
     if not isinstance(count, int) or count <= 0 or arrays["node_tokens"].ndim != 3 or arrays["node_tokens"].shape[0] != count or arrays["node_embeddings"].shape != (count, HIDDEN_DIM) or any(arrays[name].shape != (count,) for name in ("euclidean_rank", "local_values", "base_rank")): raise ValueError("prepared array shape drifted")
     if not _is_sha256(prepared.encoder_checkpoint_sha256) or not _is_sha256(prepared.encoder_state_sha256) or tuple(prepared.encoder_token_shape) != tuple(arrays["node_tokens"].shape[1:]): raise ValueError("prepared encoder identity drifted")
