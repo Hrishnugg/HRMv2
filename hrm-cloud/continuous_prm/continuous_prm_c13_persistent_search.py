@@ -1683,12 +1683,13 @@ def train_stationary_model(train_traces: Sequence[TeacherTrace], validation_trac
         raise ValueError("training traces have duplicate world ids")
     best_loss = math.inf
     stalled = 0
-    for _, row in history.sort_values("epoch", kind="stable").iterrows():
-        value = float(row["validation_loss"])
-        if value < best_loss:
-            best_loss, stalled = value, 0
-        else:
-            stalled += 1
+    if not history.empty:
+        for _, row in history.sort_values("epoch", kind="stable").iterrows():
+            value = float(row["validation_loss"])
+            if value < best_loss:
+                best_loss, stalled = value, 0
+            else:
+                stalled += 1
     if completed and stalled >= cfg.patience:
         return select_checkpoint(history)
     for epoch in range(completed + 1, cfg.max_epochs + 1):

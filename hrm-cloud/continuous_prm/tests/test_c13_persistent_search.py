@@ -652,6 +652,32 @@ def test_terminal_patience_resume_returns_without_new_training_or_artifacts(tmp_
     assert not (cfg.out_dir / "checkpoints" / "epoch_006.pt").exists()
 
 
+def test_fresh_training_starts_with_an_empty_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class CpuPersistentSearchHRM(P.PersistentSearchHRM):
+        def to(self, *args: object, **kwargs: object) -> "CpuPersistentSearchHRM":
+            return self
+
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run")
+    trace = _training_trace()
+    prepared = {"train/maze/0": _prepared_training_world()}
+    monkeypatch.setattr(P.torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(P.torch.cuda, "get_rng_state_all", lambda: [])
+    monkeypatch.setattr(P, "PersistentSearchHRM", CpuPersistentSearchHRM)
+    monkeypatch.setattr(P, "train_one_world", lambda *args, **kwargs: {"loss_sum": 1.0, "event_count": 2})
+    monkeypatch.setattr(P, "evaluate_stationary_split", lambda *args, **kwargs: (pd.DataFrame(), pd.DataFrame()))
+    monkeypatch.setattr(P, "summarize_trace_metrics", lambda *args, **kwargs: (pd.DataFrame(), {
+        "event_weighted_frontier_cross_entropy": 1.0,
+        "world_macro_mrr": 0.5,
+        "world_macro_top1": 0.25,
+    }))
+
+    selected = P.train_stationary_model((trace,), (), prepared, cfg, _complete_training_binding())
+
+    history = pd.read_csv(cfg.out_dir / "results" / "training_history.csv")
+    assert selected.selected_epoch == 1
+    assert history["epoch"].tolist() == [1, 2, 3, 4, 5]
+
+
 def test_task4_has_no_duplicate_top_level_definitions() -> None:
     import ast
     for path in (Path(P.__file__), Path(__file__)):
