@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 
@@ -455,3 +456,143 @@ def test_reset_carry_is_zero_causal_and_cadenced(monkeypatch: pytest.MonkeyPatch
 def test_privileged_audit_dictionary_is_rejected() -> None:
     causal={"event_index":0,"expanded_node":0,"expanded_g":0.,"expanded_base_rank":0.,"open_count":1,"closed_count":0,"open_nodes":[1],"open_g":[0.],"open_base_rank":[0.]}; causal["privileged_audit"]={"teacher_path":[0,1]}
     with pytest.raises(ValueError): P.validate_model_causal_fields(causal)
+
+
+def _training_trace(event_count: int = 2, *, world_index: int = 0) -> P.TeacherTrace:
+    events = []
+    for index in range(event_count):
+        events.append(P.TraceEvent(
+            event_index=index, event_kind="initialized_frontier" if index == 0 else "post_expansion",
+            expanded_node=None if index == 0 else 0, expanded_g=0.0, expanded_base_rank=0.0,
+            open_nodes=(0, 1), open_g=(0.0, 1.0), open_parent=(None, 0),
+            open_base_rank=(0.0, 0.5), open_count=2, closed_count=index, positive_node=0,
+        ))
+    return P.TeacherTrace("train", "maze", world_index, 1, 2, "cache", "0" * 64, 2, 1, 0, 1, tuple(events), (0, 1), 1.0, event_count, True)
+
+
+def _prepared_training_world() -> P.PreparedWorld:
+    return P.PreparedWorld(
+        np.zeros((2, 3, 16), dtype=np.float32), np.zeros((2, 64), dtype=np.float32),
+        np.array([0.0, 1.0]), np.array([0.0, 0.5]), np.array([0.0, 0.5]),
+    )
+
+
+def test_frontier_loss_ranking_and_world_macro_metrics() -> None:
+    logits = torch.tensor([0.0, 3.0, 1.0], requires_grad=True)
+    loss = P.frontier_cross_entropy(logits, (4, 7, 9), 7)
+    assert loss.item() == pytest.approx(torch.nn.functional.cross_entropy(logits[None], torch.tensor([1])).item())
+    assert P.rank_of_positive(np.array([2.0, 2.0]), np.array([4, 7]), 7, np.array([[2.0, 1.0, 4.0], [2.0, 0.0, 7.0]])) == 1
+    worlds, summary = P.summarize_trace_metrics(pd.DataFrame([
+        {"world_id": "a", "suite": "x", "frontier_cross_entropy": 0.0, "reciprocal_rank": 1.0, "top1": 1.0, "rank_percentile": 0.0},
+        {"world_id": "a", "suite": "x", "frontier_cross_entropy": 2.0, "reciprocal_rank": 0.5, "top1": 0.0, "rank_percentile": 1.0},
+        {"world_id": "b", "suite": "x", "frontier_cross_entropy": 8.0, "reciprocal_rank": 1.0, "top1": 1.0, "rank_percentile": 0.0},
+    ]))
+    assert len(worlds) == 2 and summary["event_weighted_frontier_cross_entropy"] == pytest.approx(10.0 / 3.0)
+    assert summary["world_macro_mrr"] == pytest.approx(0.875) and summary["world_macro_top1"] == pytest.approx(0.75)
+
+
+def test_train_world_tbptt_preserves_values_and_detaches_carry() -> None:
+    model = P.PersistentSearchHRM()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=P.LEARNING_RATE, weight_decay=P.WEIGHT_DECAY)
+    cfg = replace(P.resolve_paths(Path.cwd()), tbptt_events=32)
+    detached = []
+    original = P.detach_carry
+    def observed(carry: P.HRMCarry) -> P.HRMCarry:
+        result = original(carry); detached.append((carry, result)); return result
+    monkeypatch = pytest.MonkeyPatch(); monkeypatch.setattr(P, "detach_carry", observed)
+    try:
+        result = P.train_one_world(model, _training_trace(33), _prepared_training_world(), optimizer, cfg)
+    finally:
+        monkeypatch.undo()
+    assert result["optimizer_steps"] == 2 and result["event_count"] == 33 and len(detached) == 2
+    for before, after in detached:
+        assert torch.equal(before.low, after.low) and torch.equal(before.high, after.high)
+        assert after.low.grad_fn is None and after.high.grad_fn is None
+
+
+def test_checkpoint_resume_requires_an_exact_binding(tmp_path: Path) -> None:
+    model = P.PersistentSearchHRM(); optimizer = torch.optim.AdamW(model.parameters(), lr=P.LEARNING_RATE, weight_decay=P.WEIGHT_DECAY)
+    binding = {"source_hashes": {"source": "a"}, "trace_hash": "b", "model": {"seed": 18423}, "optimizer": {"name": "AdamW"}, "gate": {"version": 1}}
+    checkpoint = tmp_path / "checkpoint.pt"
+    P.save_training_checkpoint(checkpoint, model, optimizer, 3, binding)
+    assert P.load_training_checkpoint(checkpoint, model, optimizer, binding) == 3
+    with pytest.raises(ValueError, match="new output directory"):
+        P.load_training_checkpoint(checkpoint, model, optimizer, {**binding, "gate": {"version": 2}})
+
+
+def _training_trace(event_count: int = 2, *, world_index: int = 0) -> P.TeacherTrace:
+    events = []
+    for index in range(event_count):
+        events.append(P.TraceEvent(
+            event_index=index, event_kind="initialized_frontier" if index == 0 else "post_expansion",
+            expanded_node=None if index == 0 else 0, expanded_g=0.0, expanded_base_rank=0.0,
+            open_nodes=(0, 1), open_g=(0.0, 1.0), open_parent=(None, 0),
+            open_base_rank=(0.0, 0.5), open_count=2, closed_count=index, positive_node=0,
+        ))
+    return P.TeacherTrace("train", "maze", world_index, 1, 2, "cache", "0" * 64, 2, 1, 0, 1, tuple(events), (0, 1), 1.0, event_count, True)
+
+
+def _prepared_training_world() -> P.PreparedWorld:
+    return P.PreparedWorld(
+        np.zeros((2, 3, 16), dtype=np.float32), np.zeros((2, 64), dtype=np.float32),
+        np.array([0.0, 1.0]), np.array([0.0, 0.5]), np.array([0.0, 0.5]),
+    )
+
+
+def test_frontier_loss_ranking_and_world_macro_metrics() -> None:
+    logits = torch.tensor([0.0, 3.0, 1.0], requires_grad=True)
+    loss = P.frontier_cross_entropy(logits, (4, 7, 9), 7)
+    assert loss.item() == pytest.approx(torch.nn.functional.cross_entropy(logits[None], torch.tensor([1])).item())
+    assert P.rank_of_positive(np.array([2.0, 2.0]), np.array([4, 7]), 7, np.array([[2.0, 1.0, 4.0], [2.0, 0.0, 7.0]])) == 1
+    worlds, summary = P.summarize_trace_metrics(pd.DataFrame([
+        {"world_id": "a", "suite": "x", "frontier_cross_entropy": 0.0, "reciprocal_rank": 1.0, "top1": 1.0, "rank_percentile": 0.0},
+        {"world_id": "a", "suite": "x", "frontier_cross_entropy": 2.0, "reciprocal_rank": 0.5, "top1": 0.0, "rank_percentile": 1.0},
+        {"world_id": "b", "suite": "x", "frontier_cross_entropy": 8.0, "reciprocal_rank": 1.0, "top1": 1.0, "rank_percentile": 0.0},
+    ]))
+    assert len(worlds) == 2 and summary["event_weighted_frontier_cross_entropy"] == pytest.approx(10.0 / 3.0)
+    assert summary["world_macro_mrr"] == pytest.approx(0.875) and summary["world_macro_top1"] == pytest.approx(0.75)
+
+
+def test_train_world_tbptt_preserves_values_and_detaches_carry() -> None:
+    model = P.PersistentSearchHRM()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=P.LEARNING_RATE, weight_decay=P.WEIGHT_DECAY)
+    cfg = replace(P.resolve_paths(Path.cwd()), tbptt_events=32)
+    detached = []
+    original = P.detach_carry
+    def observed(carry: P.HRMCarry) -> P.HRMCarry:
+        result = original(carry); detached.append((carry, result)); return result
+    monkeypatch = pytest.MonkeyPatch(); monkeypatch.setattr(P, "detach_carry", observed)
+    try:
+        result = P.train_one_world(model, _training_trace(33), _prepared_training_world(), optimizer, cfg)
+    finally:
+        monkeypatch.undo()
+    assert result["optimizer_steps"] == 2 and result["event_count"] == 33 and len(detached) == 2
+    for before, after in detached:
+        assert torch.equal(before.low, after.low) and torch.equal(before.high, after.high)
+        assert after.low.grad_fn is None and after.high.grad_fn is None
+
+
+def test_checkpoint_resume_requires_an_exact_binding(tmp_path: Path) -> None:
+    model = P.PersistentSearchHRM(); optimizer = torch.optim.AdamW(model.parameters(), lr=P.LEARNING_RATE, weight_decay=P.WEIGHT_DECAY)
+    binding = {"source_hashes": {"source": "a"}, "trace_hash": "b", "model": {"seed": 18423}, "optimizer": {"name": "AdamW"}, "gate": {"version": 1}}
+    checkpoint = tmp_path / "checkpoint.pt"
+    P.save_training_checkpoint(checkpoint, model, optimizer, 3, binding)
+    assert P.load_training_checkpoint(checkpoint, model, optimizer, binding) == 3
+    with pytest.raises(ValueError, match="new output directory"):
+        P.load_training_checkpoint(checkpoint, model, optimizer, {**binding, "gate": {"version": 2}})
+
+
+def test_order_checkpoint_selection_and_every_binding_component_are_deterministic(tmp_path: Path) -> None:
+    assert P.deterministic_world_order(("b", "a", "c"), 18423, 1) == P.deterministic_world_order(("c", "b", "a"), 18423, 1)
+    history = pd.DataFrame([
+        {"epoch": 3, "validation_loss": 0.25, "checkpoint_path": str(tmp_path / "three.pt"), "checkpoint_sha256": "3" * 64},
+        {"epoch": 1, "validation_loss": 0.25, "checkpoint_path": str(tmp_path / "one.pt"), "checkpoint_sha256": "1" * 64},
+        {"epoch": 2, "validation_loss": 0.50, "checkpoint_path": str(tmp_path / "two.pt"), "checkpoint_sha256": "2" * 64},
+    ])
+    assert P.select_checkpoint(history).selected_epoch == 1
+    model = P.PersistentSearchHRM(); optimizer = torch.optim.AdamW(model.parameters(), lr=P.LEARNING_RATE, weight_decay=P.WEIGHT_DECAY)
+    binding = {"source_hashes": {"source": "a"}, "trace_hash": "b", "model": {"seed": 18423}, "optimizer": {"name": "AdamW"}, "gate": {"version": 1}}
+    checkpoint = tmp_path / "exact.pt"; P.save_training_checkpoint(checkpoint, model, optimizer, 1, binding)
+    for field, replacement in (("source_hashes", {"source": "changed"}), ("trace_hash", "changed"), ("model", {"seed": 0}), ("optimizer", {"name": "SGD"}), ("gate", {"version": 2})):
+        with pytest.raises(ValueError, match="new output directory"):
+            P.load_training_checkpoint(checkpoint, model, optimizer, {**binding, field: replacement})

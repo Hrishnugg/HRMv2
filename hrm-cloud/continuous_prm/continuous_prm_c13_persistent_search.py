@@ -5,11 +5,13 @@ import copy
 import hashlib
 import json
 import math
+import random
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 import numpy as np
 import torch
+import pandas as pd
 from torch import nn
 
 import continuous_prm_c13_identifiability as I
@@ -925,3 +927,339 @@ class PersistentCarryLifecycle:
             if carry.step < self._current.step: raise ValueError("stale carry update")
             raise ValueError("foreign carry update")
         context,next_carry=self.model.update_event(event_features,carry); self._current=next_carry; return context,next_carry
+    def detach_current(self) -> HRMCarry:
+        if self._current is None:
+            raise ValueError("persistent carry lifecycle is not initialized")
+        self._current = detach_carry(self._current)
+        return self._current
+
+@dataclass(frozen=True)
+class CheckpointSelection:
+    selected_epoch: int
+    selected_validation_loss: float
+    checkpoint_path: Path
+    checkpoint_sha256: str
+
+
+def frontier_cross_entropy(logits: torch.Tensor, candidate_nodes: Sequence[int], positive_node: int) -> torch.Tensor:
+    """Cross-entropy over the complete current frontier and its sole path candidate."""
+    if logits.ndim != 1 or logits.numel() == 0 or len(candidate_nodes) != logits.numel():
+        raise ValueError("frontier logits and candidates are inconsistent")
+    nodes = tuple(_integer(node, "candidate node") for node in candidate_nodes)
+    if len(set(nodes)) != len(nodes) or not isinstance(positive_node, int) or nodes.count(positive_node) != 1:
+        raise ValueError("frontier must contain exactly one positive candidate")
+    return torch.nn.functional.cross_entropy(logits.unsqueeze(0), torch.tensor([nodes.index(positive_node)], device=logits.device))
+
+
+def rank_of_positive(logits: np.ndarray, candidate_nodes: np.ndarray, positive_node: int, tie_keys: np.ndarray) -> int:
+    """Return the one-based stable rank using raw descending logits and frozen ties."""
+    scores = np.asarray(logits, dtype=np.float64)
+    nodes = np.asarray(candidate_nodes)
+    ties = np.asarray(tie_keys, dtype=np.float64)
+    if scores.ndim != 1 or nodes.ndim != 1 or len(scores) == 0 or len(scores) != len(nodes) or ties.shape != (len(scores), 3):
+        raise ValueError("ranking inputs are inconsistent")
+    if not np.all(np.isfinite(scores)) or not np.all(np.isfinite(ties)):
+        raise ValueError("ranking inputs must be finite")
+    values = tuple(_integer(int(node), "candidate node") for node in nodes)
+    if len(set(values)) != len(values) or values.count(positive_node) != 1:
+        raise ValueError("ranking requires exactly one positive candidate")
+    order = sorted(range(len(scores)), key=lambda index: (-float(scores[index]), tuple(float(value) for value in ties[index])))
+    return order.index(values.index(positive_node)) + 1
+
+
+def summarize_trace_metrics(event_rows: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Keep CE event-weighted while making ranking metrics world-macro summaries."""
+    required = {"world_id", "suite", "frontier_cross_entropy", "reciprocal_rank", "top1", "rank_percentile"}
+    if event_rows.empty or not required.issubset(event_rows.columns):
+        raise ValueError("event metric rows are incomplete")
+    numeric = ("frontier_cross_entropy", "reciprocal_rank", "top1", "rank_percentile")
+    if not all(np.isfinite(event_rows[column].to_numpy(dtype=float)).all() for column in numeric):
+        raise ValueError("event metrics must be finite")
+    worlds = event_rows.groupby(["world_id", "suite"], sort=True, as_index=False)[list(numeric)].mean()
+    suite_metrics = worlds.groupby("suite", sort=True)[["reciprocal_rank", "top1", "rank_percentile"]].mean()
+    summary = {
+        "event_weighted_frontier_cross_entropy": float(event_rows["frontier_cross_entropy"].mean()),
+        "world_macro_mrr": float(worlds["reciprocal_rank"].mean()),
+        "world_macro_top1": float(worlds["top1"].mean()),
+        "world_macro_rank_percentile": float(worlds["rank_percentile"].mean()),
+        "suite_macro_mrr": float(suite_metrics["reciprocal_rank"].mean()),
+        "suite_macro_top1": float(suite_metrics["top1"].mean()),
+        "suite_macro_rank_percentile": float(suite_metrics["rank_percentile"].mean()),
+    }
+    return worlds, summary
+
+
+def detach_carry(carry: HRMCarry) -> HRMCarry:
+    return HRMCarry(carry.low.detach(), carry.high.detach(), carry.step)
+
+
+def deterministic_world_order(world_ids: Sequence[str], seed: int, epoch: int) -> Sequence[str]:
+    if not isinstance(seed, int) or not isinstance(epoch, int) or epoch < 0:
+        raise ValueError("world-order seed or epoch is invalid")
+    ordered = sorted(world_ids)
+    if any(not isinstance(world_id, str) or not world_id for world_id in ordered) or len(set(ordered)) != len(ordered):
+        raise ValueError("world ids must be unique nonempty strings")
+    generator = random.Random((seed << 32) + epoch)
+    generator.shuffle(ordered)
+    return tuple(ordered)
+
+
+def _trace_world_id(trace: TeacherTrace) -> str:
+    return f"{trace.split}/{trace.suite}/{trace.world_index}"
+
+
+def _prepared_for_trace(prepared_worlds: Mapping[str, PreparedWorld], trace: TeacherTrace) -> PreparedWorld:
+    world_id = _trace_world_id(trace)
+    if world_id in prepared_worlds:
+        return prepared_worlds[world_id]
+    for key in (str(trace.world_index), (trace.split, trace.suite, trace.world_index)):
+        if key in prepared_worlds:  # type: ignore[operator]
+            return prepared_worlds[key]  # type: ignore[index]
+    raise ValueError(f"prepared representation is missing for {world_id}")
+
+
+def _event_causal(event: TraceEvent) -> Mapping[str, object]:
+    if event.event_kind == "initialized_frontier":
+        if event.expanded_node is not None or not event.open_nodes:
+            raise ValueError("initialized frontier event is invalid")
+        # Event zero has no popped node; its sole causal observation is its recorded open frontier.
+        node, g, rank = event.open_nodes[0], event.open_g[0], event.open_base_rank[0]
+    elif event.event_kind == "post_expansion":
+        if event.expanded_node is None:
+            raise ValueError("post-expansion event is missing its expanded node")
+        node, g, rank = event.expanded_node, event.expanded_g, event.expanded_base_rank
+    else:
+        raise ValueError("trace event kind is invalid")
+    return {
+        "event_index": event.event_index, "expanded_node": node, "expanded_g": g,
+        "expanded_base_rank": rank, "open_count": event.open_count, "closed_count": event.closed_count,
+        "open_nodes": event.open_nodes, "open_g": event.open_g, "open_base_rank": event.open_base_rank,
+    }
+
+
+def _trace_side_len(trace: TeacherTrace) -> float:
+    # The trace contains node-local quantities only; this fixed normalizer is not a map-wide feature.
+    return float(max(1, int(math.ceil(math.sqrt(trace.node_count)))))
+
+
+def _event_tensors(event: TraceEvent, prepared: PreparedWorld, device: torch.device) -> tuple[Mapping[str, object], torch.Tensor, torch.Tensor, Sequence[int]]:
+    causal = _event_causal(event)
+    embeddings = torch.as_tensor(prepared.node_embeddings, dtype=torch.float32, device=device)
+    side_len = _trace_side_len_from_prepared(prepared)
+    event_tensor = event_tensor_from_causal(causal, embeddings, side_len, len(prepared.node_embeddings))
+    candidate_embeddings, candidate_scalars, candidate_nodes = candidate_tensors_from_causal(causal, embeddings, side_len)
+    return causal, event_tensor, candidate_embeddings, candidate_scalars, candidate_nodes
+
+
+def _trace_side_len_from_prepared(prepared: PreparedWorld) -> float:
+    # C13-J's square-world side is not embedded in the trace; node count is the frozen available scale.
+    return float(max(1, int(math.ceil(math.sqrt(len(prepared.node_embeddings))))))
+
+
+def _event_metric_row(trace: TeacherTrace, event: TraceEvent, logits: torch.Tensor, candidate_nodes: Sequence[int], tie_keys: np.ndarray, arm: str) -> dict[str, object]:
+    loss = frontier_cross_entropy(logits, candidate_nodes, event.positive_node)
+    rank = rank_of_positive(logits.detach().cpu().numpy(), np.asarray(candidate_nodes), event.positive_node, tie_keys)
+    count = len(candidate_nodes)
+    return {
+        "world_id": _trace_world_id(trace), "suite": trace.suite, "split": trace.split, "arm": arm,
+        "event_index": event.event_index, "frontier_cross_entropy": float(loss.detach().cpu()), "rank": rank,
+        "reciprocal_rank": 1.0 / rank, "top1": float(rank == 1),
+        "rank_percentile": float((rank - 1) / max(count - 1, 1)), "candidate_count": count,
+    }
+
+
+def train_one_world(model: PersistentSearchHRM, trace: TeacherTrace, prepared: PreparedWorld, optimizer: torch.optim.Optimizer, cfg: PersistentSearchConfig) -> dict[str, float]:
+    """Train one ordered world stream with one AdamW step per TBPTT chunk."""
+    if cfg.tbptt_events <= 0 or not trace.events:
+        raise ValueError("training trace or TBPTT configuration is invalid")
+    device = next(model.parameters()).device
+    model.train()
+    optimizer.zero_grad(set_to_none=True)
+    lifecycle = PersistentCarryLifecycle(model, f"train:{_trace_world_id(trace)}")
+    carry = lifecycle.initial_for_world(_trace_world_id(trace), 1, device, torch.float32)
+    losses: list[torch.Tensor] = []
+    total_loss = 0.0
+    steps = 0
+    for offset, event in enumerate(trace.events):
+        if event.event_index != offset:
+            raise ValueError("trace events are not in causal order")
+        _, event_features, candidate_embeddings, candidate_scalars, candidate_nodes = _event_tensors(event, prepared, device)
+        context, carry = lifecycle.update(event_features, carry)
+        loss = frontier_cross_entropy(model.score_candidates(candidate_embeddings, context, candidate_scalars), candidate_nodes, event.positive_node)
+        losses.append(loss)
+        total_loss += float(loss.detach().cpu())
+        if len(losses) == cfg.tbptt_events or offset + 1 == len(trace.events):
+            torch.stack(losses).mean().backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip_norm)
+            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+            carry = lifecycle.detach_current()
+            losses.clear()
+            steps += 1
+    return {"event_count": float(len(trace.events)), "loss_sum": total_loss, "optimizer_steps": float(steps)}
+
+
+def evaluate_stationary_split(traces: Sequence[TeacherTrace], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, carry_mode: str, cfg: PersistentSearchConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if carry_mode not in {"persistent", "reset", "base"}:
+        raise ValueError("carry mode is invalid")
+    device = next(model.parameters()).device
+    was_training = model.training
+    model.eval()
+    rows: list[dict[str, object]] = []
+    with torch.no_grad():
+        for trace in traces:
+            prepared = _prepared_for_trace(prepared_worlds, trace)
+            lifecycle = PersistentCarryLifecycle(model, f"validation:{carry_mode}:{_trace_world_id(trace)}")
+            carry: HRMCarry | None = None
+            if carry_mode == "persistent":
+                carry = lifecycle.initial_for_world(_trace_world_id(trace), 1, device, torch.float32)
+            for offset, event in enumerate(trace.events):
+                if event.event_index != offset:
+                    raise ValueError("trace events are not in causal order")
+                causal, event_features, candidate_embeddings, candidate_scalars, candidate_nodes = _event_tensors(event, prepared, device)
+                tie_keys = np.column_stack((np.asarray(event.open_g) + np.asarray(event.open_base_rank), event.open_g, event.open_nodes))
+                if carry_mode == "base":
+                    logits = -torch.as_tensor(np.asarray(event.open_g) + np.asarray(event.open_base_rank), dtype=torch.float32, device=device) / _trace_side_len_from_prepared(prepared)
+                else:
+                    if carry_mode == "reset":
+                        carry = reset_carry_for_event(model, causal, 1, device, torch.float32)
+                        context, _ = model.update_event(event_features, carry)
+                    else:
+                        assert carry is not None
+                        context, carry = lifecycle.update(event_features, carry)
+                    logits = model.score_candidates(candidate_embeddings, context, candidate_scalars)
+                rows.append(_event_metric_row(trace, event, logits, candidate_nodes, tie_keys, carry_mode))
+    if was_training:
+        model.train()
+    event_rows = pd.DataFrame(rows)
+    world_rows, _ = summarize_trace_metrics(event_rows)
+    return event_rows, world_rows
+
+
+def _binding_fingerprint(binding: Mapping[str, object]) -> str:
+    if not isinstance(binding, Mapping):
+        raise ValueError("training binding is invalid")
+    return hashlib.sha256(canonical_json_bytes(dict(binding))).hexdigest()
+
+
+def save_training_checkpoint(path: Path, model: PersistentSearchHRM, optimizer: torch.optim.Optimizer, completed_epoch: int, binding: Mapping[str, object]) -> str:
+    if not isinstance(completed_epoch, int) or completed_epoch < 0:
+        raise ValueError("completed epoch is invalid")
+    fingerprint = _binding_fingerprint(binding)
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "model": model.state_dict(), "optimizer": optimizer.state_dict(), "completed_epoch": completed_epoch,
+        "binding": copy.deepcopy(dict(binding)), "binding_fingerprint": fingerprint,
+        "source_hashes": copy.deepcopy(binding.get("source_hashes")), "trace_hash": binding.get("trace_hash"),
+        "rng": {"python": random.getstate(), "numpy": np.random.get_state(), "torch_cpu": torch.get_rng_state(), "torch_cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []},
+    }
+    torch.save(payload, destination)
+    return sha256_file(destination)
+
+
+def load_training_checkpoint(path: Path, model: PersistentSearchHRM, optimizer: torch.optim.Optimizer, expected_binding: Mapping[str, object]) -> int:
+    expected_fingerprint = _binding_fingerprint(expected_binding)
+    try:
+        payload = torch.load(Path(path), map_location=next(model.parameters()).device, weights_only=False)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("checkpoint is unreadable; new output directory required") from exc
+    if not isinstance(payload, Mapping) or payload.get("binding_fingerprint") != expected_fingerprint or canonical_json_bytes(payload.get("binding")) != canonical_json_bytes(dict(expected_binding)):
+        raise ValueError("checkpoint binding mismatch; new output directory required")
+    if not isinstance(payload.get("completed_epoch"), int) or payload["completed_epoch"] < 0 or not isinstance(payload.get("rng"), Mapping):
+        raise ValueError("checkpoint payload is invalid; new output directory required")
+    try:
+        model.load_state_dict(payload["model"], strict=True)
+        optimizer.load_state_dict(payload["optimizer"])
+        rng = payload["rng"]
+        random.setstate(rng["python"]); np.random.set_state(rng["numpy"]); torch.set_rng_state(rng["torch_cpu"])
+        cuda_states = rng.get("torch_cuda", [])
+        if cuda_states:
+            if not torch.cuda.is_available():
+                raise ValueError("CUDA RNG state cannot resume without CUDA; new output directory required")
+            torch.cuda.set_rng_state_all(cuda_states)
+    except (KeyError, RuntimeError, TypeError, ValueError) as exc:
+        if isinstance(exc, ValueError) and "new output directory" in str(exc):
+            raise
+        raise ValueError("checkpoint state is invalid; new output directory required") from exc
+    return payload["completed_epoch"]
+
+
+def select_checkpoint(history: pd.DataFrame) -> CheckpointSelection:
+    required = {"epoch", "validation_loss", "checkpoint_path", "checkpoint_sha256"}
+    if history.empty or not required.issubset(history.columns):
+        raise ValueError("checkpoint history is incomplete")
+    rows = history.copy()
+    rows["validation_loss"] = pd.to_numeric(rows["validation_loss"], errors="raise")
+    rows["epoch"] = pd.to_numeric(rows["epoch"], errors="raise")
+    if not np.isfinite(rows["validation_loss"]).all() or (rows["epoch"] < 1).any():
+        raise ValueError("checkpoint history is invalid")
+    minimum = float(rows["validation_loss"].min())
+    selected = rows.loc[rows["validation_loss"] == minimum].sort_values("epoch", kind="stable").iloc[0]
+    checkpoint = Path(str(selected["checkpoint_path"])).resolve()
+    digest = str(selected["checkpoint_sha256"])
+    if len(digest) != 64:
+        raise ValueError("checkpoint hash is invalid")
+    return CheckpointSelection(int(selected["epoch"]), minimum, checkpoint, digest)
+
+
+def train_stationary_model(train_traces: Sequence[TeacherTrace], validation_traces: Sequence[TeacherTrace], prepared_worlds: Mapping[str, PreparedWorld], cfg: PersistentSearchConfig, binding: Mapping[str, object]) -> CheckpointSelection:
+    """Official CUDA-only stationary trainer with durable, exact-fingerprint resume."""
+    _binding_fingerprint(binding)
+    locked = (cfg.model_seed, cfg.learning_rate, cfg.weight_decay, cfg.grad_clip_norm, cfg.max_epochs, cfg.patience, cfg.tbptt_events)
+    expected = (MODEL_SEED, LEARNING_RATE, WEIGHT_DECAY, GRAD_CLIP_NORM, MAX_EPOCHS, PATIENCE, TBPTT_EVENTS)
+    if locked != expected:
+        raise ValueError("official training configuration changed; new output directory required")
+    if cfg.hidden_dim != HIDDEN_DIM or cfg.num_layers != NUM_LAYERS or cfg.num_heads != NUM_HEADS or cfg.k_step != K_STEP:
+        raise ValueError("official model configuration changed; new output directory required")
+    if not torch.cuda.is_available():
+        raise RuntimeError("official C13-P training requires CUDA before model or optimizer allocation")
+    output = Path(cfg.out_dir)
+    checkpoint_dir, result_dir = output / "checkpoints", output / "results"
+    latest, history_path = checkpoint_dir / "latest.pt", result_dir / "training_history.csv"
+    if output.exists() and not latest.exists() and any(output.iterdir()):
+        raise ValueError("partial output is incomplete; new output directory required")
+    model = PersistentSearchHRM().to(torch.device("cuda"))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    history = pd.DataFrame()
+    completed = 0
+    if latest.exists():
+        completed = load_training_checkpoint(latest, model, optimizer, binding)
+        if not history_path.is_file():
+            raise ValueError("partial output history is missing; new output directory required")
+        history = pd.read_csv(history_path)
+        if history.empty or int(history["epoch"].max()) != completed:
+            raise ValueError("partial output history disagrees with checkpoint; new output directory required")
+    trace_by_id = {_trace_world_id(trace): trace for trace in train_traces}
+    if len(trace_by_id) != len(train_traces):
+        raise ValueError("training traces have duplicate world ids")
+    best_loss = math.inf
+    stalled = 0
+    for _, row in history.sort_values("epoch", kind="stable").iterrows():
+        value = float(row["validation_loss"])
+        if value < best_loss:
+            best_loss, stalled = value, 0
+        else:
+            stalled += 1
+    for epoch in range(completed + 1, cfg.max_epochs + 1):
+        train_loss_sum, train_events = 0.0, 0.0
+        for world_id in deterministic_world_order(tuple(trace_by_id), cfg.model_seed, epoch):
+            metrics = train_one_world(model, trace_by_id[world_id], _prepared_for_trace(prepared_worlds, trace_by_id[world_id]), optimizer, cfg)
+            train_loss_sum += metrics["loss_sum"]; train_events += metrics["event_count"]
+        validation_events, _ = evaluate_stationary_split(validation_traces, prepared_worlds, model, "persistent", cfg)
+        _, validation_summary = summarize_trace_metrics(validation_events)
+        validation_loss = validation_summary["event_weighted_frontier_cross_entropy"]
+        epoch_path = checkpoint_dir / f"epoch_{epoch:03d}.pt"
+        digest = save_training_checkpoint(epoch_path, model, optimizer, epoch, binding)
+        save_training_checkpoint(latest, model, optimizer, epoch, binding)
+        record = {"epoch": epoch, "train_event_weighted_loss": train_loss_sum / train_events, "validation_loss": validation_loss, "validation_world_macro_mrr": validation_summary["world_macro_mrr"], "validation_world_macro_top1": validation_summary["world_macro_top1"], "checkpoint_path": str(epoch_path.resolve()), "checkpoint_sha256": digest}
+        history = pd.concat((history, pd.DataFrame([record])), ignore_index=True)
+        result_dir.mkdir(parents=True, exist_ok=True)
+        history.to_csv(history_path, index=False)
+        if validation_loss < best_loss:
+            best_loss, stalled = validation_loss, 0
+        else:
+            stalled += 1
+        if stalled >= cfg.patience:
+            break
+    return select_checkpoint(history)
