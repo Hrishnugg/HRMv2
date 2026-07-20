@@ -1688,7 +1688,7 @@ def test_task7_thirdreview_smoke_replay_rejects_coherent_tamper(tmp_path: Path, 
 
 def _task7_thirdreview_development_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[P.PersistentSearchConfig, dict[str, object], dict[str, object]]:
     cfg = P.resolve_paths(tmp_path, tmp_path / "run"); root = cfg.out_dir; (root / "results" / "verification").mkdir(parents=True)
-    registry = _expected_development_registry(); evaluation = {"development_registry": registry, "binding_fingerprint": "a" * 64,
+    registry = P.validate_expected_development_registry(_expected_development_registry()); evaluation = {"development_registry": registry, "binding_fingerprint": "a" * 64,
         "trace_event_counts": {"train": 96, "validation": 24}}
     ranking = pd.DataFrame({"placeholder": [1]}); search = pd.DataFrame({"world_id": [f"world-{i}" for i in range(72)], "arm": ["arm"] * 72})
     ranking.to_csv(root / "results" / "development_ranking_raw.csv", index=False)
@@ -1700,19 +1700,20 @@ def _task7_thirdreview_development_fixture(tmp_path: Path, monkeypatch: pytest.M
     duplicate = root / "traces" / "duplicates" / "development"; duplicate.mkdir(parents=True)
     (duplicate / "first.json").write_bytes(b"trace\n"); (duplicate / "second.json").write_bytes(b"trace\n")
     promoted = root / "traces" / "development" / "traces.json"; promoted.parent.mkdir(parents=True); promoted.write_bytes(b"trace\n")
-    g0 = {"passes": True, "primitives": {"projection_duplicates": {"passes": True}, "timings": {"passes": True}}}
+    primitives = {name: {"passes": True} for name in P.G0_PRIMITIVES}; primitives["independent_reanalysis"] = {"passes": True, "status": "pending-before-final-gate"}
+    base_g0 = P._g0_payload(primitives)
     g1, g2 = {"passes": True, "name": "g1"}, {"passes": True, "name": "g2"}; trace = _training_trace(1)
     monkeypatch.setattr(P, "verify_evaluation_binding", lambda _cfg: evaluation)
     monkeypatch.setattr(P, "_offline_summary", lambda *_args, **_kwargs: pd.DataFrame())
     monkeypatch.setattr(P, "_summary_payload", lambda *_args, **_kwargs: {})
     independent = {"schema_version": P.INDEPENDENT_REANALYSIS_SCHEMA_VERSION, "passes": True}
     monkeypatch.setattr(P, "g1_verdict", lambda *_args, **_kwargs: g1); monkeypatch.setattr(P, "g2_verdict", lambda *_args, **_kwargs: g2)
-    monkeypatch.setattr(P, "_compute_g0", lambda *_args, **_kwargs: g0)
+    monkeypatch.setattr(P, "_compute_g0", lambda *_args, **_kwargs: base_g0)
     monkeypatch.setattr(P, "_frame_projection_bytes", lambda *_args: projection)
     monkeypatch.setattr(P, "_read_development_traces", lambda _cfg: (trace,))
     monkeypatch.setattr(P, "validate_timing_columns", lambda *_args: None)
     monkeypatch.setattr(P, "_verify_independent_reanalysis", lambda *_args, **_kwargs: independent)
-    gate = P._gate_verdict_payload(g0, g1, g2)
+    g0, gate = P._independent_finalize_gate(base_g0, g1, g2, independent)
     verification = P._development_verification_payload(cfg, evaluation, g0, registry, 1, len(trace.events), 72, independent)
     (root / "results" / "gate_verdict.json").write_bytes(P.canonical_json_bytes(gate))
     (root / "results" / "verification.json").write_bytes(P.canonical_json_bytes(verification))
@@ -1741,67 +1742,6 @@ def test_task7_thirdreview_integrity_reaches_missing_training_state_branch(tmp_p
         P.build_integrity_manifest(cfg)
 
 
-def _obsolete_task7_pretask8_raw_fixture(tmp_path: Path) -> P.PersistentSearchConfig:
-    cfg = replace(P.resolve_paths(tmp_path, tmp_path / "run"), bootstrap_resamples=64); results = cfg.out_dir / "results"; results.mkdir(parents=True)
-    ranking, search = [], []
-    for index in range(24):
-        suite, world_index = f"suite-{index // 4}", index % 4; world_id = f"development/{suite}/{world_index}"
-        identity = {"world_id": world_id, "split": "development", "suite": suite, "world_index": world_index}
-        for arm, reciprocal_rank, top1 in (("c13p_persistent", .8, .75), ("c13p_reset", .5, .5), ("c13m_base_rank", .4, .25)):
-            ranking.append({**identity, "event_index": 0, "arm": arm, "cross_entropy": 1.0 - reciprocal_rank,
-                            "positive_rank": 1.0 / reciprocal_rank, "reciprocal_rank": reciprocal_rank,
-                            "top1": top1, "rank_percentile": 1.0 - reciprocal_rank})
-        for arm, expansions in (("c13p_persistent", 5), ("c13p_reset", 8), ("c13m_base", 9)):
-            search.append({**identity, "arm": arm, "valid": True, "expansions": expansions,
-                           "cost_ratio": 1.0, "path": "(0, 1)"})
-    pd.DataFrame(ranking).to_csv(results / "development_ranking_raw.csv", index=False, lineterminator="\n")
-    pd.DataFrame(search).to_csv(results / "development_search_raw.csv", index=False, lineterminator="\n")
-    return cfg
-
-
-def _obsolete_task7_pretask8_gate(raw: dict[str, object]) -> dict[str, object]:
-    verdict = raw["recomputed_verdict"]
-    return {"schema_version": "c13p-gate-verdict-v1", "g0": {"passes": True},
-            "g1": raw["recomputed_g1"], "g2": raw["recomputed_g2"], "overall_verdict": verdict,
-            "claim_safe_interpretation": P.claim_safe_interpretation(str(verdict)),
-            "self_bootstrap_performed": False, "confirmation_performed": False}
-
-
-def _obsolete_test_task7_pretask8_independent_raw_math_and_bound_bootstrap(tmp_path: Path) -> None:
-    assert P.BOOTSTRAP_RESAMPLES == 20_000 and P.PersistentSearchConfig.__dataclass_fields__["bootstrap_resamples"].default == 20_000
-    cfg = _task7_pretask8_raw_fixture(tmp_path)
-    raw = P._independent_raw_reanalysis(cfg)
-    assert raw["ranking"]["world_rows"] == 72 and raw["search"]["paired_worlds"] == 24
-    assert raw["recomputed_g1"]["bootstrap"]["sample_shape"] == [64, 24]
-    assert raw["recomputed_g2"]["reset_bootstrap"]["sample_shape"] == [64, 24]
-    assert raw["recomputed_verdict"] == "c13p_persistent_search_pilot_passed"
-
-
-@pytest.mark.parametrize("mutation", ["raw_hash", "primitive", "verdict", "absence"])
-def _obsolete_test_task7_pretask8_independent_reanalysis_mutations_fail_read_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str) -> None:
-    cfg = _task7_pretask8_raw_fixture(tmp_path); raw = P._independent_raw_reanalysis(cfg); gate = _task7_pretask8_gate(raw)
-    payload = P._independent_reanalysis_payload(cfg, gate); verification = {"independent_reanalysis": copy.deepcopy(payload)}
-    assert P._verify_independent_reanalysis(cfg, verification, gate) == payload
-    changed = verification["independent_reanalysis"]
-    if mutation == "raw_hash": changed["raw_artifacts"]["ranking_sha256"] = "0" * 64
-    elif mutation == "primitive": changed["recomputed_g1"]["pooled_mrr_delta"] += .001
-    elif mutation == "verdict": changed["recomputed_verdict"] = "c13p_no_persistent_ranking_signal"
-    else: changed["absence_evidence"]["passes"] = False
-    def forbidden(*_args: object, **_kwargs: object): raise AssertionError("independent verification attempted a write")
-    monkeypatch.setattr(P, "atomic_write_bytes", forbidden); monkeypatch.setattr(P, "_atomic_json", forbidden); monkeypatch.setattr(P, "_atomic_frame", forbidden)
-    with pytest.raises(ValueError, match="independent reanalysis|drift|mismatch"):
-        P._verify_independent_reanalysis(cfg, verification, gate)
-
-
-def _obsolete_test_task7_pretask8_absence_scan_is_exact_and_fail_closed(tmp_path: Path) -> None:
-    cfg = _task7_pretask8_raw_fixture(tmp_path); raw = P._independent_raw_reanalysis(cfg); gate = _task7_pretask8_gate(raw)
-    payload = P._independent_reanalysis_payload(cfg, gate)
-    assert payload["absence_evidence"] == {"searched_roots": list(P.INDEPENDENT_ABSENCE_ROOTS),
-        "forbidden_names": sorted(P.INDEPENDENT_FORBIDDEN_ARTIFACT_NAMES), "matches": [],
-        "self_bootstrap_performed": False, "confirmation_performed": False, "passes": True}
-    forbidden = cfg.out_dir / "results" / "confirmation.json"; forbidden.write_text("{}", encoding="utf-8")
-    with pytest.raises(ValueError, match="confirmation|forbidden|absence"):
-        P._independent_reanalysis_payload(cfg, gate)
 def _task7_pretask8_raw_fixture(tmp_path: Path) -> tuple[P.PersistentSearchConfig, dict[str, object], dict[str, object], dict[str, object]]:
     cfg = replace(P.resolve_paths(tmp_path, tmp_path / "run"), bootstrap_resamples=64); root = cfg.out_dir; results = root / "results"; results.mkdir(parents=True)
     ranking, search, trace_payloads, registry, graphs = [], [], [], {}, {}
@@ -1877,17 +1817,59 @@ def test_task7_pretask8_exact_schema_and_path_mutations_fail(tmp_path: Path) -> 
     reordered = original.loc[:, list(reversed(original.columns))]; reordered.to_csv(ranking_path, index=False)
     with pytest.raises(ValueError, match="schema/order"): P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs)
     original.to_csv(ranking_path, index=False); search_path = cfg.out_dir / "results" / "development_search_raw.csv"; search = pd.read_csv(search_path); search.loc[0, "path"] = "(0, 0, 1)"; search.to_csv(search_path, index=False)
-    with pytest.raises(ValueError, match="path|edge|Dijkstra"): P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs)
+    path_evidence = P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs)["search"]["path_validation"]
+    assert path_evidence["passes"] is False and path_evidence["all_valid"] is False
 @pytest.mark.parametrize("section", ["g0", "g1", "g2"])
 def test_task7_pretask8_gate_leaf_mutations_fail_exact_reanalysis(tmp_path: Path, section: str) -> None:
     cfg, evaluation, graphs, base_g0, artifacts = _task7_pretask8_payload(tmp_path); gate = copy.deepcopy(artifacts["gate"]); payload = artifacts["payload"]
-    if section == "g0": gate["g0"]["primitives"]["source_binding"]["passes"] = False
+    if section == "g0": base_g0["primitives"]["source_binding"]["passes"] = not base_g0["primitives"]["source_binding"]["passes"]
     elif section == "g1": gate["g1"]["pooled_mrr_delta"] += .01
     else: gate["g2"]["persistent_mean_cost_ratio"] += .01
     with pytest.raises(ValueError, match="independent reanalysis|drift|mismatch"):
         P._verify_independent_reanalysis(cfg, evaluation, {"independent_reanalysis": payload}, gate, base_g0, test_resamples=64, graphs=graphs)
 
 
+def test_task7_review_independent_mismatch_has_stable_final_gate_basis(tmp_path: Path) -> None:
+    cfg, evaluation, graphs, base_g0, artifacts = _task7_pretask8_payload(tmp_path)
+    mismatched_g1 = copy.deepcopy(artifacts["raw"]["recomputed_g1"]); mismatched_g1["pooled_mrr_delta"] += .125
+    provisional = P._gate_verdict_payload(base_g0, mismatched_g1, artifacts["raw"]["recomputed_g2"])
+    payload = P._independent_reanalysis_payload(cfg, evaluation, provisional, base_g0, test_resamples=64, graphs=graphs)
+    assert payload["passes"] is False and payload["recomputed_verdict"] == "c13p_invalid_no_mechanism_verdict"
+    final_primitives = copy.deepcopy(base_g0["primitives"]); final_primitives["independent_reanalysis"] = {"passes": False}
+    final_g0 = P._g0_payload(final_primitives); final_gate = P._gate_verdict_payload(final_g0, mismatched_g1, artifacts["raw"]["recomputed_g2"])
+    assert final_gate["overall_verdict"] == "c13p_invalid_no_mechanism_verdict"
+    assert P._verify_independent_reanalysis(cfg, evaluation, {"independent_reanalysis": payload}, final_gate, base_g0, test_resamples=64, graphs=graphs) == payload
+
+
+def test_task7_review_independent_rules_consume_bound_threshold_values(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg, evaluation, graphs, _ = _task7_pretask8_raw_fixture(tmp_path); thresholds = dict(P._GATE_PAYLOAD)
+    thresholds["g1_top1_delta_at_least"] = 1.1; monkeypatch.setattr(P, "_GATE_PAYLOAD", thresholds); evaluation["gate_payload"] = thresholds
+    raw = P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs)
+    assert raw["recomputed_g1"]["pooled_top1_delta"] == 1.0
+    assert raw["recomputed_g1"]["passes"] is False
+
+
+def test_task7_review_valid_no_path_is_mechanical_g0_failure_not_exception(tmp_path: Path) -> None:
+    cfg, evaluation, graphs, _ = _task7_pretask8_raw_fixture(tmp_path); path = cfg.out_dir / "results" / "development_search_raw.csv"; search = pd.read_csv(path)
+    search.loc[0, ["path", "valid", "cost", "cost_ratio"]] = ["()", False, math.inf, math.inf]; search.to_csv(path, index=False)
+    raw = P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs)
+    assert raw["search"]["path_validation"]["all_valid"] is False
+    assert raw["recomputed_g2"]["all_valid"] is False and raw["recomputed_g2"]["passes"] is False
+
+
+def test_task7_review_evaluation_hash_covers_every_independent_function() -> None:
+    source = inspect.getsource(P._evaluation_implementation_sha256)
+    required = [name for name, value in vars(P).items() if name.startswith("_independent_") and inspect.isfunction(value)]
+    assert required and all(name in source for name in required), sorted(name for name in required if name not in source)
+
+
+def test_task7_review_independent_g0_reconstruction_does_not_call_production_compute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg, evaluation, graphs, base_g0, artifacts = _task7_pretask8_payload(tmp_path)
+    def forbidden(*_args: object, **_kwargs: object): raise AssertionError("production _compute_g0 called")
+    monkeypatch.setattr(P, "_compute_g0", forbidden)
+    evidence = P._independent_base_g0(cfg, evaluation, artifacts["raw"], graphs=graphs)
+    assert set(evidence["primitives"]) == set(P.G0_PRIMITIVES) - {"independent_reanalysis"}
+    assert all(type(value["passes"]) is bool for value in evidence["primitives"].values())
 @pytest.mark.parametrize("drift", ["seed", "resamples"])
 def test_task7_pretask8_bound_bootstrap_drift_fails(tmp_path: Path, drift: str) -> None:
     cfg, evaluation, graphs, _ = _task7_pretask8_raw_fixture(tmp_path); changed = copy.deepcopy(evaluation)
@@ -1895,3 +1877,38 @@ def test_task7_pretask8_bound_bootstrap_drift_fails(tmp_path: Path, drift: str) 
     else: changed["gate_payload"]["bootstrap_resamples"] = 19_999
     with pytest.raises(ValueError, match="bootstrap binding|20,000|drift"):
         P._independent_raw_reanalysis(cfg, changed, test_resamples=64, graphs=graphs)
+def test_task7_review_final_gate_integration_is_one_stable_operation(tmp_path: Path) -> None:
+    cfg, evaluation, graphs, base_g0, artifacts = _task7_pretask8_payload(tmp_path)
+    mismatched_g1 = copy.deepcopy(artifacts["raw"]["recomputed_g1"]); mismatched_g1["pooled_mrr_delta"] += .25
+    basis = P._gate_verdict_payload(base_g0, mismatched_g1, artifacts["raw"]["recomputed_g2"])
+    independent = P._independent_reanalysis_payload(cfg, evaluation, basis, base_g0, test_resamples=64, graphs=graphs)
+    final_g0, final_gate = P._independent_finalize_gate(base_g0, mismatched_g1, artifacts["raw"]["recomputed_g2"], independent)
+    assert independent["passes"] is False and final_g0["primitives"]["independent_reanalysis"]["passes"] is False
+    assert final_gate["overall_verdict"] == "c13p_invalid_no_mechanism_verdict"
+    assert P._verify_independent_reanalysis(cfg, evaluation, {"independent_reanalysis": independent}, final_gate, base_g0, test_resamples=64, graphs=graphs) == independent
+def test_task7_review_completed_develop_verification_forbids_all_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg, _gate, _verification = _task7_thirdreview_development_fixture(tmp_path, monkeypatch)
+    def forbidden(*_args: object, **_kwargs: object): raise AssertionError("completed verification attempted mutation")
+    monkeypatch.setattr(P, "atomic_write_bytes", forbidden); monkeypatch.setattr(P, "_atomic_json", forbidden); monkeypatch.setattr(P, "_atomic_frame", forbidden)
+    monkeypatch.setattr(P, "train_stationary_model", forbidden); monkeypatch.setattr(P.os, "replace", forbidden)
+    P._verify_development_evidence(cfg)
+
+
+def test_task7_review_enriched_verification_is_bound_by_marker_and_integrity(tmp_path: Path) -> None:
+    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); verification_path = cfg.out_dir / "results" / "verification.json"; verification_path.parent.mkdir(parents=True)
+    independent = {"schema_version": P.INDEPENDENT_REANALYSIS_SCHEMA_VERSION, "raw_artifacts": {"ranking_sha256": "a" * 64}, "passes": True}
+    verification_path.write_bytes(P.canonical_json_bytes({"schema_version": P.VERIFICATION_SCHEMA_VERSION, "independent_reanalysis": independent}))
+    integrity = P.build_integrity_manifest(cfg); entry = integrity["artifacts"]["results/verification.json"]
+    assert entry["sha256"] == _sha256(verification_path) and entry["schema"] == P.VERIFICATION_SCHEMA_VERSION
+    binding = P.stage_binding(cfg, "develop", {"train": "b" * 64}); P._write_stage_marker(cfg, "develop", binding, ((verification_path, P.VERIFICATION_SCHEMA_VERSION),))
+    marker = json.loads((cfg.out_dir / "bindings" / "develop.json").read_text(encoding="utf-8")); output = marker["outputs"]["results/verification.json"]
+    assert output["sha256"] == _sha256(verification_path) and output["schema"] == P.VERIFICATION_SCHEMA_VERSION
+
+
+def test_task7_review_no_path_payload_finalizes_to_invalid_gate(tmp_path: Path) -> None:
+    cfg, evaluation, graphs, base_g0 = _task7_pretask8_raw_fixture(tmp_path); search_path = cfg.out_dir / "results" / "development_search_raw.csv"; search = pd.read_csv(search_path)
+    search.loc[0, ["path", "valid", "cost", "cost_ratio"]] = ["()", False, math.inf, math.inf]; search.to_csv(search_path, index=False)
+    raw = P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs); basis = P._gate_verdict_payload(base_g0, raw["recomputed_g1"], raw["recomputed_g2"])
+    independent = P._independent_reanalysis_payload(cfg, evaluation, basis, base_g0, test_resamples=64, graphs=graphs); final_g0, gate = P._independent_finalize_gate(base_g0, raw["recomputed_g1"], raw["recomputed_g2"], independent)
+    assert independent["search"]["path_validation"]["all_valid"] is False and independent["passes"] is False
+    assert final_g0["passes"] is False and gate["overall_verdict"] == "c13p_invalid_no_mechanism_verdict"
