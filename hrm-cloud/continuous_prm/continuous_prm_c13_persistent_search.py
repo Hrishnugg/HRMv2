@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import ast
 import hashlib
 import heapq
 import json
@@ -1767,7 +1768,7 @@ STAGE_OUTPUT_KEYS = frozenset({"path", "sha256", "size", "schema"})
 G0_PRIMITIVES = (
     "source_binding", "source_integrity", "cohort_replay", "cache_hashes", "cohort_counts",
     "cohort_uniqueness", "trace_duplicates", "leakage_boundary", "checkpoint_identity",
-    "projection_duplicates", "timings", "paths", "binding_chain",
+    "projection_duplicates", "timings", "paths", "binding_chain", "independent_reanalysis",
 )
 EVALUATION_BOUND_FILE_LABELS = frozenset({
     "implementation", "source_audit", "manifest", "preregistration", "source_implementation",
@@ -1786,8 +1787,13 @@ VERIFICATION_KEYS = frozenset({
     "ranking_projection_first_sha256", "ranking_projection_second_sha256", "search_projection_first_sha256",
     "search_projection_second_sha256", "offline_projection_sha256", "online_projection_sha256",
     "duplicate_projections_equal", "timings_finite_nonnegative", "development_worlds", "online_rows",
-    "registry_fingerprint", "evaluation_binding_fingerprint", "trace_event_counts",
+    "registry_fingerprint", "evaluation_binding_fingerprint", "trace_event_counts", "independent_reanalysis",
 })
+INDEPENDENT_REANALYSIS_SCHEMA_VERSION = "c13p-independent-reanalysis-v1"
+INDEPENDENT_FORBIDDEN_ARTIFACT_RULES = (
+    "confirmation", "bootstrap+label", "self+train", "self+bootstrap",
+)
+
 
 
 def claim_safe_interpretation(verdict: str) -> str:
@@ -2568,9 +2574,285 @@ def _gate_verdict_payload(g0: Mapping[str, object], g1: Mapping[str, object], g2
     return payload
 
 
+def _independent_bootstrap(values: np.ndarray, resamples: int, seed: int) -> dict[str, object]:
+    numeric = np.asarray(values, dtype=float)
+    if numeric.shape != (DEVELOPMENT_WORLDS,) or not np.all(np.isfinite(numeric)) or not isinstance(resamples, int) or resamples <= 0:
+        raise ValueError("independent bootstrap inputs are invalid")
+    indices = np.random.default_rng(seed).integers(0, DEVELOPMENT_WORLDS, size=(resamples, DEVELOPMENT_WORLDS))
+    means = numeric[indices].mean(axis=1); low, high = np.quantile(means, [0.025, 0.975], method="linear")
+    return {"point_estimate": float(numeric.mean()), "ci_low": float(low), "ci_high": float(high),
+            "n_worlds": DEVELOPMENT_WORLDS, "sample_shape": [resamples, DEVELOPMENT_WORLDS]}
+
+
+def _independent_raw_reanalysis_aggregate(cfg: PersistentSearchConfig, ranking_override: pd.DataFrame | None = None,
+                                search_override: pd.DataFrame | None = None, resamples_override: int | None = None,
+                                seeds_override: Mapping[str, int] | None = None) -> dict[str, object]:
+    root = Path(cfg.out_dir); ranking_path = root / "results" / "development_ranking_raw.csv"; search_path = root / "results" / "development_search_raw.csv"
+    ranking, search = (pd.read_csv(ranking_path) if ranking_override is None else ranking_override.copy()), (pd.read_csv(search_path) if search_override is None else search_override.copy()); resamples = cfg.bootstrap_resamples if resamples_override is None else resamples_override
+    seeds = BOOTSTRAP_SEEDS if seeds_override is None else seeds_override
+    if not isinstance(resamples, int) or resamples <= 0: raise ValueError("independent reanalysis bootstrap count is invalid")
+    identity = ["world_id", "split", "suite", "world_index"]
+    ranking_metrics = ["cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile"]
+    if not set(identity + ["event_index", "arm", *ranking_metrics]).issubset(ranking.columns): raise ValueError("independent ranking raw artifact is incomplete")
+    world = ranking.groupby([*identity, "arm"], sort=True, as_index=False)[ranking_metrics].mean()
+    if len(world) != DEVELOPMENT_WORLDS * len(OFFLINE_ARMS) or set(world["arm"]) != set(OFFLINE_ARMS) or world.duplicated(["world_id", "arm"]).any():
+        raise ValueError("independent ranking world-arm cross-product is incomplete")
+    if not all(np.isfinite(world[column].to_numpy(dtype=float)).all() for column in ranking_metrics): raise ValueError("independent ranking metrics are non-finite")
+    ranking_pivot = world.pivot(index=["world_id", "suite", "world_index"], columns="arm", values=["reciprocal_rank", "top1"])
+    paired_ranking = pd.DataFrame({"persistent_mrr": ranking_pivot[("reciprocal_rank", "c13p_persistent")],
+        "reset_mrr": ranking_pivot[("reciprocal_rank", "c13p_reset")], "base_mrr": ranking_pivot[("reciprocal_rank", "c13m_base_rank")],
+        "persistent_top1": ranking_pivot[("top1", "c13p_persistent")], "reset_top1": ranking_pivot[("top1", "c13p_reset")],
+        "base_top1": ranking_pivot[("top1", "c13m_base_rank")] }).reset_index().sort_values("world_id", kind="stable").reset_index(drop=True)
+    paired_ranking["mrr_delta"] = paired_ranking["persistent_mrr"] - paired_ranking["reset_mrr"]
+    paired_ranking["top1_delta"] = paired_ranking["persistent_top1"] - paired_ranking["reset_top1"]
+    g1_bootstrap = _independent_bootstrap(paired_ranking["mrr_delta"].to_numpy(dtype=float), resamples, int(seeds["g1_mrr"]))
+    suite_mrr = paired_ranking.groupby("suite", sort=True)["mrr_delta"].mean(); positive_suites = int((suite_mrr > 0.).sum())
+    pooled_top1 = float(paired_ranking["top1_delta"].mean()); g1_low = float(g1_bootstrap["ci_low"])
+    g1_passes = bool(g1_low > 0. and pooled_top1 >= .02 and positive_suites >= 4)
+    independent_g1 = {"comparison": "c13p_persistent_minus_c13p_reset", "pooled_mrr_delta": float(paired_ranking["mrr_delta"].mean()),
+        "pooled_mrr_ci_low": g1_low, "pooled_mrr_ci_high": float(g1_bootstrap["ci_high"]), "pooled_top1_delta": pooled_top1,
+        "suite_mrr_deltas": {str(key): float(value) for key, value in suite_mrr.items()}, "suites_with_positive_mrr": positive_suites,
+        "bootstrap": g1_bootstrap, "passes": g1_passes, "verdict": "c13p_g1_passed" if g1_passes else "c13p_no_persistent_ranking_signal"}
+
+    search_required = [*identity, "arm", "valid", "expansions", "cost_ratio", "path"]
+    if not set(search_required).issubset(search.columns) or len(search) != DEVELOPMENT_WORLDS * len(ONLINE_ARMS) or set(search["arm"]) != set(ONLINE_ARMS) or search.duplicated(["world_id", "arm"]).any():
+        raise ValueError("independent search raw artifact is incomplete")
+    if not np.all(np.isfinite(search["expansions"].to_numpy(dtype=float))) or np.any(np.isnan(search["cost_ratio"].to_numpy(dtype=float))): raise ValueError("independent search metrics are invalid")
+    valid_values = search["valid"].map(lambda value: bool(value) if isinstance(value, (bool, np.bool_)) else str(value).casefold() == "true")
+    path_present = search["path"].map(lambda value: isinstance(value, str) and bool(value.strip()))
+    search = search.copy(); search["valid"] = valid_values
+    search_pivot = search.pivot(index=["world_id", "suite", "world_index"], columns="arm", values=["expansions", "cost_ratio", "valid"])
+    paired_search = pd.DataFrame({"persistent_expansions": search_pivot[("expansions", "c13p_persistent")],
+        "reset_expansions": search_pivot[("expansions", "c13p_reset")], "c13m_expansions": search_pivot[("expansions", "c13m_base")],
+        "persistent_cost_ratio": search_pivot[("cost_ratio", "c13p_persistent")], "c13m_cost_ratio": search_pivot[("cost_ratio", "c13m_base")],
+        "all_valid": search_pivot["valid"].all(axis=1)}).reset_index().sort_values("world_id", kind="stable").reset_index(drop=True)
+    paired_search["persistent_minus_reset_expansions"] = paired_search["persistent_expansions"] - paired_search["reset_expansions"]
+    paired_search["persistent_minus_c13m_expansions"] = paired_search["persistent_expansions"] - paired_search["c13m_expansions"]
+    reset_bootstrap = _independent_bootstrap(paired_search["persistent_minus_reset_expansions"].to_numpy(dtype=float), resamples, int(seeds["g2_exp_reset"]))
+    c13m_bootstrap = _independent_bootstrap(paired_search["persistent_minus_c13m_expansions"].to_numpy(dtype=float), resamples, int(seeds["g2_exp_c13m"]))
+    reset_suites = paired_search.groupby("suite", sort=True)["persistent_minus_reset_expansions"].mean()
+    c13m_suites = paired_search.groupby("suite", sort=True)["persistent_minus_c13m_expansions"].mean()
+    reset_high, c13m_high = float(reset_bootstrap["ci_high"]), float(c13m_bootstrap["ci_high"])
+    mean, c13m_mean = float(paired_search["persistent_cost_ratio"].mean()), float(paired_search["c13m_cost_ratio"].mean())
+    maximum, c13m_max = float(paired_search["persistent_cost_ratio"].max()), float(paired_search["c13m_cost_ratio"].max())
+    negative_reset, negative_c13m = int((reset_suites < 0.).sum()), int((c13m_suites < 0.).sum())
+    all_valid = bool(paired_search["all_valid"].all() and path_present.all())
+    mean_passes = bool(math.isfinite(mean) and math.isfinite(c13m_mean) and (mean <= c13m_mean + .005 or math.isclose(mean, c13m_mean + .005, rel_tol=0., abs_tol=1.e-12)))
+    maximum_passes = bool(math.isfinite(maximum) and math.isfinite(c13m_max) and (maximum <= c13m_max + .02 or math.isclose(maximum, c13m_max + .02, rel_tol=0., abs_tol=1.e-12)))
+    g2_passes = bool(all_valid and reset_high < 0. and c13m_high < 0. and negative_reset >= 4 and negative_c13m >= 4 and mean_passes and maximum_passes)
+    independent_g2 = {"all_valid": all_valid, "reset_bootstrap": reset_bootstrap, "c13m_bootstrap": c13m_bootstrap,
+        "reset_ci_high": reset_high, "c13m_ci_high": c13m_high, "reset_ci_passes": bool(reset_high < 0.), "c13m_ci_passes": bool(c13m_high < 0.),
+        "suite_reset_expansion_deltas": {str(key): float(value) for key, value in reset_suites.items()},
+        "suite_c13m_expansion_deltas": {str(key): float(value) for key, value in c13m_suites.items()},
+        "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m,
+        "suite_reset_passes": bool(negative_reset >= 4), "suite_c13m_passes": bool(negative_c13m >= 4),
+        "persistent_mean_cost_ratio": mean, "c13m_mean_cost_ratio": c13m_mean, "persistent_max_cost_ratio": maximum, "c13m_max_cost_ratio": c13m_max,
+        "quality_mean_passes": mean_passes, "quality_max_passes": maximum_passes, "passes": g2_passes,
+        "verdict": "c13p_g2_passed" if g2_passes else "c13p_offline_signal_failed_free_running_search"}
+    verdict = ("c13p_no_persistent_ranking_signal" if not g1_passes else
+               "c13p_offline_signal_failed_free_running_search" if not g2_passes else "c13p_persistent_search_pilot_passed")
+    return {"raw_artifacts": {"ranking_sha256": sha256_file(ranking_path), "search_sha256": sha256_file(search_path)},
+        "bootstrap_config": {"resamples": resamples, "seeds": dict(seeds)},
+        "ranking": {"event_rows": len(ranking), "world_rows": len(world), "world_metrics": _json_safe(world.sort_values(["world_id", "arm"], kind="stable").to_dict("records")),
+                    "paired_world_metrics": _json_safe(paired_ranking.to_dict("records"))},
+        "search": {"rows": len(search), "paired_worlds": len(paired_search), "path_validity": {"all_valid": all_valid,
+                    "valid_by_arm": {str(key): bool(value) for key, value in search.groupby("arm", sort=True)["valid"].all().items()},
+                    "all_paths_present": bool(path_present.all())}, "paired_metrics": _json_safe(paired_search.to_dict("records"))},
+        "recomputed_g1": independent_g1, "recomputed_g2": independent_g2, "recomputed_verdict": verdict}
+
+
+_INDEPENDENT_RANKING_COLUMNS = ["world_id", "suite", "split", "arm", "event_index", "frontier_cross_entropy", "rank", "reciprocal_rank", "top1", "rank_percentile", "candidate_count", "world_index", "world_seed", "roadmap_seed", "feature_cache_sha256", "node_count", "edge_count", "feature_cache_path", "positive_node", "candidate_nodes", "checkpoint_sha256", "model_state_sha256", "cross_entropy", "positive_rank", "raw_logits"]
+_INDEPENDENT_SEARCH_COLUMNS = ["split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_sha256", "node_count", "edge_count", "feature_cache_path", "world_id", "arm", "path", "valid", "cost", "optimal_cost", "cost_ratio", "expansions", "expanded_nodes", "scorer_calls", "candidates_scored", "representation_seconds", "model_seconds", "bookkeeping_seconds", "checkpoint_sha256", "model_state_sha256"]
+
+
+def _independent_bound_config(cfg: PersistentSearchConfig, evaluation: Mapping[str, object] | None, test_resamples: int | None) -> tuple[int, dict[str, int], Mapping[str, object]]:
+    if evaluation is None:
+        if test_resamples is None: raise ValueError("independent reanalysis requires the frozen evaluation binding")
+        return test_resamples, dict(BOOTSTRAP_SEEDS), dict(_GATE_PAYLOAD)
+    seeds, gate_payload = evaluation.get("bootstrap_seeds"), evaluation.get("gate_payload")
+    if not isinstance(seeds, Mapping) or dict(seeds) != BOOTSTRAP_SEEDS or not isinstance(gate_payload, Mapping) or dict(gate_payload) != _GATE_PAYLOAD:
+        raise ValueError("independent reanalysis frozen bootstrap binding drifted")
+    if test_resamples is not None:
+        if not isinstance(test_resamples, int) or test_resamples <= 0: raise ValueError("independent test resample override is invalid")
+        return test_resamples, {key: int(value) for key, value in seeds.items()}, gate_payload
+    if cfg.bootstrap_resamples != BOOTSTRAP_RESAMPLES:
+        raise ValueError("official independent reanalysis requires exactly 20,000 bound resamples")
+    return BOOTSTRAP_RESAMPLES, {key: int(value) for key, value in seeds.items()}, gate_payload
+
+
+def _independent_parse_sequence(value: object, label: str) -> tuple[object, ...]:
+    try: parsed = ast.literal_eval(str(value))
+    except (SyntaxError, ValueError) as exc: raise ValueError(f"independent {label} is not a literal tuple/list") from exc
+    if not isinstance(parsed, (tuple, list)): raise ValueError(f"independent {label} is not a tuple/list")
+    return tuple(parsed)
+
+
+def _independent_trace_events(path: Path) -> dict[tuple[str, int], Mapping[str, object]]:
+    payload = _read_json(path, "independent development trace")
+    traces = payload.get("traces")
+    if payload.get("schema_version") != SCHEMA_VERSION or not isinstance(traces, list): raise ValueError("independent development trace schema drifted")
+    output: dict[tuple[str, int], Mapping[str, object]] = {}
+    for raw_trace in traces:
+        if not isinstance(raw_trace, Mapping): raise ValueError("independent trace record is invalid")
+        examples = raw_trace.get("examples")
+        if not isinstance(examples, list) or not examples: raise ValueError("independent trace examples are invalid")
+        for example in examples:
+            causal = example.get("model_causal") if isinstance(example, Mapping) else None
+            labels = example.get("labels") if isinstance(example, Mapping) else None
+            event = causal.get("event") if isinstance(causal, Mapping) else None
+            if not isinstance(event, Mapping) or not isinstance(labels, Mapping): raise ValueError("independent trace event is invalid")
+            world_id = f"{causal.get('split')}/{causal.get('suite')}/{causal.get('world_index')}"
+            key = (world_id, int(event.get("event_index")))
+            if key in output: raise ValueError("independent trace contains duplicate event identity")
+            output[key] = {"open_nodes": tuple(event.get("open_nodes", ())), "open_g": tuple(event.get("open_g", ())), "open_base_rank": tuple(event.get("open_base_rank", ())), "positive_node": labels.get("positive_node")}
+    return output
+
+
+def _independent_event_metrics(row: Mapping[str, object], trace_event: Mapping[str, object]) -> dict[str, float]:
+    nodes = tuple(int(value) for value in _independent_parse_sequence(row["candidate_nodes"], "candidate_nodes"))
+    logits = np.asarray([float(value) for value in _independent_parse_sequence(row["raw_logits"], "raw_logits")], dtype=float)
+    open_nodes = tuple(int(value) for value in trace_event["open_nodes"]); positive = int(trace_event["positive_node"])
+    if nodes != open_nodes or int(row["positive_node"]) != positive or int(row["candidate_count"]) != len(nodes) or len(nodes) != len(logits) or len(set(nodes)) != len(nodes) or not np.all(np.isfinite(logits)):
+        raise ValueError("independent ranking candidates/logits do not align with the promoted trace")
+    open_g = np.asarray(trace_event["open_g"], dtype=float); base = np.asarray(trace_event["open_base_rank"], dtype=float)
+    order = sorted(range(len(nodes)), key=lambda index: (-float(logits[index]), float(open_g[index] + base[index]), float(open_g[index]), nodes[index]))
+    positive_index = nodes.index(positive); rank = order.index(positive_index) + 1
+    shifted = logits - float(np.max(logits)); ce = float(np.log(np.exp(shifted).sum()) - shifted[positive_index])
+    count = len(nodes); result = {"cross_entropy": ce, "positive_rank": float(rank), "reciprocal_rank": 1.0 / rank, "top1": float(rank == 1), "rank_percentile": float((rank - 1) / max(count - 1, 1))}
+    if not math.isclose(float(row["frontier_cross_entropy"]), float(row["cross_entropy"]), rel_tol=0., abs_tol=1e-12) or not math.isclose(float(row["rank"]), float(row["positive_rank"]), rel_tol=0., abs_tol=1e-12):
+        raise ValueError("independent redundant ranking fields disagree")
+    for name, value in result.items():
+        if not math.isclose(float(row[name]), value, rel_tol=0., abs_tol=1e-6): raise ValueError(f"independent raw ranking metric drifted: {name}")
+    return result
+
+
+def _independent_graphs(cfg: PersistentSearchConfig, evaluation: Mapping[str, object]) -> dict[str, Sequence[Sequence[tuple[int, float]]]]:
+    import continuous_prm_c7_hard_maps as M7
+    M7.install_c7_hard_maps(); specs = C.build_anchor_specs(); registry = validate_expected_development_registry(evaluation.get("development_registry")); graphs = {}
+    for world_id, record in registry.items():
+        suite = str(record["suite"]); world = C.build_world(specs[suite], int(record["world_seed"]), .45)
+        roadmap = None if world is None else C.build_prm(world, C.RoadmapConfig(n_nodes=int(record["node_count"]), k_neighbors=7), seed=int(record["roadmap_seed"]))
+        if roadmap is None or len(roadmap.adj) != int(record["node_count"]) or sum(len(edges) for edges in roadmap.adj) != int(record["edge_count"]): raise ValueError("independent graph regeneration drifted")
+        graphs[world_id] = roadmap.adj
+    return graphs
+
+
+def _independent_shortest_cost(graph: Sequence[Sequence[tuple[int, float]]]) -> float:
+    distances = [math.inf] * len(graph); distances[0] = 0.; queue = [(0., 0)]
+    while queue:
+        distance, node = heapq.heappop(queue)
+        if distance != distances[node]: continue
+        if node == 1: return distance
+        for target, weight in graph[node]:
+            candidate = distance + float(weight)
+            if candidate < distances[int(target)]: distances[int(target)] = candidate; heapq.heappush(queue, (candidate, int(target)))
+    return math.inf
+
+
+def _independent_validate_paths(search: pd.DataFrame, graphs: Mapping[str, Sequence[Sequence[tuple[int, float]]]]) -> dict[str, object]:
+    checked = []
+    for row in search.to_dict("records"):
+        world_id = str(row["world_id"]); graph = graphs.get(world_id)
+        if graph is None: raise ValueError("independent search graph identity is missing")
+        path = tuple(int(value) for value in _independent_parse_sequence(row["path"], "path")); valid = bool(path and path[0] == 0 and path[-1] == 1); cost = 0.
+        for source, target in zip(path, path[1:]):
+            weights = [float(weight) for node, weight in graph[source] if int(node) == target] if 0 <= source < len(graph) else []
+            if len(weights) != 1: valid = False; break
+            cost += weights[0]
+        optimal = _independent_shortest_cost(graph); ratio = cost / optimal if valid and math.isfinite(optimal) and optimal > 0. else math.inf
+        stored_valid = str(row["valid"]).casefold() == "true"
+        if stored_valid is not valid or not valid or not math.isclose(float(row["cost"]), cost, rel_tol=0., abs_tol=1e-9) or not math.isclose(float(row["optimal_cost"]), optimal, rel_tol=0., abs_tol=1e-9) or not math.isclose(float(row["cost_ratio"]), ratio, rel_tol=0., abs_tol=1e-9):
+            raise ValueError("independent path/edge/cost/Dijkstra validation failed")
+        checked.append({"world_id": world_id, "arm": str(row["arm"]), "path": list(path), "cost": cost, "optimal_cost": optimal, "cost_ratio": ratio, "valid": True})
+    return {"checked_rows": len(checked), "all_valid": True, "rows": checked}
+
+
+_independent_raw_reanalysis_v1 = _independent_raw_reanalysis_aggregate
+def _independent_raw_reanalysis(cfg: PersistentSearchConfig, evaluation: Mapping[str, object] | None = None, *, test_resamples: int | None = None, graphs: Mapping[str, Sequence[Sequence[tuple[int, float]]]] | None = None) -> dict[str, object]:
+    root = Path(cfg.out_dir); ranking_path = root / "results" / "development_ranking_raw.csv"; search_path = root / "results" / "development_search_raw.csv"; trace_path = root / "traces" / "development" / "traces.json"
+    ranking, search = pd.read_csv(ranking_path), pd.read_csv(search_path)
+    if list(ranking.columns) != _INDEPENDENT_RANKING_COLUMNS or list(search.columns) != _INDEPENDENT_SEARCH_COLUMNS: raise ValueError("independent raw CSV schema/order drifted")
+    resamples, seeds, thresholds = _independent_bound_config(cfg, evaluation, test_resamples); trace_events = _independent_trace_events(trace_path)
+    if evaluation is not None:
+        registry = validate_expected_development_registry(evaluation.get("development_registry"))
+        identity_fields = ("split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_sha256", "node_count", "edge_count", "feature_cache_path")
+        for frame in (ranking, search):
+            for row in frame.to_dict("records"):
+                world_id = str(row["world_id"]); expected = registry.get(world_id)
+                if expected is None: raise ValueError("independent raw row is outside the bound development registry")
+                for field in identity_fields:
+                    observed = int(row[field]) if field in ("world_index", "world_seed", "roadmap_seed", "node_count", "edge_count") else str(row[field])
+                    target = int(expected[field]) if field in ("world_index", "world_seed", "roadmap_seed", "node_count", "edge_count") else str(expected[field])
+                    if observed != target: raise ValueError(f"independent raw row drifted from bound development registry: {field}")
+    expected_keys = {(str(row.world_id), int(row.event_index)) for row in ranking.itertuples(index=False)}
+    if expected_keys != set(trace_events) or ranking.duplicated(["world_id", "event_index", "arm"]).any() or len(ranking) != len(trace_events) * len(OFFLINE_ARMS): raise ValueError("independent ranking arm-world-event cross-product is incomplete")
+    metrics = [_independent_event_metrics(row, trace_events[(str(row["world_id"]), int(row["event_index"]))]) for row in ranking.to_dict("records")]
+    recomputed = ranking.loc[:, ["world_id", "split", "suite", "world_index", "arm", "event_index"]].copy()
+    for name in ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile"): recomputed[name] = [row[name] for row in metrics]
+    temp_ranking = ranking.copy()
+    for name in ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile"): temp_ranking[name] = recomputed[name]
+    _ = thresholds
+    raw = _independent_raw_reanalysis_v1(cfg, temp_ranking, search, resamples, seeds)
+    graph_map = graphs if graphs is not None else (_independent_graphs(cfg, evaluation) if evaluation is not None else None)
+    if graph_map is None: raise ValueError("independent path validation requires regenerated graphs")
+    raw["raw_artifacts"]["development_trace_sha256"] = sha256_file(trace_path); raw["bootstrap_config"] = {"resamples": resamples, "seeds": seeds, "thresholds": dict(thresholds)}
+    raw["ranking"]["raw_metric_recomputed"] = True; raw["ranking"]["trace_events"] = len(trace_events); raw["search"]["path_validation"] = _independent_validate_paths(search, graph_map)
+    return raw
+def _independent_absence_evidence(cfg: PersistentSearchConfig, gate: Mapping[str, object]) -> dict[str, object]:
+    root = Path(cfg.out_dir); matches = []
+    for path in root.rglob("*"):
+        relative = path.relative_to(root).as_posix(); tokens = []
+        for component in Path(relative).parts:
+            normalized = "".join(character if character.isalnum() else " " for character in component.casefold())
+            tokens.extend(normalized.split())
+        joined = "".join(tokens)
+        forbidden = (any(token.startswith("confirmation") for token in tokens) or "confirmation" in joined
+                     or (("bootstrap" in tokens and "label" in tokens) or "bootstraplabel" in joined)
+                     or (("self" in tokens and "train" in tokens) or "selftrain" in joined)
+                     or (("self" in tokens and "bootstrap" in tokens) or "selfbootstrap" in joined))
+        if forbidden: matches.append(relative)
+    payload = {"searched_root": ".", "rules": list(INDEPENDENT_FORBIDDEN_ARTIFACT_RULES), "matches": sorted(set(matches))}
+    if matches or gate.get("self_bootstrap_performed") is not False or gate.get("confirmation_performed") is not False:
+        raise ValueError(f"independent reanalysis forbidden confirmation/bootstrap/self-training absence check failed: {payload}")
+    return payload
+
+
+def _independent_comparison(actual: Mapping[str, object], expected: object) -> dict[str, object]:
+    reference = expected if isinstance(expected, Mapping) else {}; keys = sorted(set(actual) | set(reference))
+    matches = {key: actual.get(key) == reference.get(key) for key in keys}
+    return {"keys": keys, "matches": matches, "passes": all(matches.values()) and set(actual) == set(reference)}
+
+
+def _independent_reanalysis_payload(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], gate: Mapping[str, object], base_g0: Mapping[str, object], *, test_resamples: int | None = None, graphs: Mapping[str, Sequence[Sequence[tuple[int, float]]]] | None = None) -> dict[str, object]:
+    raw = _independent_raw_reanalysis(cfg, evaluation, test_resamples=test_resamples, graphs=graphs)
+    if not bool(base_g0.get("passes")): raw["recomputed_verdict"] = "c13p_invalid_no_mechanism_verdict"
+    g1_comparison = _independent_comparison(raw["recomputed_g1"], gate.get("g1")); g2_comparison = _independent_comparison(raw["recomputed_g2"], gate.get("g2"))
+    gate_g0 = gate.get("g0") if isinstance(gate.get("g0"), Mapping) else {}; gate_primitives = gate_g0.get("primitives") if isinstance(gate_g0.get("primitives"), Mapping) else {}
+    base_primitives = base_g0.get("primitives") if isinstance(base_g0.get("primitives"), Mapping) else {}; names = [name for name in G0_PRIMITIVES if name != "independent_reanalysis"]
+    g0_matches = {name: isinstance(gate_primitives.get(name), Mapping) and isinstance(base_primitives.get(name), Mapping) and gate_primitives[name].get("passes") is base_primitives[name].get("passes") for name in names}
+    g0_comparison = {"primitive_passes": g0_matches, "excluded_recursive_primitive": "independent_reanalysis", "passes": all(g0_matches.values())}
+    absence = _independent_absence_evidence(cfg, gate)
+    preliminary = bool(g0_comparison["passes"] and g1_comparison["passes"] and g2_comparison["passes"] and not absence["matches"])
+    if not preliminary: raw["recomputed_verdict"] = "c13p_invalid_no_mechanism_verdict"
+    verdict_matches = raw["recomputed_verdict"] == gate.get("overall_verdict")
+    passes = bool(preliminary and verdict_matches)
+    return {"schema_version": INDEPENDENT_REANALYSIS_SCHEMA_VERSION, **raw,
+            "comparison_evidence": {"g0": g0_comparison, "g1": g1_comparison, "g2": g2_comparison, "verdict_matches": verdict_matches},
+            "absence_evidence": absence, "passes": passes}
+
+
+def _verify_independent_reanalysis(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], verification: Mapping[str, object], gate: Mapping[str, object], base_g0: Mapping[str, object], *,
+                                   test_resamples: int | None = None, graphs: Mapping[str, Sequence[Sequence[tuple[int, float]]]] | None = None) -> Mapping[str, object]:
+    expected = _independent_reanalysis_payload(cfg, evaluation, gate, base_g0,
+                                               test_resamples=test_resamples, graphs=graphs)
+    if verification.get("independent_reanalysis") != expected: raise ValueError("independent reanalysis canonical payload drifted or mismatched")
+    return expected
+
+
 def _development_verification_payload(cfg: PersistentSearchConfig, evaluation: Mapping[str, object],
                                       g0: Mapping[str, object], registry: Mapping[str, Mapping[str, object]],
-                                      development_worlds: int, development_events: int, online_rows: int) -> dict[str, object]:
+                                      development_worlds: int, development_events: int, online_rows: int,
+                                      independent_reanalysis: Mapping[str, object]) -> dict[str, object]:
     root = Path(cfg.out_dir); duplicate_root = root / "traces" / "duplicates" / "development"
     projection_root = root / "results" / "verification"; trace_counts = evaluation.get("trace_event_counts")
     if not isinstance(trace_counts, Mapping) or set(trace_counts) != {"train", "validation"}:
@@ -2590,13 +2872,15 @@ def _development_verification_payload(cfg: PersistentSearchConfig, evaluation: M
         "registry_fingerprint": hash_canonical(registry),
         "evaluation_binding_fingerprint": evaluation["binding_fingerprint"],
         "trace_event_counts": {"train": int(trace_counts["train"]), "validation": int(trace_counts["validation"]),
-                               "development": int(development_events)}}
+                               "development": int(development_events)},
+        "independent_reanalysis": dict(independent_reanalysis)}
     if set(payload) != VERIFICATION_KEYS: raise ValueError("verification construction is incomplete")
     return payload
 
 
 def _compute_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], registry: Mapping[str, Mapping[str, object]],
-                ranking: pd.DataFrame, search: pd.DataFrame) -> dict[str, object]:
+                ranking: pd.DataFrame, search: pd.DataFrame,
+                independent_reanalysis: Mapping[str, object] | None = None) -> dict[str, object]:
     root = Path(cfg.out_dir); audit = _verify_audit_evidence(cfg); source = audit_sources(cfg)
     records = {split: _canonical_records(source, split) for split in ("train", "validation", "development")}
     counts = {split: len(rows) for split, rows in records.items()}
@@ -2656,6 +2940,11 @@ def _compute_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, object], r
         "projection_duplicates": {"passes": ranking_duplicate["passes"] and search_duplicate["passes"], "ranking": ranking_duplicate, "search": search_duplicate},
         "timings": {"passes": timing_ok, "rows": len(search)},
         "paths": {"passes": "valid" in search and bool(search["valid"].map(lambda value: type(value) is bool).all()) and bool(search["valid"].all()), "valid_rows": int(search["valid"].sum()) if "valid" in search else 0},
+        "independent_reanalysis": {"passes": True, "status": "pending-before-final-gate"} if independent_reanalysis is None else {
+            "passes": bool(independent_reanalysis.get("passes")), "schema_version": independent_reanalysis.get("schema_version"),
+            "raw_artifacts": independent_reanalysis.get("raw_artifacts"), "comparison_evidence": independent_reanalysis.get("comparison_evidence"),
+            "absence_evidence": independent_reanalysis.get("absence_evidence"),
+        },
         "binding_chain": {"passes": binding_ok, "stage_marker_fingerprints": chain, "required_stages": ["audit", "trace", "smoke", "train"]},
     }
     return _g0_payload(primitives)
@@ -2714,13 +3003,16 @@ def run_develop_stage(cfg: PersistentSearchConfig) -> None:
     online_payload = _summary_payload(online_first, ("expansions", "cost_ratio", "scorer_calls", "candidates_scored"))
     offline_path, online_path = root / "results" / "offline_summary.json", root / "results" / "online_summary.json"
     _atomic_json(offline_path, _json_safe(offline_payload)); _atomic_json(online_path, _json_safe(online_payload))
-    g0 = _compute_g0(cfg, evaluation, registry, offline_first, online_first)
+    base_g0 = _compute_g0(cfg, evaluation, registry, offline_first, online_first)
     g1 = g1_verdict(offline_summary_first, BOOTSTRAP_SEEDS["g1_mrr"], cfg.bootstrap_resamples, expected_development=registry)
     g2 = g2_verdict(online_first, {"g2_exp_reset": BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": BOOTSTRAP_SEEDS["g2_exp_c13m"]},
                     cfg.bootstrap_resamples, expected_development=registry)
+    provisional_gate = _gate_verdict_payload(base_g0, g1, g2)
+    independent = _independent_reanalysis_payload(cfg, evaluation, provisional_gate, base_g0)
+    g0 = _compute_g0(cfg, evaluation, registry, offline_first, online_first, independent)
     gate = _gate_verdict_payload(g0, g1, g2)
     verification = _development_verification_payload(cfg, evaluation, g0, registry, len(traces),
-                                                       sum(len(trace.events) for trace in traces), len(online_first))
+                                                       sum(len(trace.events) for trace in traces), len(online_first), independent)
     gate_path, verification_path = root / "results" / "gate_verdict.json", root / "results" / "verification.json"
     _atomic_json(gate_path, gate); _atomic_json(verification_path, verification)
     _write_stage_marker(cfg, "develop", binding, ((development_path, SCHEMA_VERSION), (ranking_path, "c13p-ranking-raw-v1"),
@@ -2757,6 +3049,7 @@ def render_report(cfg: PersistentSearchConfig) -> str:
         f"## Online search pooled and six suites (72 rows)\n\n{json.dumps(online, indent=2, sort_keys=True)}\n\n"
         f"## G2-P primitive comparisons and quality margins\n\n{json.dumps(gate.get('g2'), indent=2, sort_keys=True)}\n\n"
         f"## G0-P integrity checks\n\n{json.dumps(gate.get('g0'), indent=2, sort_keys=True)}\n\n"
+        f"## Independent raw-artifact reanalysis\n\n{json.dumps(verification.get('independent_reanalysis'), indent=2, sort_keys=True)}\n\n"
         f"## Verification\n\n{json.dumps(verification, indent=2, sort_keys=True)}\n")
 
 
@@ -2853,7 +3146,10 @@ def _verify_development_evidence(cfg: PersistentSearchConfig) -> None:
     g2 = g2_verdict(search, {"g2_exp_reset": BOOTSTRAP_SEEDS["g2_exp_reset"], "g2_exp_c13m": BOOTSTRAP_SEEDS["g2_exp_c13m"]},
                     cfg.bootstrap_resamples, expected_development=registry)
     gate = _read_json(root / "results" / "gate_verdict.json", "gate verdict")
-    g0 = _compute_g0(cfg, evaluation, registry, ranking, search)
+    base_g0 = _compute_g0(cfg, evaluation, registry, ranking, search)
+    verification = _read_json(root / "results" / "verification.json", "verification")
+    independent = _verify_independent_reanalysis(cfg, evaluation, verification, gate, base_g0)
+    g0 = _compute_g0(cfg, evaluation, registry, ranking, search, independent)
     if hash_canonical(g0) != hash_canonical(gate.get("g0")) or hash_canonical(g1) != hash_canonical(gate.get("g1")) or hash_canonical(g2) != hash_canonical(gate.get("g2")):
         raise ValueError("development gate primitives disagree with verified raw artifacts")
     if gate.get("overall_verdict") != overall_verdict(g0, g1, g2): raise ValueError("development overall verdict is inconsistent")
@@ -2864,7 +3160,6 @@ def _verify_development_evidence(cfg: PersistentSearchConfig) -> None:
         raise ValueError("gate claim-safe interpretation drifted")
     if gate.get("self_bootstrap_performed") is not False or gate.get("confirmation_performed") is not False:
         raise ValueError("gate bootstrap or confirmation declaration drifted")
-    verification = _read_json(root / "results" / "verification.json", "verification")
     projection_root = root / "results" / "verification"
     ranking_bytes, search_bytes = _frame_projection_bytes(ranking), _frame_projection_bytes(search)
     for candidate in (projection_root / "ranking_projection_first.csv", projection_root / "ranking_projection_second.csv"):
@@ -2882,7 +3177,7 @@ def _verify_development_evidence(cfg: PersistentSearchConfig) -> None:
     development_traces = _read_development_traces(cfg)
     expected_verification = _development_verification_payload(
         cfg, evaluation, g0, registry, len(development_traces),
-        sum(len(trace.events) for trace in development_traces), len(search))
+        sum(len(trace.events) for trace in development_traces), len(search), independent)
     if set(verification) != VERIFICATION_KEYS or verification != expected_verification:
         raise ValueError("development verification schema or reconstructed payload drifted")
     if verification.get("trace_event_counts") != expected_verification["trace_event_counts"] or verification.get("evaluation_binding_fingerprint") != evaluation.get("binding_fingerprint"): raise ValueError("development verification event counts or binding drifted")
