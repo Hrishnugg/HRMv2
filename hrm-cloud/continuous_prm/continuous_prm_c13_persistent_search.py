@@ -1543,7 +1543,7 @@ def g2_verdict(search_rows: pd.DataFrame, bootstrap_seed: object, resamples: int
     mean_passes = bool(math.isfinite(mean) and math.isfinite(c13m_mean) and (mean <= c13m_mean + .005 or math.isclose(mean, c13m_mean + .005, rel_tol=0., abs_tol=1.e-12)))
     maximum_passes = bool(math.isfinite(maximum) and math.isfinite(c13m_max) and (maximum <= c13m_max + .02 or math.isclose(maximum, c13m_max + .02, rel_tol=0., abs_tol=1.e-12)))
     passes = bool(valid and reset_high < 0. and c13m_high < 0. and negative_reset >= 4 and negative_c13m >= 4 and mean_passes and maximum_passes)
-    return {"all_valid": valid, "reset_bootstrap": reset_bootstrap, "c13m_bootstrap": c13m_bootstrap, "reset_ci_high": reset_high, "c13m_ci_high": c13m_high, "reset_ci_passes": reset_high < 0., "c13m_ci_passes": c13m_high < 0., "suite_reset_expansion_deltas": {str(k): float(v) for k, v in reset_suites.items()}, "suite_c13m_expansion_deltas": {str(k): float(v) for k, v in c13m_suites.items()}, "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m, "suite_reset_passes": negative_reset >= 4, "suite_c13m_passes": negative_c13m >= 4, "persistent_mean_cost_ratio": mean, "c13m_mean_cost_ratio": c13m_mean, "persistent_max_cost_ratio": maximum, "c13m_max_cost_ratio": c13m_max, "quality_mean_passes": bool(math.isfinite(mean) and math.isfinite(c13m_mean) and mean_passes), "quality_max_passes": bool(math.isfinite(maximum) and math.isfinite(c13m_max) and maximum_passes), "passes": passes, "verdict": "c13p_g2_passed" if passes else "c13p_offline_signal_failed_free_running_search"}
+    return {"all_valid": valid, "reset_bootstrap": reset_bootstrap, "c13m_bootstrap": c13m_bootstrap, "reset_ci_high": reset_high, "c13m_ci_high": c13m_high, "reset_ci_passes": reset_high < 0., "c13m_ci_passes": c13m_high < 0., "suite_reset_expansion_deltas": {str(k): float(v) for k, v in reset_suites.items()}, "suite_c13m_expansion_deltas": {str(k): float(v) for k, v in c13m_suites.items()}, "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m, "suite_reset_passes": negative_reset >= 4, "suite_c13m_passes": negative_c13m >= 4, "persistent_mean_cost_ratio": _json_safe(mean), "c13m_mean_cost_ratio": _json_safe(c13m_mean), "persistent_max_cost_ratio": _json_safe(maximum), "c13m_max_cost_ratio": _json_safe(c13m_max), "quality_mean_passes": bool(math.isfinite(mean) and math.isfinite(c13m_mean) and mean_passes), "quality_max_passes": bool(math.isfinite(maximum) and math.isfinite(c13m_max) and maximum_passes), "passes": passes, "verdict": "c13p_g2_passed" if passes else "c13p_offline_signal_failed_free_running_search"}
 
 
 def overall_verdict(g0: Mapping[str, object], g1: Mapping[str, object], g2: Mapping[str, object]) -> str:
@@ -2271,7 +2271,7 @@ def _evaluation_implementation_sha256() -> str:
                  _independent_event_metrics, _independent_graphs, _independent_shortest_cost,
                  _independent_validate_paths, _independent_raw_reanalysis_v1, _independent_raw_reanalysis,
                  _independent_absence_evidence, _independent_comparison, _independent_optional_json, _independent_expected_bound_files, _independent_base_g0,
-                 _independent_reanalysis_payload, _independent_verify_payload, _independent_finalize_gate)
+                 _independent_reanalysis_payload, _independent_verify_payload, _independent_finalize_gate, _verify_independent_reanalysis)
     return hashlib.sha256("\n\n".join(inspect.getsource(function) for function in functions).encode("utf-8")).hexdigest()
 
 
@@ -2661,7 +2661,7 @@ def _independent_raw_reanalysis_aggregate(cfg: PersistentSearchConfig, ranking_o
         "suite_c13m_expansion_deltas": {str(key): float(value) for key, value in c13m_suites.items()},
         "suites_negative_vs_reset": negative_reset, "suites_negative_vs_c13m": negative_c13m,
         "suite_reset_passes": bool(negative_reset >= suite_minimum), "suite_c13m_passes": bool(negative_c13m >= suite_minimum),
-        "persistent_mean_cost_ratio": mean, "c13m_mean_cost_ratio": c13m_mean, "persistent_max_cost_ratio": maximum, "c13m_max_cost_ratio": c13m_max,
+        "persistent_mean_cost_ratio": _json_safe(mean), "c13m_mean_cost_ratio": _json_safe(c13m_mean), "persistent_max_cost_ratio": _json_safe(maximum), "c13m_max_cost_ratio": _json_safe(c13m_max),
         "quality_mean_passes": mean_passes, "quality_max_passes": maximum_passes, "passes": g2_passes,
         "verdict": "c13p_g2_passed" if g2_passes else "c13p_offline_signal_failed_free_running_search"}
     verdict = ("c13p_no_persistent_ranking_signal" if not g1_passes else
@@ -2779,8 +2779,8 @@ def _independent_validate_paths(search: pd.DataFrame, graphs: Mapping[str, Seque
         stored_valid = str(row["valid"]).casefold() == "true"; stored_cost = float(row["cost"]); stored_optimal = float(row["optimal_cost"]); stored_ratio = float(row["cost_ratio"])
         equal = lambda left, right: (math.isinf(left) and math.isinf(right) and (left > 0.) == (right > 0.)) or math.isclose(left, right, rel_tol=0., abs_tol=1e-9)
         consistent = bool(stored_valid is actual_valid and equal(stored_cost, expected_cost) and equal(stored_optimal, optimal) and equal(stored_ratio, ratio))
-        checked.append({"world_id": world_id, "arm": str(row["arm"]), "path": list(path), "cost": expected_cost,
-                        "optimal_cost": optimal, "cost_ratio": ratio, "valid": actual_valid, "consistent": consistent})
+        checked.append({"world_id": world_id, "arm": str(row["arm"]), "path": list(path), "cost": _json_safe(expected_cost),
+                        "optimal_cost": _json_safe(optimal), "cost_ratio": _json_safe(ratio), "valid": actual_valid, "consistent": consistent})
     return {"checked_rows": len(checked), "passes": all(row["consistent"] for row in checked),
             "all_valid": all(row["valid"] and row["consistent"] for row in checked), "rows": checked}
 
@@ -2871,13 +2871,25 @@ def _independent_base_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, o
     root = Path(cfg.out_dir); audit = _independent_optional_json(root / "source_audit.json"); registry = evaluation.get("development_registry") if isinstance(evaluation.get("development_registry"), Mapping) else {}
     ranking_path, search_path = root / "results" / "development_ranking_raw.csv", root / "results" / "development_search_raw.csv"
     ranking = pd.read_csv(ranking_path); search = pd.read_csv(search_path)
-    trace_records = audit.get("trace_records") if isinstance(audit.get("trace_records"), Mapping) else {}
-    cache_rows = [row for row in registry.values() if isinstance(row, Mapping)]
-    for split in ("train", "validation"):
-        rows = trace_records.get(split) if isinstance(trace_records.get(split), list) else []
-        cache_rows.extend(row for row in rows if isinstance(row, Mapping))
+    source_records: dict[str, list[dict[str, object]]] = {}
+    source_registry: Mapping[str, Mapping[str, object]] = {}
+    source_hashes: Mapping[str, str] = {}
+    source_counts: dict[str, int] = {}
+    bound_audit = dict(audit)
+    try:
+        source = audit_sources(cfg)
+        source_records = {split: _canonical_records(source, split) for split in ("train", "validation", "development")}
+        source_registry = _registry_from_records(source_records["development"])
+        source_counts = {split: len(rows) for split, rows in source_records.items()}
+        source_hashes = dict(source.source_hashes)
+        bound_audit.update({"preregistration_path": str(source.preregistration.resolve()),
+                            "implementation_path": str(source.implementation.resolve()),
+                            "checkpoint_path": str(source.checkpoint_path.resolve())})
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    cache_rows = [row for rows in source_records.values() for row in rows]
     cache_checks = [Path(str(row.get("feature_cache_path"))).is_file() and sha256_file(Path(str(row["feature_cache_path"]))) == row.get("feature_cache_sha256") for row in cache_rows]
-    expected_bound_files = _independent_expected_bound_files(cfg, audit)
+    expected_bound_files = _independent_expected_bound_files(cfg, bound_audit)
     duplicate_evidence = {}
     for split in ("train", "validation", "development"):
         first = root / "traces" / "duplicates" / split / "first.json"; second = root / "traces" / "duplicates" / split / "second.json"
@@ -2889,7 +2901,6 @@ def _independent_base_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, o
     timing_columns = ("representation_seconds", "model_seconds", "bookkeeping_seconds")
     timings_ok = all(column in search and np.all(np.isfinite(search[column].to_numpy(dtype=float))) and np.all(search[column].to_numpy(dtype=float) >= 0.) for column in timing_columns)
     checkpoint_ok = all(column in evaluation and column in ranking and column in search and set(ranking[column].astype(str)) == {str(evaluation[column])} and set(search[column].astype(str)) == {str(evaluation[column])} for column in ("checkpoint_sha256", "model_state_sha256"))
-    audit_registry = audit.get("development_registry") if isinstance(audit.get("development_registry"), Mapping) else None
     trace_payload = _independent_optional_json(root / "traces" / "development" / "traces.json"); traces = trace_payload.get("traces") if isinstance(trace_payload.get("traces"), list) else []
     development_ids = []
     causal_ok, event_count = True, 0
@@ -2902,31 +2913,62 @@ def _independent_base_g0(cfg: PersistentSearchConfig, evaluation: Mapping[str, o
             if not isinstance(causal, Mapping) or not isinstance(event, Mapping): causal_ok = False; continue
             identity = f"{causal.get('split')}/{causal.get('suite')}/{causal.get('world_index')}"; development_ids.append(identity); event_count += 1
             if any(token in str(key).casefold() for key in causal for token in FORBIDDEN_INPUT_TOKENS): causal_ok = False
-    training_ids = []
-    for split in ("train", "validation"):
-        rows = trace_records.get(split) if isinstance(trace_records.get(split), list) else []
-        training_ids.extend(str(row.get("world_id")) for row in rows if isinstance(row, Mapping))
+    source_ids = {split: [str(row["world_id"]) for row in rows] for split, rows in source_records.items()}
+    training_ids = source_ids.get("train", []) + source_ids.get("validation", [])
     marker_fingerprints, chain_ok = {}, True
-    predecessor = None
+    predecessor: str | None = None
+    predecessor_fingerprint: str | None = None
+    primary_schemas = {
+        "manifest.json": SCHEMA_VERSION, "source_audit.json": "c13p-source-audit-v1",
+        "traces/trace_manifest.json": TRACE_MANIFEST_SCHEMA_VERSION,
+        "traces/train/traces.json": SCHEMA_VERSION, "traces/validation/traces.json": SCHEMA_VERSION,
+        "traces/duplicates/train/first.json": SCHEMA_VERSION, "traces/duplicates/train/second.json": SCHEMA_VERSION,
+        "traces/duplicates/validation/first.json": SCHEMA_VERSION, "traces/duplicates/validation/second.json": SCHEMA_VERSION,
+        "results/smoke.json": SMOKE_SCHEMA_VERSION, "results/training_history.csv": "c13p-training-history-v1",
+        "results/checkpoint_selection.json": "c13p-checkpoint-selection-v1",
+        "checkpoints/selected.pt": "c13p-training-checkpoint-v1",
+        "evaluation_binding.json": EVALUATION_BINDING_SCHEMA_VERSION,
+    }
     for stage in ("audit", "trace", "smoke", "train"):
-        marker = _independent_optional_json(root / "bindings" / f"{stage}.json"); fingerprint = marker.get("marker_fingerprint")
-        expected_inputs = {"sources": hash_canonical(audit.get("source_hashes"))} if predecessor is None else {predecessor: marker_fingerprints.get(predecessor)}
-        if not isinstance(fingerprint, str) or marker.get("stage") != stage or marker.get("inputs") != expected_inputs: chain_ok = False
-        marker_fingerprints[stage] = fingerprint; predecessor = stage
+        marker = _independent_optional_json(root / "bindings" / f"{stage}.json")
+        expected_inputs = {"sources": hash_canonical(source_hashes)} if predecessor is None else {str(predecessor): str(predecessor_fingerprint)}
+        relatives = set(_STAGE_OUTPUTS[stage])
+        if stage == "train":
+            state_root = root / ".training-state"
+            if state_root.is_dir():
+                relatives.update(path.relative_to(root).as_posix() for path in state_root.rglob("*") if path.is_file())
+        expected_outputs: dict[str, dict[str, object]] = {}
+        for relative in sorted(relatives):
+            candidate = root / relative
+            if not candidate.is_file():
+                chain_ok = False
+                continue
+            schema = primary_schemas.get(relative, _schema_for(candidate))
+            expected_outputs[relative] = _artifact_entry(candidate, root, schema)
+        predecessor_payload = None if predecessor is None else {"stage": predecessor, "marker_fingerprint": predecessor_fingerprint}
+        unsigned = {"schema_version": STAGE_BINDING_SCHEMA_VERSION, "experiment_schema_version": cfg.schema_version,
+                    "stage": stage, "implementation_sha256": sha256_file(Path(__file__).resolve()),
+                    "config_fingerprint": hash_canonical(_config_payload(cfg)), "predecessor": predecessor_payload,
+                    "inputs": expected_inputs, "outputs": expected_outputs}
+        fingerprint = hash_canonical(unsigned)
+        if marker != {**unsigned, "marker_fingerprint": fingerprint}: chain_ok = False
+        marker_fingerprints[stage] = fingerprint
+        predecessor, predecessor_fingerprint = stage, fingerprint
     promoted = root / "traces" / "development" / "traces.json"; first_dev = root / "traces" / "duplicates" / "development" / "first.json"; second_dev = root / "traces" / "duplicates" / "development" / "second.json"
     promoted_equal = bool(promoted.is_file() and first_dev.is_file() and second_dev.is_file() and promoted.read_bytes() == first_dev.read_bytes() == second_dev.read_bytes())
     development_ids = list(dict.fromkeys(development_ids))
     path_evidence = raw.get("search", {}).get("path_validation", {}) if isinstance(raw.get("search"), Mapping) else {}
-    identities = list(registry); cohort_counts = audit.get("cohort_counts")
+    identities = list(registry)
+    all_source_ids = [world_id for split in ("train", "validation", "development") for world_id in source_ids.get(split, [])]
     primitives = {
-        "source_binding": {"passes": bool(audit.get("source_hashes") and audit.get("source_hashes") == evaluation.get("source_hashes"))},
+        "source_binding": {"passes": bool(source_hashes and source_hashes == audit.get("source_hashes") == evaluation.get("source_hashes"))},
         "source_integrity": {"passes": bool(expected_bound_files and evaluation.get("bound_files") == expected_bound_files), "expected_labels": sorted(EVALUATION_BOUND_FILE_LABELS)},
-        "cohort_replay": {"passes": bool(audit_registry is not None and audit_registry == registry)},
+        "cohort_replay": {"passes": bool(source_registry and source_registry == registry), "registry_fingerprint": hash_canonical(source_registry)},
         "cache_hashes": {"passes": bool(cache_checks and all(cache_checks)), "checked": len(cache_checks)},
-        "cohort_counts": {"passes": cohort_counts == {"train": 96, "validation": 24, "development": 24}},
-        "cohort_uniqueness": {"passes": len(identities) == DEVELOPMENT_WORLDS and len(set(identities + training_ids)) == len(identities) + len(training_ids)},
+        "cohort_counts": {"passes": source_counts == {"train": 96, "validation": 24, "development": 24}, "counts": source_counts},
+        "cohort_uniqueness": {"passes": len(all_source_ids) == len(set(all_source_ids)) and set(identities) == set(source_ids.get("development", []))},
         "trace_duplicates": {"passes": all(duplicate_evidence.values()), "splits": duplicate_evidence},
-        "leakage_boundary": {"passes": bool(traces and causal_ok and event_count > 0 and set(development_ids) == set(identities) and set(development_ids).isdisjoint(training_ids) and promoted_equal)},
+        "leakage_boundary": {"passes": bool(traces and causal_ok and event_count > 0 and set(development_ids) == set(source_ids.get("development", [])) == set(identities) and set(development_ids).isdisjoint(training_ids) and promoted_equal)},
         "checkpoint_identity": {"passes": checkpoint_ok},
         "projection_duplicates": {"passes": all(projection_pairs), "pairs": projection_pairs},
         "timings": {"passes": timings_ok, "rows": len(search)},

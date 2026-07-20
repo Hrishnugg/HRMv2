@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import copy
 import math
 import inspect
@@ -1686,42 +1687,9 @@ def test_task7_thirdreview_smoke_replay_rejects_coherent_tamper(tmp_path: Path, 
     with pytest.raises(ValueError, match="semantic|replay|drift"): P._verify_smoke_evidence(cfg)
 
 
-def _task7_thirdreview_development_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[P.PersistentSearchConfig, dict[str, object], dict[str, object]]:
-    cfg = P.resolve_paths(tmp_path, tmp_path / "run"); root = cfg.out_dir; (root / "results" / "verification").mkdir(parents=True)
-    registry = P.validate_expected_development_registry(_expected_development_registry()); evaluation = {"development_registry": registry, "binding_fingerprint": "a" * 64,
-        "trace_event_counts": {"train": 96, "validation": 24}}
-    ranking = pd.DataFrame({"placeholder": [1]}); search = pd.DataFrame({"world_id": [f"world-{i}" for i in range(72)], "arm": ["arm"] * 72})
-    ranking.to_csv(root / "results" / "development_ranking_raw.csv", index=False)
-    search.to_csv(root / "results" / "development_search_raw.csv", index=False)
-    for name in ("offline_summary.json", "online_summary.json"): (root / "results" / name).write_bytes(P.canonical_json_bytes({}))
-    projection = b"projection\n"
-    for name in ("ranking_projection_first.csv", "ranking_projection_second.csv", "search_projection_first.csv", "search_projection_second.csv"):
-        (root / "results" / "verification" / name).write_bytes(projection)
-    duplicate = root / "traces" / "duplicates" / "development"; duplicate.mkdir(parents=True)
-    (duplicate / "first.json").write_bytes(b"trace\n"); (duplicate / "second.json").write_bytes(b"trace\n")
-    promoted = root / "traces" / "development" / "traces.json"; promoted.parent.mkdir(parents=True); promoted.write_bytes(b"trace\n")
-    primitives = {name: {"passes": True} for name in P.G0_PRIMITIVES}; primitives["independent_reanalysis"] = {"passes": True, "status": "pending-before-final-gate"}
-    base_g0 = P._g0_payload(primitives)
-    g1, g2 = {"passes": True, "name": "g1"}, {"passes": True, "name": "g2"}; trace = _training_trace(1)
-    monkeypatch.setattr(P, "verify_evaluation_binding", lambda _cfg: evaluation)
-    monkeypatch.setattr(P, "_offline_summary", lambda *_args, **_kwargs: pd.DataFrame())
-    monkeypatch.setattr(P, "_summary_payload", lambda *_args, **_kwargs: {})
-    independent = {"schema_version": P.INDEPENDENT_REANALYSIS_SCHEMA_VERSION, "passes": True}
-    monkeypatch.setattr(P, "g1_verdict", lambda *_args, **_kwargs: g1); monkeypatch.setattr(P, "g2_verdict", lambda *_args, **_kwargs: g2)
-    monkeypatch.setattr(P, "_compute_g0", lambda *_args, **_kwargs: base_g0)
-    monkeypatch.setattr(P, "_frame_projection_bytes", lambda *_args: projection)
-    monkeypatch.setattr(P, "_read_development_traces", lambda _cfg: (trace,))
-    monkeypatch.setattr(P, "validate_timing_columns", lambda *_args: None)
-    monkeypatch.setattr(P, "_verify_independent_reanalysis", lambda *_args, **_kwargs: independent)
-    g0, gate = P._independent_finalize_gate(base_g0, g1, g2, independent)
-    verification = P._development_verification_payload(cfg, evaluation, g0, registry, 1, len(trace.events), 72, independent)
-    (root / "results" / "gate_verdict.json").write_bytes(P.canonical_json_bytes(gate))
-    (root / "results" / "verification.json").write_bytes(P.canonical_json_bytes(verification))
-    return cfg, gate, verification
-
-
 def test_task7_thirdreview_exact_gate_and_verification_mutations_reach_verifier(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg, gate, verification = _task7_thirdreview_development_fixture(tmp_path, monkeypatch); root = cfg.out_dir
+    artifact = _task7_finalreview_complete_artifact_fixture(tmp_path, monkeypatch)
+    cfg, gate, verification, root = artifact["cfg"], artifact["gate"], artifact["verification"], artifact["cfg"].out_dir
     changed_gate = {**gate, "author_override": True}
     (root / "results" / "gate_verdict.json").write_bytes(P.canonical_json_bytes(changed_gate))
     with pytest.raises(ValueError, match="gate verdict schema|reconstructed payload"): P._verify_development_evidence(cfg)
@@ -1887,11 +1855,8 @@ def test_task7_review_final_gate_integration_is_one_stable_operation(tmp_path: P
     assert final_gate["overall_verdict"] == "c13p_invalid_no_mechanism_verdict"
     assert P._verify_independent_reanalysis(cfg, evaluation, {"independent_reanalysis": independent}, final_gate, base_g0, test_resamples=64, graphs=graphs) == independent
 def test_task7_review_completed_develop_verification_forbids_all_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg, _gate, _verification = _task7_thirdreview_development_fixture(tmp_path, monkeypatch)
-    def forbidden(*_args: object, **_kwargs: object): raise AssertionError("completed verification attempted mutation")
-    monkeypatch.setattr(P, "atomic_write_bytes", forbidden); monkeypatch.setattr(P, "_atomic_json", forbidden); monkeypatch.setattr(P, "_atomic_frame", forbidden)
-    monkeypatch.setattr(P, "train_stationary_model", forbidden); monkeypatch.setattr(P.os, "replace", forbidden)
-    P._verify_development_evidence(cfg)
+    artifact = _task7_finalreview_complete_artifact_fixture(tmp_path, monkeypatch); _task7_finalreview_guard_writers(monkeypatch)
+    P._verify_development_evidence(artifact["cfg"])
 
 
 def test_task7_review_enriched_verification_is_bound_by_marker_and_integrity(tmp_path: Path) -> None:
@@ -1912,3 +1877,291 @@ def test_task7_review_no_path_payload_finalizes_to_invalid_gate(tmp_path: Path) 
     independent = P._independent_reanalysis_payload(cfg, evaluation, basis, base_g0, test_resamples=64, graphs=graphs); final_g0, gate = P._independent_finalize_gate(base_g0, raw["recomputed_g1"], raw["recomputed_g2"], independent)
     assert independent["search"]["path_validation"]["all_valid"] is False and independent["passes"] is False
     assert final_g0["passes"] is False and gate["overall_verdict"] == "c13p_invalid_no_mechanism_verdict"
+    encoded = P.canonical_json_bytes(independent)
+    assert b'"cost":null' in encoded and b'"cost_ratio":null' in encoded
+
+
+def test_task7_finalreview_independent_cohorts_come_from_current_frozen_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg, evaluation, graphs, _ = _task7_pretask8_raw_fixture(tmp_path)
+    source_root = tmp_path / "frozen-source"
+    source_root.mkdir()
+    source = _task7_source(source_root)
+    monkeypatch.setattr(P, "audit_sources", lambda _cfg: source)
+    persisted = {
+        "source_hashes": {"copied": "a" * 64},
+        "development_registry": copy.deepcopy(evaluation["development_registry"]),
+        "cohort_counts": {"train": 96, "validation": 24, "development": 24},
+        "trace_records": {"train": [], "validation": []},
+    }
+    (cfg.out_dir / "source_audit.json").write_bytes(P.canonical_json_bytes(persisted))
+    raw = P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs)
+
+    evidence = P._independent_base_g0(cfg, evaluation, raw, graphs=graphs)
+
+    assert evidence["primitives"]["cohort_replay"]["passes"] is False
+    shortened = replace(source, cohort_records={**source.cohort_records, "train": source.cohort_records["train"][:-1]})
+    monkeypatch.setattr(P, "audit_sources", lambda _cfg: shortened)
+    evidence = P._independent_base_g0(cfg, evaluation, raw, graphs=graphs)
+    assert evidence["primitives"]["cohort_counts"]["passes"] is False
+
+
+def test_task7_finalreview_independent_binding_chain_recomputes_marker_payloads_and_outputs(tmp_path: Path) -> None:
+    cfg, evaluation, graphs, _ = _task7_pretask8_raw_fixture(tmp_path)
+    source_hashes = {"source": "a" * 64}
+    audit = {"source_hashes": source_hashes, "cohort_counts": {"train": 96, "validation": 24, "development": 24},
+             "development_registry": evaluation["development_registry"], "trace_records": {"train": [], "validation": []}}
+    (cfg.out_dir / "source_audit.json").write_bytes(P.canonical_json_bytes(audit))
+    previous = None
+    for index, stage in enumerate(("audit", "trace", "smoke", "train")):
+        fingerprint = f"{index + 10:064x}"
+        inputs = {"sources": P.hash_canonical(source_hashes)} if previous is None else {previous[0]: previous[1]}
+        marker = {"stage": stage, "inputs": inputs, "outputs": {}, "marker_fingerprint": fingerprint}
+        path = cfg.out_dir / "bindings" / f"{stage}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(P.canonical_json_bytes(marker))
+        previous = (stage, fingerprint)
+    raw = P._independent_raw_reanalysis(cfg, evaluation, test_resamples=64, graphs=graphs)
+
+    evidence = P._independent_base_g0(cfg, evaluation, raw, graphs=graphs)
+
+    assert evidence["primitives"]["binding_chain"]["passes"] is False
+
+
+def test_task7_finalreview_evaluation_hash_has_exact_required_callable_set() -> None:
+    required = {
+        "evaluate_offline_arms", "world_clustered_bootstrap", "g1_verdict", "dynamic_best_first",
+        "static_c13m_search", "evaluate_online_arms", "deterministic_result_projection",
+        "validate_timing_columns", "g2_verdict", "overall_verdict",
+        "_independent_bootstrap", "_independent_raw_reanalysis_aggregate", "_independent_bound_config",
+        "_independent_parse_sequence", "_independent_trace_events", "_independent_event_metrics",
+        "_independent_graphs", "_independent_shortest_cost", "_independent_validate_paths",
+        "_independent_raw_reanalysis_v1", "_independent_raw_reanalysis", "_independent_absence_evidence",
+        "_independent_comparison", "_independent_optional_json", "_independent_expected_bound_files",
+        "_independent_base_g0", "_independent_reanalysis_payload", "_independent_verify_payload",
+        "_independent_finalize_gate", "_verify_independent_reanalysis",
+    }
+    source = inspect.getsource(P._evaluation_implementation_sha256)
+    tree = ast.parse(source)
+    assignment = next(node for node in ast.walk(tree) if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "functions" for target in node.targets))
+    observed = {element.id for element in assignment.value.elts if isinstance(element, ast.Name)}
+
+    assert observed == required, sorted(required - observed)
+
+
+def _task7_finalreview_complete_artifact_fixture(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, scenario: str = "baseline"
+) -> dict[str, object]:
+    if scenario not in {"baseline", "mismatch", "no_path"}:
+        raise ValueError("unknown final-review fixture scenario")
+    cfg, seed_evaluation, graphs, _ = _task7_pretask8_raw_fixture(tmp_path)
+    cfg = replace(cfg, bootstrap_resamples=P.BOOTSTRAP_RESAMPLES)
+    root = cfg.out_dir
+    source_root = tmp_path / "frozen"
+    c13j, c13m = source_root / "c13j", source_root / "c13m"
+    c13j.mkdir(parents=True); c13m.mkdir(parents=True)
+    cache = c13j / "features.npz"; cache.write_bytes(b"complete frozen cache\n"); cache_sha = _sha256(cache)
+    source_checkpoint = c13j / "flat_mlp_iteration_08.pt"; source_checkpoint.write_bytes(b"complete frozen source checkpoint\n")
+    design = tmp_path / "design.md"; design.write_text("complete frozen design\n", encoding="utf-8")
+
+    registry = copy.deepcopy(seed_evaluation["development_registry"])
+    for record in registry.values():
+        record["feature_cache_path"] = str(cache.resolve()); record["feature_cache_sha256"] = cache_sha
+        record["edge_count"] = 2
+    for relative in ("results/development_ranking_raw.csv", "results/development_search_raw.csv"):
+        path = root / relative; frame = pd.read_csv(path)
+        frame["feature_cache_path"] = str(cache.resolve()); frame["feature_cache_sha256"] = cache_sha; frame["edge_count"] = 2
+        if "candidate_nodes" in frame:
+            frame["candidate_nodes"] = "(1,)"; frame["raw_logits"] = "(2.0,)"; frame["candidate_count"] = 1
+            frame["frontier_cross_entropy"] = 0.0; frame["cross_entropy"] = 0.0
+            frame["rank"] = 1; frame["positive_rank"] = 1; frame["reciprocal_rank"] = 1.0; frame["top1"] = 1.0; frame["rank_percentile"] = 0.0
+        frame.to_csv(path, index=False, lineterminator="\n")
+    development_path = root / "traces/development/traces.json"
+    development_payload = json.loads(development_path.read_text(encoding="utf-8"))
+    for trace in development_payload["traces"]:
+        for example in trace["examples"]:
+            example["model_causal"]["feature_cache_path"] = str(cache.resolve())
+            example["model_causal"]["feature_cache_sha256"] = cache_sha
+            example["model_causal"]["edge_count"] = 2
+            example["model_causal"]["event"]["open_nodes"] = [1]; example["model_causal"]["event"]["open_g"] = [1.0]
+            example["model_causal"]["event"]["open_base_rank"] = [0.0]; example["model_causal"]["event"]["open_count"] = 1
+            example["replay_audit"]["open_parent"] = [0]
+        trace["privileged_audit"]["teacher_expansions"] = 2
+    development_path.write_bytes(P.canonical_json_bytes(development_payload))
+
+    def source_row(split: str, suite: str, world_index: int, global_index: int, world_seed: int, roadmap_seed: int) -> dict[str, object]:
+        return {"split": split, "suite": suite, "suite_world_index": world_index, "global_world_index": global_index,
+                "world_seed": world_seed, "roadmap_seed": roadmap_seed, "nodes": 2, "edges": 1,
+                "cache": str(cache.resolve()), "cache_sha256": cache_sha, "cache_status": "reused"}
+
+    records: dict[str, list[dict[str, object]]] = {"train": [], "validation": [], "development": []}
+    for split, suites, per_suite, seed_base in (("train", 6, 16, 10_000), ("validation", 6, 4, 20_000)):
+        for suite_index in range(suites):
+            for world_index in range(per_suite):
+                global_index = len(records[split]); seed = seed_base + global_index
+                records[split].append(source_row(split, f"{split}-suite-{suite_index}", world_index, global_index, seed, seed + 17))
+    for global_index, (world_id, record) in enumerate(sorted(registry.items())):
+        records["development"].append(source_row("development", str(record["suite"]), int(record["world_index"]),
+                                                        global_index, int(record["world_seed"]), int(record["roadmap_seed"])))
+        assert world_id == f"development/{record['suite']}/{record['world_index']}"
+    source_hashes = {"checkpoint": _sha256(source_checkpoint), "preregistration": _sha256(design),
+                     "implementation": _sha256(Path(P.__file__))}
+    source = P.SourceContext(c13j, c13m, design, Path(P.__file__).resolve(),
+        {"cohort_records": copy.deepcopy(records)}, source_hashes, records, source_checkpoint, _sha256(source_checkpoint))
+    monkeypatch.setattr(P, "audit_sources", lambda _cfg: source)
+    P.run_audit_stage(cfg)
+    audit = json.loads((root / "source_audit.json").read_text(encoding="utf-8"))
+    assert audit["development_registry"] == registry
+
+    trace_manifest: dict[str, object] = {"schema_version": P.TRACE_MANIFEST_SCHEMA_VERSION, "duplicates": {}, "splits": {}, "development_generated": False}
+    trace_paths: list[tuple[Path, str]] = []
+    for split in ("train", "validation"):
+        canonical = P._canonical_records(source, split)
+        traces = [P.generate_teacher_trace([[(1, 1.0)], []], 0, 1, [0.0, 0.0], record) for record in canonical]
+        generation = P.hash_canonical({"split": split, "records": canonical})
+        promoted = root / "traces" / split / "traces.json"; promoted.parent.mkdir(parents=True, exist_ok=True)
+        P.write_trace_shard(promoted, traces, generation)
+        duplicate_root = root / "traces" / "duplicates" / split; duplicate_root.mkdir(parents=True, exist_ok=True)
+        first, second = duplicate_root / "first.json", duplicate_root / "second.json"
+        first.write_bytes(promoted.read_bytes()); second.write_bytes(promoted.read_bytes())
+        digest = _sha256(promoted)
+        trace_manifest["duplicates"][split] = {"first": digest, "second": digest, "byte_identical": True}
+        trace_manifest["splits"][split] = {"sha256": digest, "generation_fingerprint": generation,
+            "worlds": len(traces), "events": sum(len(trace.events) for trace in traces),
+            "record_fingerprint": P.hash_canonical(canonical)}
+        trace_paths.extend(((promoted, P.SCHEMA_VERSION), (first, P.SCHEMA_VERSION), (second, P.SCHEMA_VERSION)))
+    trace_manifest_path = root / "traces/trace_manifest.json"
+    trace_manifest_path.write_bytes(P.canonical_json_bytes(trace_manifest))
+    P._write_stage_marker(cfg, "trace", P.stage_binding(cfg, "trace", P._stage_inputs(cfg, "trace")),
+                          ((trace_manifest_path, P.TRACE_MANIFEST_SCHEMA_VERSION), *trace_paths))
+
+    smoke = {"schema_version": P.SMOKE_SCHEMA_VERSION, "passes": True, "hand_events": 3,
+             "training_world_id": "train/train-suite-0/0", "loss": 0.5, "configuration_changed": False}
+    monkeypatch.setattr(P, "_smoke_payload", lambda _cfg: copy.deepcopy(smoke))
+    smoke_path = root / "results/smoke.json"; smoke_path.write_bytes(P.canonical_json_bytes(smoke))
+    P._write_stage_marker(cfg, "smoke", P.stage_binding(cfg, "smoke", P._stage_inputs(cfg, "smoke")),
+                          ((smoke_path, P.SMOKE_SCHEMA_VERSION),))
+
+    real_g1 = P.g1_verdict
+    monkeypatch.setattr(P, "_independent_graphs", lambda _cfg, _evaluation: graphs)
+    if scenario == "mismatch":
+        def mismatched_g1(*args: object, **kwargs: object) -> dict[str, object]:
+            value = copy.deepcopy(real_g1(*args, **kwargs)); value["pooled_mrr_delta"] = float(value["pooled_mrr_delta"]) + 0.125
+            return value
+        monkeypatch.setattr(P, "g1_verdict", mismatched_g1)
+
+    model = P.PersistentSearchHRM(); model_sha = P._model_state_sha256(model)
+    training_binding = P._training_binding(cfg, audit, trace_manifest)
+    binding_fingerprint = P.validate_training_binding(training_binding)
+    checkpoint_payload = {"model": model.state_dict(), "optimizer": {}, "completed_epoch": 1,
+                          "binding": training_binding, "binding_fingerprint": binding_fingerprint, "rng": {}}
+    state_root = root / ".training-state"; epoch = state_root / "checkpoints/epoch_001.pt"; epoch.parent.mkdir(parents=True)
+    torch.save(checkpoint_payload, epoch)
+    latest = state_root / "checkpoints/latest.pt"; latest.write_bytes(epoch.read_bytes())
+    selected = root / "checkpoints/selected.pt"; selected.parent.mkdir(parents=True); selected.write_bytes(epoch.read_bytes())
+    checkpoint_sha = _sha256(selected)
+    history = pd.DataFrame([{"epoch": 1, "training_loss": 0.2, "validation_loss": 0.1,
+                             "checkpoint_path": str(epoch.resolve()), "checkpoint_sha256": checkpoint_sha}])
+    history_path = root / "results/training_history.csv"; history.to_csv(history_path, index=False, lineterminator="\n")
+    state_history = state_root / "results/training_history.csv"; state_history.parent.mkdir(parents=True); state_history.write_bytes(history_path.read_bytes())
+    selection = {"schema_version": "c13p-checkpoint-selection-v1", "epoch": 1, "validation_loss": 0.1,
+                 "selection_rule": "validation_loss_minimum_earliest_epoch", "checkpoint_path": str(selected.resolve()),
+                 "checkpoint_sha256": checkpoint_sha, "model_state_sha256": model_sha,
+                 "training_binding_fingerprint": binding_fingerprint, "history_sha256": _sha256(history_path)}
+    selection_path = root / "results/checkpoint_selection.json"; selection_path.write_bytes(P.canonical_json_bytes(selection))
+    evaluation = P.evaluation_binding_payload(cfg, selected, model_sha, source_hashes,
+        {split: trace_manifest["splits"][split]["sha256"] for split in ("train", "validation")}, registry)
+    evaluation_path = root / "evaluation_binding.json"; evaluation_path.write_bytes(P.canonical_json_bytes(evaluation))
+    state_paths = tuple((path, P._schema_for(path)) for path in sorted(state_root.rglob("*"), key=lambda item: item.as_posix()) if path.is_file())
+    P._write_stage_marker(cfg, "train", P.stage_binding(cfg, "train", P._stage_inputs(cfg, "train")), state_paths + (
+        (history_path, "c13p-training-history-v1"), (selection_path, "c13p-checkpoint-selection-v1"),
+        (selected, "c13p-training-checkpoint-v1"), (evaluation_path, P.EVALUATION_BINDING_SCHEMA_VERSION)))
+
+    ranking_path, search_path = root / "results/development_ranking_raw.csv", root / "results/development_search_raw.csv"
+    ranking, search = pd.read_csv(ranking_path), pd.read_csv(search_path)
+    for frame in (ranking, search):
+        frame["checkpoint_sha256"] = checkpoint_sha; frame["model_state_sha256"] = model_sha
+    if scenario == "no_path":
+        search.loc[0, ["path", "valid", "cost", "cost_ratio"]] = ["()", False, math.inf, math.inf]
+    ranking.to_csv(ranking_path, index=False, lineterminator="\n"); search.to_csv(search_path, index=False, lineterminator="\n")
+    duplicate_dev = root / "traces/duplicates/development"; duplicate_dev.mkdir(parents=True, exist_ok=True)
+    (duplicate_dev / "first.json").write_bytes(development_path.read_bytes()); (duplicate_dev / "second.json").write_bytes(development_path.read_bytes())
+    projection_root = root / "results/verification"; projection_root.mkdir(parents=True, exist_ok=True)
+    ranking_projection, search_projection = P._frame_projection_bytes(ranking), P._frame_projection_bytes(search)
+    for name in ("ranking_projection_first.csv", "ranking_projection_second.csv"):
+        (projection_root / name).write_bytes(ranking_projection)
+    for name in ("search_projection_first.csv", "search_projection_second.csv"):
+        (projection_root / name).write_bytes(search_projection)
+    offline = P._offline_summary(ranking, expected_development=registry)
+    offline_path, online_path = root / "results/offline_summary.json", root / "results/online_summary.json"
+    offline_path.write_bytes(P.canonical_json_bytes(P._json_safe(P._summary_payload(offline,
+        ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile"), world_rows_only=True))))
+    online_path.write_bytes(P.canonical_json_bytes(P._json_safe(P._summary_payload(search,
+        ("expansions", "cost_ratio", "scorer_calls", "candidates_scored")))))
+    base_g0 = P._compute_g0(cfg, evaluation, registry, ranking, search)
+    g1 = P.g1_verdict(offline, P.BOOTSTRAP_SEEDS["g1_mrr"], cfg.bootstrap_resamples, expected_development=registry)
+    g2 = P.g2_verdict(search, {"g2_exp_reset": P.BOOTSTRAP_SEEDS["g2_exp_reset"],
+        "g2_exp_c13m": P.BOOTSTRAP_SEEDS["g2_exp_c13m"]}, cfg.bootstrap_resamples, expected_development=registry)
+    basis = P._gate_verdict_payload(base_g0, g1, g2)
+    independent = P._independent_reanalysis_payload(cfg, evaluation, basis, base_g0, graphs=graphs)
+    final_g0, gate = P._independent_finalize_gate(base_g0, g1, g2, independent)
+    traces = P._read_development_traces(cfg)
+    verification = P._development_verification_payload(cfg, evaluation, final_g0, registry, len(traces),
+        sum(len(trace.events) for trace in traces), len(search), independent)
+    gate_path, verification_path = root / "results/gate_verdict.json", root / "results/verification.json"
+    gate_path.write_bytes(P.canonical_json_bytes(gate)); verification_path.write_bytes(P.canonical_json_bytes(verification))
+    develop_paths = ((development_path, P.SCHEMA_VERSION), (ranking_path, "c13p-ranking-raw-v1"),
+        (search_path, "c13p-search-raw-v1"), (offline_path, "c13p-offline-summary-v1"),
+        (online_path, "c13p-online-summary-v1"), (gate_path, "c13p-gate-verdict-v1"),
+        (verification_path, P.VERIFICATION_SCHEMA_VERSION), (duplicate_dev / "first.json", P.SCHEMA_VERSION),
+        (duplicate_dev / "second.json", P.SCHEMA_VERSION), (projection_root / "ranking_projection_first.csv", "canonical-csv-v1"),
+        (projection_root / "ranking_projection_second.csv", "canonical-csv-v1"), (projection_root / "search_projection_first.csv", "canonical-csv-v1"),
+        (projection_root / "search_projection_second.csv", "canonical-csv-v1"))
+    P._write_stage_marker(cfg, "develop", P.stage_binding(cfg, "develop", P._stage_inputs(cfg, "develop")), develop_paths)
+    P.run_report_stage(cfg)
+    return {"cfg": cfg, "evaluation": evaluation, "graphs": graphs, "registry": registry, "ranking": ranking,
+            "search": search, "base_g0": base_g0, "independent": independent, "gate": gate,
+            "verification": verification, "scenario": scenario}
+
+
+def _task7_finalreview_guard_writers(monkeypatch: pytest.MonkeyPatch) -> None:
+    def forbidden(*_args: object, **_kwargs: object) -> None: raise AssertionError("read-only verification attempted a write")
+    for name in ("atomic_write_bytes", "_atomic_json", "_atomic_frame", "train_stationary_model"):
+        monkeypatch.setattr(P, name, forbidden)
+    monkeypatch.setattr(P.os, "replace", forbidden); monkeypatch.setattr(torch, "save", forbidden)
+
+
+def test_task7_finalreview_complete_baseline_reconstructs_all_independent_g0_and_is_read_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    artifact = _task7_finalreview_complete_artifact_fixture(tmp_path, monkeypatch)
+    independent = artifact["independent"]
+    assert len(independent["independent_g0"]["primitives"]) == 13
+    assert all(value["passes"] is True for value in independent["independent_g0"]["primitives"].values())
+    assert independent["passes"] is True and artifact["gate"]["g0"]["passes"] is True
+    _task7_finalreview_guard_writers(monkeypatch)
+    assert P._verify_independent_reanalysis(artifact["cfg"], artifact["evaluation"], artifact["verification"],
+        artifact["gate"], artifact["base_g0"], graphs=artifact["graphs"]) == independent
+    P.verify_pipeline(artifact["cfg"])
+
+
+@pytest.mark.parametrize("scenario", ["mismatch", "no_path"])
+def test_task7_finalreview_complete_failures_are_stable_invalid_and_verify_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str
+) -> None:
+    artifact = _task7_finalreview_complete_artifact_fixture(tmp_path, monkeypatch, scenario=scenario)
+    assert artifact["independent"]["passes"] is False
+    assert artifact["gate"]["g0"]["passes"] is False
+    assert artifact["gate"]["overall_verdict"] == "c13p_invalid_no_mechanism_verdict"
+    _task7_finalreview_guard_writers(monkeypatch)
+    P.verify_pipeline(artifact["cfg"])
+
+
+def test_task7_finalreview_complete_develop_report_and_integrity_bind_enriched_verification(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    artifact = _task7_finalreview_complete_artifact_fixture(tmp_path, monkeypatch)
+    cfg, verification_path = artifact["cfg"], artifact["cfg"].out_dir / "results/verification.json"
+    develop = json.loads((cfg.out_dir / "bindings/develop.json").read_text(encoding="utf-8"))
+    integrity = json.loads((cfg.out_dir / "integrity.json").read_text(encoding="utf-8"))
+    report = json.loads((cfg.out_dir / "bindings/report.json").read_text(encoding="utf-8"))
+    assert develop["outputs"]["results/verification.json"]["sha256"] == _sha256(verification_path)
+    assert integrity["artifacts"]["results/verification.json"]["sha256"] == _sha256(verification_path)
+    assert report["outputs"]["integrity.json"]["sha256"] == _sha256(cfg.out_dir / "integrity.json")
