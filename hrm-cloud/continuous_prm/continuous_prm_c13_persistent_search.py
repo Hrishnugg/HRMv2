@@ -1135,6 +1135,182 @@ def evaluate_stationary_split(traces: Sequence[TeacherTrace], prepared_worlds: M
 
 
 
+OFFLINE_ARMS = ("c13p_persistent", "c13p_reset", "c13m_base_rank")
+_OFFLINE_METRICS = ("cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile")
+
+
+def _model_state_sha256(model: PersistentSearchHRM) -> str:
+    """Return a stable audit digest for the one shared immutable evaluation model."""
+    digest = hashlib.sha256()
+    for name, value in sorted(model.state_dict().items()):
+        tensor = value.detach().cpu().contiguous()
+        digest.update(name.encode("utf-8"))
+        digest.update(str(tensor.dtype).encode("ascii"))
+        digest.update(np.asarray(tensor.shape, dtype=np.int64).tobytes())
+        digest.update(tensor.numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _offline_metric_row(trace: TeacherTrace, event: TraceEvent, logits: torch.Tensor, candidate_nodes: Sequence[int], tie_keys: np.ndarray, arm: str, checkpoint_sha256: str, state_sha256: str) -> dict[str, object]:
+    row = _event_metric_row(trace, event, logits, candidate_nodes, tie_keys, arm)
+    row.update({
+        "world_index": trace.world_index,
+        "positive_node": event.positive_node,
+        "candidate_nodes": tuple(candidate_nodes),
+        "checkpoint_sha256": checkpoint_sha256,
+        "model_state_sha256": state_sha256,
+        "cross_entropy": row["frontier_cross_entropy"],
+        "positive_rank": row["rank"],
+        "raw_logits": tuple(float(value) for value in logits.detach().cpu().tolist()),
+    })
+    return row
+
+
+def _offline_summary(event_rows: pd.DataFrame) -> pd.DataFrame:
+    required = {"world_id", "split", "suite", "world_index", "arm", *_OFFLINE_METRICS}
+    if event_rows.empty or not required.issubset(event_rows.columns):
+        raise ValueError("offline event rows are incomplete")
+    if set(event_rows["arm"].unique()) != set(OFFLINE_ARMS):
+        raise ValueError("offline event arms are incomplete")
+    if event_rows.duplicated(["world_id", "arm", "event_index"]).any():
+        raise ValueError("offline event identities are not unique")
+    if not all(np.isfinite(event_rows[column].to_numpy(dtype=float)).all() for column in _OFFLINE_METRICS):
+        raise ValueError("offline event metrics must be finite")
+    world = event_rows.groupby(["world_id", "split", "suite", "world_index", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean()
+    world["aggregation_level"] = "world"
+    suite = world.groupby(["split", "suite", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean()
+    suite["aggregation_level"] = "suite"
+    suite["world_id"] = None
+    suite["world_index"] = np.nan
+    pooled = world.groupby(["split", "arm"], sort=True, as_index=False)[list(_OFFLINE_METRICS)].mean()
+    pooled["aggregation_level"] = "pooled"
+    pooled["world_id"] = None
+    pooled["suite"] = None
+    pooled["world_index"] = np.nan
+    columns = ["aggregation_level", "world_id", "split", "suite", "world_index", "arm", *_OFFLINE_METRICS]
+    return pd.concat((world[columns], suite[columns], pooled[columns]), ignore_index=True)
+
+
+def evaluate_offline_arms(traces: Sequence[TeacherTrace], prepared_worlds: Mapping[str, PreparedWorld], model: PersistentSearchHRM, checkpoint_sha256: str, cfg: PersistentSearchConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Score identical recorded frontiers with persistent, reset, and frozen base order."""
+    if not traces or not _is_sha256(checkpoint_sha256):
+        raise ValueError("offline traces or checkpoint hash are invalid")
+    world_ids = tuple(_trace_world_id(trace) for trace in traces)
+    if len(set(world_ids)) != len(world_ids):
+        raise ValueError("offline trace world identities must be unique")
+    device = next(model.parameters()).device
+    state_sha256 = _model_state_sha256(model)
+    was_training = model.training
+    model.eval()
+    rows: list[dict[str, object]] = []
+    try:
+        with torch.no_grad():
+            for trace in sorted(traces, key=lambda item: (item.split, item.suite, item.world_index)):
+                if not trace.events:
+                    raise ValueError("offline trace has no events")
+                prepared = _prepared_for_trace(prepared_worlds, trace)
+                persistent = PersistentCarryLifecycle(model, f"offline:persistent:{_trace_world_id(trace)}")
+                carry = persistent.initial_for_world(_trace_world_id(trace), 1, device, torch.float32)
+                for offset, event in enumerate(trace.events):
+                    if event.event_index != offset:
+                        raise ValueError("trace events are not in causal order")
+                    causal, event_features, candidate_embeddings, candidate_scalars, candidate_nodes = _event_tensors(event, prepared, device)
+                    tie_keys = np.column_stack((np.asarray(event.open_g) + np.asarray(event.open_base_rank), event.open_g, event.open_nodes))
+                    persistent_context, carry = persistent.update(event_features, carry)
+                    persistent_logits = model.score_candidates(candidate_embeddings, persistent_context, candidate_scalars)
+                    rows.append(_offline_metric_row(trace, event, persistent_logits, candidate_nodes, tie_keys, OFFLINE_ARMS[0], checkpoint_sha256, state_sha256))
+                    reset_carry = reset_carry_for_event(model, causal, 1, device, torch.float32)
+                    reset_context, _ = model.update_event(event_features, reset_carry)
+                    reset_logits = model.score_candidates(candidate_embeddings, reset_context, candidate_scalars)
+                    rows.append(_offline_metric_row(trace, event, reset_logits, candidate_nodes, tie_keys, OFFLINE_ARMS[1], checkpoint_sha256, state_sha256))
+                    base_logits = -torch.as_tensor(np.asarray(event.open_g) + np.asarray(event.open_base_rank), dtype=torch.float32, device=device)
+                    rows.append(_offline_metric_row(trace, event, base_logits, candidate_nodes, tie_keys, OFFLINE_ARMS[2], checkpoint_sha256, state_sha256))
+    finally:
+        if was_training:
+            model.train()
+    events = pd.DataFrame(rows)
+    return events, _offline_summary(events)
+
+
+def world_clustered_bootstrap(paired_world_rows: pd.DataFrame, value_column: str, resamples: int, seed: int) -> dict[str, float | int | tuple[int, int]]:
+    """Bootstrap only one already-paired value per official development world."""
+    if not isinstance(paired_world_rows, pd.DataFrame) or not isinstance(value_column, str) or not value_column:
+        raise ValueError("paired world bootstrap inputs are invalid")
+    if not isinstance(resamples, int) or resamples <= 0 or not isinstance(seed, int):
+        raise ValueError("paired world bootstrap configuration is invalid")
+    required = {"world_id", value_column}
+    if not required.issubset(paired_world_rows.columns):
+        raise ValueError("paired world bootstrap rows are incomplete")
+    rows = paired_world_rows.loc[:, ["world_id", value_column]].copy()
+    if len(rows) != DEVELOPMENT_WORLDS:
+        raise ValueError("paired world bootstrap requires exactly 24 unique worlds")
+    if rows["world_id"].isna().any() or rows["world_id"].duplicated().any():
+        raise ValueError("paired world bootstrap world identifiers must be unique")
+    if any(not isinstance(value, str) or not value for value in rows["world_id"]):
+        raise ValueError("paired world bootstrap world identifiers are invalid")
+    rows = rows.sort_values("world_id", kind="stable")
+    values = rows[value_column].to_numpy(dtype=float)
+    if not np.all(np.isfinite(values)):
+        raise ValueError("paired world bootstrap values must be finite")
+    indices = np.random.default_rng(seed).integers(0, DEVELOPMENT_WORLDS, size=(resamples, DEVELOPMENT_WORLDS))
+    means = values[indices].mean(axis=1)
+    low, high = np.quantile(means, [0.025, 0.975], method="linear")
+    return {"point_estimate": float(values.mean()), "ci_low": float(low), "ci_high": float(high), "n_worlds": DEVELOPMENT_WORLDS, "sample_shape": (resamples, DEVELOPMENT_WORLDS)}
+
+
+def _g1_paired_world_rows(world_metrics: pd.DataFrame) -> pd.DataFrame:
+    required = {"world_id", "suite", "world_index", "arm", "reciprocal_rank", "top1"}
+    if not isinstance(world_metrics, pd.DataFrame) or not required.issubset(world_metrics.columns):
+        raise ValueError("G1 world metrics are incomplete")
+    rows = world_metrics.copy()
+    if "aggregation_level" in rows:
+        rows = rows.loc[rows["aggregation_level"] == "world"].copy()
+    if len(rows) != DEVELOPMENT_WORLDS * len(OFFLINE_ARMS):
+        raise ValueError("G1 paired world rows are incomplete")
+    if set(rows["arm"].unique()) != set(OFFLINE_ARMS):
+        raise ValueError("G1 paired world arms are invalid")
+    if rows.duplicated(["world_id", "suite", "world_index", "arm"]).any() or rows.duplicated(["world_id", "arm"]).any():
+        raise ValueError("G1 paired world identities must be unique")
+    identity = rows.groupby("world_id", sort=True).agg(suite=("suite", "nunique"), world_index=("world_index", "nunique"), arms=("arm", "nunique"))
+    if len(identity) != DEVELOPMENT_WORLDS or not (identity["suite"] == 1).all() or not (identity["world_index"] == 1).all() or not (identity["arms"] == len(OFFLINE_ARMS)).all():
+        raise ValueError("G1 paired world identities are incomplete")
+    if rows["suite"].nunique() != 6:
+        raise ValueError("G1 requires six suites")
+    if not all(np.isfinite(rows[column].to_numpy(dtype=float)).all() for column in ("reciprocal_rank", "top1")):
+        raise ValueError("G1 paired world metrics must be finite")
+    pivot = rows.pivot(index=["world_id", "suite", "world_index"], columns="arm", values=["reciprocal_rank", "top1"])
+    if pivot.shape[0] != DEVELOPMENT_WORLDS or pivot.isna().any().any():
+        raise ValueError("G1 paired world pivot is incomplete")
+    paired = pivot.reset_index()
+    paired.columns = ["world_id", "suite", "world_index", "base_mrr", "persistent_mrr", "reset_mrr", "base_top1", "persistent_top1", "reset_top1"]
+    paired["mrr_delta"] = paired["persistent_mrr"] - paired["reset_mrr"]
+    paired["top1_delta"] = paired["persistent_top1"] - paired["reset_top1"]
+    return paired
+
+
+def g1_verdict(world_metrics: pd.DataFrame, bootstrap_seed: int, resamples: int) -> dict[str, object]:
+    """Apply the frozen paired-world persistent-minus-reset ranking gate."""
+    paired = _g1_paired_world_rows(world_metrics)
+    bootstrap = world_clustered_bootstrap(paired, "mrr_delta", resamples, bootstrap_seed)
+    suite_deltas = paired.groupby("suite", sort=True)["mrr_delta"].mean()
+    pooled_top1_delta = float(paired["top1_delta"].mean())
+    suites_with_positive_mrr = int((suite_deltas > 0.0).sum())
+    pooled_mrr_ci_low = float(bootstrap["ci_low"])
+    passes = pooled_mrr_ci_low > 0.0 and pooled_top1_delta >= 0.02 and suites_with_positive_mrr >= 4
+    return {
+        "comparison": "c13p_persistent_minus_c13p_reset",
+        "pooled_mrr_delta": float(paired["mrr_delta"].mean()),
+        "pooled_mrr_ci_low": pooled_mrr_ci_low,
+        "pooled_mrr_ci_high": float(bootstrap["ci_high"]),
+        "pooled_top1_delta": pooled_top1_delta,
+        "suite_mrr_deltas": {str(suite): float(delta) for suite, delta in suite_deltas.items()},
+        "suites_with_positive_mrr": suites_with_positive_mrr,
+        "bootstrap": bootstrap,
+        "passes": passes,
+        "verdict": "c13p_g1_passed" if passes else "c13p_no_persistent_ranking_signal",
+    }
+
+
 def _binding_error(reason: str) -> ValueError:
     return ValueError(f"training binding {reason}; new output directory required")
 

@@ -598,3 +598,96 @@ def test_task4_has_no_duplicate_top_level_definitions() -> None:
     for path in (Path(P.__file__), Path(__file__)):
         names = [node.name for node in ast.parse(path.read_text(encoding="utf-8")).body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
         assert len(names) == len(set(names)), path
+
+
+def _offline_trace(world_index: int, suite: str, event_count: int) -> P.TeacherTrace:
+    trace = _training_trace(event_count, world_index=world_index)
+    return replace(trace, split="development", suite=suite)
+
+
+def _g1_world_metrics(mrr_delta: float, top1_delta: float, positive_suites: int = 6) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for world_index in range(P.DEVELOPMENT_WORLDS):
+        suite = f"suite-{world_index % 6}"
+        suite_delta = mrr_delta if world_index % 6 < positive_suites else -mrr_delta
+        for arm, mrr, top1 in (
+            ("c13p_persistent", 0.50 + suite_delta, 0.40 + top1_delta),
+            ("c13p_reset", 0.50, 0.40),
+            ("c13m_base_rank", 0.25, 0.20),
+        ):
+            rows.append({
+                "aggregation_level": "world", "world_id": f"development/{suite}/{world_index}",
+                "suite": suite, "world_index": world_index, "arm": arm,
+                "reciprocal_rank": mrr, "top1": top1,
+            })
+    return pd.DataFrame(rows)
+
+
+def test_offline_arms_use_matched_recorded_frontiers_and_shared_model_audit() -> None:
+    traces = (_offline_trace(0, "alpha", 2), _offline_trace(1, "beta", 3))
+    prepared = {P._trace_world_id(trace): _prepared_training_world() for trace in traces}
+    model = P.PersistentSearchHRM()
+
+    events, summary = P.evaluate_offline_arms(traces, prepared, model, "a" * 64, P.resolve_paths(Path.cwd()))
+
+    assert P.OFFLINE_ARMS == ("c13p_persistent", "c13p_reset", "c13m_base_rank")
+    assert set(events["arm"]) == set(P.OFFLINE_ARMS)
+    assert {"split", "suite", "world_index", "event_index", "arm", "positive_node", "candidate_count", "cross_entropy", "positive_rank", "reciprocal_rank", "top1", "rank_percentile", "candidate_nodes", "checkpoint_sha256", "model_state_sha256"}.issubset(events.columns)
+    paired = events[events["arm"].isin(("c13p_persistent", "c13p_reset"))]
+    for _, group in paired.groupby(["world_id", "event_index"], sort=True):
+        assert len(group) == 2
+        assert group["candidate_nodes"].nunique() == 1
+        assert group["candidate_count"].nunique() == 1
+        assert group["positive_node"].nunique() == 1
+        assert group["checkpoint_sha256"].nunique() == 1
+        assert group["model_state_sha256"].nunique() == 1
+    assert set(summary["aggregation_level"]) == {"world", "suite", "pooled"}
+
+
+def test_offline_base_rank_orders_frozen_tuple_and_world_macro_beats_trace_length() -> None:
+    traces = (_offline_trace(0, "alpha", 1), _offline_trace(1, "alpha", 3))
+    prepared = {P._trace_world_id(trace): _prepared_training_world() for trace in traces}
+    events, summary = P.evaluate_offline_arms(traces, prepared, P.PersistentSearchHRM(), "b" * 64, P.resolve_paths(Path.cwd()))
+
+    base = events[(events["arm"] == "c13m_base_rank") & (events["event_index"] == 0)]
+    assert set(base["positive_rank"]) == {1}
+    pooled = summary[(summary["aggregation_level"] == "pooled") & (summary["arm"] == "c13m_base_rank")].iloc[0]
+    worlds = summary[(summary["aggregation_level"] == "world") & (summary["arm"] == "c13m_base_rank")]
+    assert pooled["reciprocal_rank"] == pytest.approx(worlds["reciprocal_rank"].mean())
+
+
+def test_world_clustered_bootstrap_samples_only_exactly_twenty_four_paired_worlds() -> None:
+    paired = pd.DataFrame({"world_id": [f"w-{index}" for index in range(24)], "mrr_delta": np.linspace(-0.1, 0.2, 24)})
+    first = P.world_clustered_bootstrap(paired, "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
+    second = P.world_clustered_bootstrap(paired, "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
+
+    assert first == second
+    assert first["n_worlds"] == 24
+    assert first["sample_shape"] == (200, 24)
+    with pytest.raises(ValueError, match="24"):
+        P.world_clustered_bootstrap(paired.iloc[:-1], "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
+    with pytest.raises(ValueError, match="unique"):
+        P.world_clustered_bootstrap(pd.concat((paired, paired.iloc[[0]]), ignore_index=True), "mrr_delta", 200, P.BOOTSTRAP_SEEDS["g1_mrr"])
+
+
+def test_g1_boundaries_use_unrounded_paired_world_metrics() -> None:
+    zero = P.g1_verdict(_g1_world_metrics(0.0, 0.02), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
+    below = P.g1_verdict(_g1_world_metrics(0.10, 0.019), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
+    boundary = P.g1_verdict(_g1_world_metrics(0.10, 0.02), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
+    suite_failure = P.g1_verdict(_g1_world_metrics(0.10, 0.02, positive_suites=3), P.BOOTSTRAP_SEEDS["g1_mrr"], 200)
+
+    assert zero["pooled_mrr_ci_low"] == 0.0 and zero["verdict"] == "c13p_no_persistent_ranking_signal"
+    assert below["pooled_top1_delta"] < 0.02 and below["verdict"] == "c13p_no_persistent_ranking_signal"
+    assert boundary["pooled_top1_delta"] == pytest.approx(0.02) and boundary["verdict"] == "c13p_g1_passed"
+    assert suite_failure["suites_with_positive_mrr"] == 3 and suite_failure["verdict"] == "c13p_no_persistent_ranking_signal"
+
+
+def test_g1_rejects_missing_duplicate_or_unpaired_world_arm_identities() -> None:
+    metrics = _g1_world_metrics(0.10, 0.02)
+    for malformed in (
+        metrics.iloc[:-1],
+        pd.concat((metrics, metrics.iloc[[0]]), ignore_index=True),
+        metrics.assign(arm=metrics["arm"].replace({"c13m_base_rank": "unexpected"})),
+    ):
+        with pytest.raises(ValueError, match="pair|arm|unique|complete"):
+            P.g1_verdict(malformed, P.BOOTSTRAP_SEEDS["g1_mrr"], 20)
