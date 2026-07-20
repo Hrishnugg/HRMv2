@@ -11,6 +11,9 @@ hrm-cloud/ckpts/
 # generated Modal survey artifacts
 /modal_downloads/
 
+# Local agent worktrees
+/.worktrees/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
