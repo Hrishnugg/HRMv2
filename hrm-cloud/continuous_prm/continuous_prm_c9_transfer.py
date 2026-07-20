@@ -4,7 +4,7 @@
 Adapt the C7 pooled scalar base (avgbase) to held-out hard families from K worlds,
 comparing zero-shot / LoRA / full fine-tune / from-scratch on HRM + ON-LSTM, and
 report adaptation curves. New-file-only; reuses C7/C3 machinery. See
-docs/superpowers/specs/2026-06-29-c9-transfer-design.md.
+docs/experiments/continuous/c09/design/2026-06-29-c9-transfer-design.md.
 """
 from __future__ import annotations
 

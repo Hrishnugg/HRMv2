@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """C9h: matched-compute transfer hardening (LoRA bounded/unbounded vs full-FT,
 scalar + field conv-LoRA). New-file-only; reuses C9 (frozen) + C6/C7 field stack.
-See docs/superpowers/specs/2026-06-29-c9-hardening-design.md.
+See docs/experiments/continuous/c09h/design/2026-06-29-c9-hardening-design.md.
 """
 from __future__ import annotations
 import argparse, dataclasses, csv as _csv, json, time

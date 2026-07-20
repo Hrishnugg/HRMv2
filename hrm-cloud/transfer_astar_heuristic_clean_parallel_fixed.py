@@ -224,7 +224,7 @@ EVAL_FN_NONPREEMPTIBLE = (_env_int("EVAL_NONPREEMPTIBLE", 1) == 1) and _modal_su
 
 ORCH_FN_CPU = float(_env_float("ORCH_CPU", 1.0))
 ORCH_FN_MEMORY_MB = _env_int("ORCH_MEMORY_MB", 4096)
-ORCH_FN_TIMEOUT_SEC = _env_int("ORCH_TIMEOUT_SEC", 60 * 60 * 24)
+ORCH_FN_TIMEOUT_SEC = _env_int("ORCH_TIMEOUT_SEC", 86400)
 ORCH_FN_NONPREEMPTIBLE = (_env_int("ORCH_NONPREEMPTIBLE", 1) == 1) and _modal_supports_nonpreemptible()
 
 

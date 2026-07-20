@@ -80,8 +80,8 @@ non-fp16/bf16 tensor, confirmed by reading
 device, so `flash_attention()` -- and therefore any `import flash_attn` --
 is never even attempted).
 
-See docs/superpowers/plans/2026-07-07-c11-mission.md (Tasks 6-7) and
-docs/superpowers/specs/2026-07-07-c11-compositional-mission-design.md
+See docs/experiments/continuous/c11/plans/2026-07-07-c11-mission.md (Tasks 6-7) and
+docs/experiments/continuous/c11/design/2026-07-07-c11-compositional-mission-design.md
 (section 5) for the authoritative spec.
 """
 from __future__ import annotations

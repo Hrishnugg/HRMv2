@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Now matches the original HRM implementation exactly
 
 ### Added
-- Comprehensive code review report (`/HRM_V2_REVIEW_REPORT.md`)
+- Comprehensive code review report (`docs/experiments/discrete/direct-solver/history/HRM_V2_REVIEW_REPORT.md`)
 - Quick reference review summary (`REVIEW_SUMMARY.md`)
 - This changelog
 
@@ -90,7 +90,7 @@ If you're migrating from the original HRM codebase:
 ---
 
 For detailed technical analysis, see:
-- **Full Review Report**: `/HRM_V2_REVIEW_REPORT.md`
+- **Full Review Report**: `docs/experiments/discrete/direct-solver/history/HRM_V2_REVIEW_REPORT.md`
 - **Quick Summary**: `REVIEW_SUMMARY.md`
 - **Usage Guide**: `HRM_ACT_V1_GUIDE.md`
 

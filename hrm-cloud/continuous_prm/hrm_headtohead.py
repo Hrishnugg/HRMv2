@@ -3,7 +3,7 @@
 degeneracy: MultiheadAttention over a length-1 sequence, i.e. no cross-token
 attention) vs a RepairedHRMBackbone that runs REAL cross-token attention.
 
-Purpose (see hrm-cloud/PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md Sec 5.2): verify
+Purpose (see docs/experiments/cross-space/PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md Sec 5.2): verify
 (a) the incumbent reproduces prior C9 zero-shot numbers on the continuous-PRM
 hard targets, and (b) a capacity-matched variant with genuine cross-token
 attention performs same-or-better under an identical eval protocol. New-file

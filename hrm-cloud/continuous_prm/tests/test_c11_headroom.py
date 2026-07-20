@@ -782,6 +782,9 @@ def test_run_probe_smoke_writes_csv_and_md_with_verdict(tmp_path):
     # Tripwire for the clobber bug class: the committed document of record,
     # if present, must never hold smoke-scale numbers ("2 worlds/cell" is
     # this test's n_worlds; the canonical run writes "25 worlds/cell").
-    repo_md = Path(__file__).resolve().parents[1] / "C11_HEADROOM.md"
+    repo_md = (
+        Path(__file__).resolve().parents[3]
+        / "docs" / "experiments" / "continuous" / "c11" / "results" / "C11_HEADROOM.md"
+    )
     if repo_md.exists():
         assert "2 worlds/cell" not in repo_md.read_text(encoding="utf-8")

@@ -24,7 +24,7 @@ minimal `--probe` CLI.
 
 New-file-only; reuses `continuous_prm_common` (worlds, PRM, INF) and
 `continuous_prm_c7_hard_maps` (hard-map suites) by import. Does not modify
-either. See docs/superpowers/plans/2026-07-07-c11-headroom-probe.md.
+either. See docs/experiments/continuous/c11/plans/2026-07-07-c11-headroom-probe.md.
 """
 from __future__ import annotations
 
@@ -1040,13 +1040,13 @@ def _write_results_doc(analysis: Dict[Tuple[str, int], dict], path: str, n_world
     lines.append("**Date:** 2026-07-07")
     lines.append(
         "**Purpose:** G0-H gate for C11 (compositional-mission PRM) per "
-        "`../PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md` §7 -- measure whether "
+        "`docs/experiments/cross-space/PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md` §7 -- measure whether "
         "compositional missions create real heuristic headroom for A* search "
         "BEFORE building the C11 phase, at the cost of a probe rather than a phase."
     )
     lines.append(f"**Pre-registered gate (verbatim):** {GATE_TEXT}")
     lines.append(
-        "**Spec/plan:** `../../docs/superpowers/plans/2026-07-07-c11-headroom-probe.md`."
+        "**Spec/plan:** `docs/experiments/continuous/c11/plans/2026-07-07-c11-headroom-probe.md`."
     )
     lines.append("")
 
@@ -1298,7 +1298,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     args = parser.parse_args(argv)
 
     if args.probe:
-        canonical_md = os.path.join(os.path.dirname(os.path.abspath(__file__)), "C11_HEADROOM.md")
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        canonical_md = os.path.join(
+            repo_root, "docs", "experiments", "continuous", "c11", "results", "C11_HEADROOM.md"
+        )
         run_probe(out_dir=args.out_dir, n_worlds=args.n_worlds, md_path=canonical_md)
     else:
         parser.print_help()

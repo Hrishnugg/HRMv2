@@ -2,6 +2,8 @@
 
 This folder contains Modal-based cloud training scripts for HRM (Hierarchical Reasoning Module) scaling experiments and Diffusion Planner experiments.
 
+The authored experiment history has been centralized in the [experiment documentation index](../docs/experiments/README.md). This README remains beside the code as the operational entry point.
+
 ## Fully Automated Experiments
 
 > **All experiments are fully automated.** Each script handles the entire pipeline:

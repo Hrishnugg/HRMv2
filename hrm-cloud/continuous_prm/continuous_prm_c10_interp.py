@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """C10: parameter-space LoRA interpolation for zero-shot transfer to interior held-out
 families. New-file-only; reuses C9/C9h + C5/C7 generators + common.
-See docs/superpowers/specs/2026-06-29-c10-interp-design.md.
+See docs/experiments/continuous/c10/design/2026-06-29-c10-interp-design.md.
 """
 from __future__ import annotations
 import argparse, dataclasses, csv as _csv, json

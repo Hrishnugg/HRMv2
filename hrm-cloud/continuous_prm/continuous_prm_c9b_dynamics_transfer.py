@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """C9b: few-shot transfer under dynamics. Adapt frozen C8 pooled space-time
 heuristics (aware + blind) to held-out dynamic families via zero_shot/LoRA/full_ft/scratch.
-New-file-only; reuses C8 + C9/C9h + common. See docs/superpowers/specs/2026-06-30-c9b-dynamics-transfer-design.md.
+New-file-only; reuses C8 + C9/C9h + common. See docs/experiments/continuous/c09b/design/2026-06-30-c9b-dynamics-transfer-design.md.
 """
 from __future__ import annotations
 import argparse, dataclasses, csv as _csv, json, hashlib, functools

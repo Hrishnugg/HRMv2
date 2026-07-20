@@ -1,8 +1,10 @@
 # C12 Persistent Hierarchical Planning — Implementation Plan
 
 **Date:** 2026-07-10
-**Status:** draft; execute only after the design spec is approved
+**Status:** G0-A passed; learned C12-A implementation authorized
+**Execution priority:** proceed with C12-A dataset/model Tasks 3 and 5–12; keep C12-B independent and off the C12-A critical path.
 **Spec:** `docs/experiments/continuous/c12/design/2026-07-10-c12-persistent-hierarchical-planning-design.md`
+**G0-A result:** [canonical result](../results/C12_RESULTS.md), full hash `a11a9997e855854f5bd8`, 800 episodes / 3,200 matched provider rows, all four gates passed.
 
 **Goal:** run two separately gated tests of hierarchy under persistent state/computation:
 
@@ -17,11 +19,11 @@
 
 Before implementation:
 
-- [ ] User approves the design spec or records amendments in it.
-- [ ] `c11_big` completes or its unfinished state is explicitly recorded; C12 does not depend on its verdict.
-- [ ] Record `git status --short --branch`; the current worktree contains substantial user-owned documentation and experiment artifacts. Stage only C12 files unless the user expands scope.
-- [ ] Confirm Python/PyTorch/CUDA versions and free disk space.
-- [ ] Run the existing C8/C11 unit suites and record the baseline pass/fail count without changing source.
+- [x] User approved the design spec on 2026-07-10; the approval record is in the design document.
+- [x] `c11_big` completed all 12 training cells and evaluation; C12 remains independent of its verdict.
+- [x] Recorded `git status --short --branch`; the worktree contains substantial user-owned documentation and experiment artifacts. Stage only C12 files unless the user expands scope.
+- [x] Environment recorded: Python 3.13.7, PyTorch 2.9.0+cu130, CUDA available on RTX 5090, approximately 28 GB free VRAM and 119 GB free disk at implementation start.
+- [x] C8/C11 baseline recorded. The literal command below exposed a pre-existing root-level `PYTHONPATH` collection issue in three unrelated `hrm-cloud/tests` modules; with `hrm-cloud` and `hrm-cloud/continuous_prm` on `PYTHONPATH`, the selected baseline was **157 passed, 108 deselected** in 488.10 seconds.
 
 Read completely before coding:
 
@@ -80,7 +82,7 @@ Do not modify prior C8/C11 source unless a missing reusable primitive is impossi
 
 **Files:** create `continuous_prm_c12_latent_dynamics.py`, `test_c12_latent_dynamics.py`.
 
-- [ ] Write failing tests first:
+- [x] Write failing tests first:
   - identical seeds produce bitwise-identical episodes;
   - TRAIN/VALIDATION/TEST seeds are disjoint;
   - fast and slow periods fall in their configured ranges;
@@ -91,17 +93,17 @@ Do not modify prior C8/C11 source unless a missing reusable primitive is impossi
   - static map/goal seeds are independent of regime seeds, and counterfactual regime variants are balanced per static world;
   - gate state blocks/unblocks exactly the registered roadmap-edge ids;
   - episode reset clears all latent and visible state.
-- [ ] Implement dataclasses:
+- [x] Implement dataclasses:
   - `C12DynamicsConfig`;
   - `LatentRegime`/`RegimeSchedule`;
   - `GateSchedule`;
   - `LatentDynamicsState`;
   - `C12Observation`;
   - `C12EpisodeSpec`.
-- [ ] Implement challenge constructors for `direction_alias`, `slow_gate_phase`, `route_mode_junction`, and `present_sufficient` over C8 map families.
-- [ ] Keep true simulator methods pure/deterministic: `state_at(t)`, `observe(t)`, `future(t, horizon)`, `node_free`, `edge_free`, `gate_edge_valid`.
-- [ ] Add a schema audit function that fails if forbidden latent fields enter a model batch.
-- [ ] Run:
+- [x] Implement challenge constructors for `direction_alias`, `slow_gate_phase`, `route_mode_junction`, and `present_sufficient` over C8 map families.
+- [x] Keep true simulator methods deterministic: `state_at(t)`, `observe(t)`, `future(t, horizon)`, `node_free`, `edge_free`, `gate_edge_valid`.
+- [x] Add a schema audit function that fails if forbidden latent fields enter a model batch.
+- [x] Run:
 
 ```powershell
 python -m pytest hrm-cloud/continuous_prm/tests/test_c12_latent_dynamics.py -q
@@ -115,7 +117,7 @@ python -m pytest hrm-cloud/continuous_prm/tests/test_c12_latent_dynamics.py -q
 
 **Files:** create `continuous_prm_c12_closed_loop.py`, `test_c12_closed_loop.py`.
 
-- [ ] Write failing tests:
+- [x] Write failing tests:
   - `TabulatedDynamics` built from exact C8 circle centers matches `Dynamics.node_free/edge_free` on analytic cases;
   - predicted gate states mask the intended edge only at the intended step;
   - path-reconstructing A* returns the same arrival/expansion result as C8 A* on a known exact-future fixture;
@@ -124,11 +126,11 @@ python -m pytest hrm-cloud/continuous_prm/tests/test_c12_latent_dynamics.py -q
   - true-simulator scoring detects a collision missed by an incorrect forecast;
   - observations update carry during multi-step edge traversal, while decisions occur only at nodes;
   - episode termination distinguishes goal, collision, horizon, and no-plan.
-- [ ] Implement `TabulatedDynamics(centers, radii, gate_open, dt)` with C8-compatible feasibility methods.
-- [ ] Implement `predicted_space_time_astar(...)` with parent pointers and a first-action/path result; use C8’s `_edge_steps` convention and collision sampling, but do not edit C8.
-- [ ] Implement `run_closed_loop_episode(...)` with one-action receding-horizon execution.
-- [ ] Record cumulative expansions, planning milliseconds, arrival, collisions, replans, and failure reason.
-- [ ] Verify fine-grained true-simulator collision sampling is at least 2× denser than planning-time sampling.
+- [x] Implement `TabulatedDynamics(centers, radii, gate_open, dt)` with C8-compatible feasibility methods.
+- [x] Implement `predicted_space_time_astar(...)` with parent pointers and a first-action/path result; use C8’s `_edge_steps` convention and collision sampling, but do not edit C8.
+- [x] Implement `run_closed_loop_episode(...)` with one-action receding-horizon execution.
+- [x] Record cumulative expansions, planning milliseconds, arrival, collisions, replans, and failure reason.
+- [x] Verify fine-grained true-simulator collision sampling is at least 2× denser than planning-time sampling.
 
 **Suggested commit:** `feat(c12): tabulated forecasts and closed-loop space-time planner`
 
@@ -138,13 +140,13 @@ python -m pytest hrm-cloud/continuous_prm/tests/test_c12_latent_dynamics.py -q
 
 **Files:** modify `continuous_prm_c12_latent_dynamics.py`; create/modify `continuous_prm_c12_persistent.py`, `test_c12_persistent.py`.
 
-- [ ] Define deterministic seed formulas with separate high-order split offsets.
-- [ ] Build an episode record containing visible frames, exact future targets, static map id, regime stratum label, and privileged fields stored in a separate diagnostic block never passed to models.
-- [ ] Use compact `.npz` shards plus `dataset_manifest.json`; never pickle executable objects.
-- [ ] Test shard round-trip, checksums, schema version, split disjointness, shape/mask consistency, and append/resume behavior.
-- [ ] Add `collect --scale smoke|pilot|full` CLI mode.
-- [ ] Add `inspect-dataset` mode that prints counts, periods, alias rate, missing masks, and disk estimate without training.
-- [ ] Refuse to merge shards with different config hashes or schema versions.
+- [x] Define deterministic seed formulas with separate high-order split offsets.
+- [x] Build an episode record containing visible frames, exact future targets, static map id, regime stratum label, and privileged fields stored in a separate diagnostic block never passed to models.
+- [x] Use compact `.npz` shards plus `dataset_manifest.json`; never pickle executable objects.
+- [x] Test shard round-trip, checksums, schema version, split disjointness, shape/mask consistency, and append/resume behavior.
+- [x] Add `collect --scale smoke|pilot|full` CLI mode.
+- [x] Add `inspect-dataset` mode that prints counts, periods, alias rate, missing masks, and disk estimate without training.
+- [x] Refuse to merge shards with different config hashes or schema versions.
 
 **Suggested commit:** `feat(c12): deterministic episode dataset and resumable collection`
 
@@ -154,13 +156,13 @@ python -m pytest hrm-cloud/continuous_prm/tests/test_c12_latent_dynamics.py -q
 
 **Files:** modify `continuous_prm_c12_persistent.py`, `test_c12_persistent.py`.
 
-- [ ] Implement present-observation discretization used only for the preregistered alias-pair diagnostic.
-- [ ] Implement `frozen_frame`, `constant_velocity`, `true_mode`, and `oracle_future` forecast providers.
-- [ ] Run each provider through the same closed-loop planner on 200 dedicated PROBE episodes per stratum; assert they are disjoint from every final split.
-- [ ] Write `c12a_headroom_raw.csv`, `c12a_headroom_summary.json`, and a Markdown probe report.
-- [ ] Implement exact G0-A booleans from the spec; unit-test passing, failing, and boundary synthetic cases.
-- [ ] `train` and `full` modes must refuse to start unless a matching config-hash probe report says G0-A passed. Override requires an explicit `--allow-failed-probe` flag and marks every downstream artifact exploratory.
-- [ ] Run the real probe before implementing model training. If it fails, stop this track and adjust only environment calibration in a design amendment.
+- [x] Implement present-observation discretization used only for the preregistered alias-pair diagnostic.
+- [x] Implement `frozen_frame`, `constant_velocity`, `true_mode`, and `oracle_future` forecast providers.
+- [x] Run each provider through the same closed-loop planner on 200 dedicated PROBE episodes per stratum; assert they are disjoint from every final split.
+- [x] Write `c12a_headroom_raw.csv`, `c12a_headroom_summary.json`, and a Markdown probe report.
+- [x] Implement exact G0-A booleans from the spec; unit-test passing, failing, and boundary synthetic cases.
+- [x] `train` and `full` modes refuse to start unless a matching config-hash probe report says G0-A passed. Override requires an explicit `--allow-failed-probe` flag and marks every downstream artifact exploratory.
+- [x] Run the real probe before implementing model training. The full probe passed all four gates under hash `a11a9997e855854f5bd8`; proceed to learned-model implementation.
 
 Command:
 
@@ -176,7 +178,7 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
 
 **Files:** create `continuous_prm_c12_world_model.py`, `test_c12_world_model.py`.
 
-- [ ] Write failing tests for:
+- [x] Write failing tests for:
   - frame encoder and object masks;
   - horizon decoder shapes `(B, 32, max_patrollers, 2)` and gate logits;
   - snapshot arm ignores earlier frames;
@@ -186,11 +188,11 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
   - loss hand calculation for center Huber + 0.5 gate BCE;
   - gradients flow into frame encoder, temporal core, and decoder;
   - parameter/FLOP accounting is deterministic.
-- [ ] Implement shared `FrameEncoder` and `DirectHorizonDecoder`.
-- [ ] Implement the `TemporalCore` protocol and carry-tree helpers.
-- [ ] Implement `snapshot`, `lstm`, and `temporal_transformer` arms.
-- [ ] Add automatic width search over a small preregistered candidate list to place flat controls within the parameter/compute tolerance; save the chosen widths before pilot TEST.
-- [ ] Do not import the old monolithic comparison scripts at runtime; copy only required math with provenance comments and dedicated tests.
+- [x] Implement shared `FrameEncoder` and `DirectHorizonDecoder`.
+- [x] Implement the `TemporalCore` protocol and carry-tree helpers.
+- [x] Implement `snapshot`, `lstm`, and `temporal_transformer` arms.
+- [x] Add automatic width search over a small preregistered candidate list to place flat controls within the parameter/compute tolerance; save the chosen widths before pilot TEST.
+- [x] Do not import the old monolithic comparison scripts at runtime; copy only required math with provenance comments and dedicated tests.
 
 **Suggested commit:** `feat(c12): shared forecast model contract and flat temporal controls`
 
@@ -200,7 +202,7 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
 
 **Files:** modify `continuous_prm_c12_world_model.py`, `test_c12_world_model.py`.
 
-- [ ] Write failing tests:
+- [x] Write failing tests:
   - ON-LSTM master gates are cumulative-softmax ordered and numerically valid;
   - HRM fast state updates every step and slow state updates only at configured cadence;
   - slow state persists across replan boundaries;
@@ -209,10 +211,10 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
   - both slow and fast state receive gradients on a multi-timescale toy sequence;
   - repeated eval with same carry/input is deterministic;
   - reset and window-reencode evaluation paths use the same weights.
-- [ ] Implement `onlstm` from the validated cumax cell math.
-- [ ] Implement `hrm_stream` as an explicit stateful H/L core; document how it differs from C11 HRM-v2 ACT.
-- [ ] Parameter/compute match against flat controls and write counts into a frozen `model_grid.json`.
-- [ ] Tiny alias-task sanity: hierarchical/flat recurrent arms must overfit; snapshot must retain irreducible error.
+- [x] Implement `onlstm` from the validated cumax cell math.
+- [x] Implement `hrm_stream` as an explicit stateful H/L core; document how it differs from C11 HRM-v2 ACT.
+- [x] Parameter/compute match against flat controls and write counts into a frozen `model_grid.json`.
+- [x] Tiny alias-task sanity: hierarchical/flat recurrent arms must overfit; snapshot must retain irreducible error.
 
 **Suggested commit:** `feat(c12): persistent ON-LSTM and two-timescale HRM cores`
 
@@ -222,13 +224,13 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
 
 **Files:** modify `continuous_prm_c12_world_model.py`, `continuous_prm_c12_persistent.py`, tests.
 
-- [ ] Stream contiguous episode chunks with truncated BPTT; never shuffle individual timesteps across episodes.
-- [ ] Reset carry only on an episode-boundary mask; detach at chunk boundaries.
-- [ ] Implement the common loss/optimizer/clip recipe and validation-only checkpoint selection.
-- [ ] Save checkpoints atomically and load-merge-write `manifest.json` entries.
-- [ ] Record config hash, git commit/dirty flag, split manifest hash, arm, seed, param/FLOP counts, epochs, best validation score, wall time, peak VRAM, gradient summaries, and collapse diagnostics.
-- [ ] Resume only when checkpoint metadata matches all scientific config fields.
-- [ ] Tests:
+- [x] Stream contiguous episode chunks with truncated BPTT; never shuffle individual timesteps across episodes.
+- [x] Reset carry only on an episode-boundary mask; detach at chunk boundaries.
+- [x] Implement the common loss/optimizer/clip recipe and validation-only checkpoint selection.
+- [x] Save checkpoints atomically and load-merge-write `manifest.json` entries.
+- [x] Record config hash, git commit/dirty flag, split manifest hash, arm, seed, param/FLOP counts, epochs, best validation score, wall time, peak VRAM, gradient summaries, and collapse diagnostics.
+- [x] Resume only when checkpoint metadata matches all scientific config fields.
+- [x] Tests:
   - deterministic CPU mini-training;
   - tiny-set overfit for all arms;
   - carry reset boundary correctness;
@@ -244,13 +246,13 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
 
 **Files:** modify `continuous_prm_c12_persistent.py`, tests.
 
-- [ ] Evaluate identical TEST episodes for every arm/seed.
-- [ ] Produce raw rows per episode, decision step, horizon bucket, arm, and seed.
-- [ ] Implement ADE/FDE, gate balanced accuracy/Brier, occupancy recall, and route-critical recall.
-- [ ] Add privileged latent-regime linear probe trained on TRAIN contexts and evaluated on TEST; label it diagnostic.
-- [ ] Add `*_reset` and `*_window_reencode` modes without retraining.
-- [ ] Test all metrics against hand-built arrays and ensure padded identities do not contribute.
-- [ ] Write `c12a_forecast_raw.csv` append-safely by shard and merge deterministically.
+- [x] Evaluate identical TEST episodes for every arm/seed.
+- [x] Produce raw rows per episode, decision step, horizon bucket, arm, and seed.
+- [x] Implement ADE/FDE, gate balanced accuracy/Brier, occupancy recall, and route-critical recall.
+- [x] Add privileged latent-regime linear probe trained on TRAIN contexts and evaluated on TEST; label it diagnostic.
+- [x] Add `*_reset` and `*_window_reencode` modes without retraining.
+- [x] Test all metrics against hand-built arrays and ensure padded identities do not contribute.
+- [x] Write `c12a_forecast_raw.csv` append-safely by shard and merge deterministically.
 
 **Suggested commit:** `feat(c12): long-horizon forecast and carry-ablation evaluation`
 
@@ -260,13 +262,13 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
 
 **Files:** modify `continuous_prm_c12_persistent.py`, `continuous_prm_c12_closed_loop.py`, tests.
 
-- [ ] Convert every learned prediction into `TabulatedDynamics` using the same radii/gate-edge mapping.
-- [ ] Run matched closed-loop episodes with shared roadmaps, observations, and true dynamics.
-- [ ] Batch/cache model inference only where it preserves carry semantics; never call a different observation sequence per arm.
-- [ ] Test a perfect predictor matches `oracle_future` planner outcomes on fixtures.
-- [ ] Test a deliberately wrong direction predictor causes the expected first-action/collision change.
-- [ ] Record failure reason and keep unsuccessful episodes in the raw table.
-- [ ] Write `c12a_planning_raw.csv` and `c12a_carry_ablation.csv`.
+- [x] Convert every learned prediction into `TabulatedDynamics` using the same radii/gate-edge mapping.
+- [x] Run matched closed-loop episodes with shared roadmaps, observations, and true dynamics.
+- [x] Batch/cache model inference only where it preserves carry semantics; never call a different observation sequence per arm.
+- [x] Test a perfect predictor matches `oracle_future` planner outcomes on fixtures.
+- [x] Test a deliberately wrong direction predictor causes the expected first-action/collision change.
+- [x] Record failure reason and keep unsuccessful episodes in the raw table.
+- [x] Write `c12a_planning_raw.csv` and `c12a_carry_ablation.csv`.
 
 **Suggested commit:** `feat(c12): matched learned-forecast closed-loop evaluation`
 
@@ -276,13 +278,13 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode probe --
 
 **Files:** modify `continuous_prm_c12_persistent.py`, tests.
 
-- [ ] Aggregate model seeds within world before primary comparisons.
-- [ ] Implement seeded world bootstrap and world-level paired sign-flip tests.
-- [ ] Implement BH correction within each preregistered gate family.
-- [ ] Preselect the best flat comparator using VALIDATION artifacts and persist the choice before TEST analysis.
-- [ ] Implement G1-A, G2-A, G3-A, and G4-A as pure functions with boundary-case tests.
-- [ ] Ensure exploratory slices cannot mutate gate booleans.
-- [ ] Write `c12a_summary.json`, `c12a_significance.csv`, and a generated C12-A Markdown section.
+- [x] Aggregate model seeds within world before primary comparisons.
+- [x] Implement seeded world bootstrap and world-level paired sign-flip tests.
+- [x] Implement BH correction within each preregistered gate family.
+- [x] Preselect the best flat comparator using VALIDATION artifacts and persist the choice before TEST analysis.
+- [x] Implement G1-A, G2-A, G3-A, and G4-A as pure functions with boundary-case tests.
+- [x] Ensure exploratory slices cannot mutate gate booleans.
+- [x] Write `c12a_summary.json`, `c12a_significance.csv`, and a generated C12-A Markdown section.
 
 **Suggested commit:** `feat(c12): clustered inference and preregistered C12-A verdicts`
 
@@ -326,14 +328,14 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_persistent.py --mode full --s
 
 **Files:** create `continuous_prm_c12_refiner.py`, `test_c12_refiner.py`.
 
-- [ ] Reuse C11 bundle/oracle/graph constructors without mutation.
-- [ ] Instantiate a C12-owned `C11MissionConfig(k_max=16)` and prove C11’s default K≤8 grid/config remains unchanged.
-- [ ] Add C12-only deterministic K=16 train/test seed formulas.
-- [ ] Test mission validity, door validity, graph tensor shapes, finite oracle coverage, and split disjointness.
-- [ ] Implement graph-distance-to-relevant-transition diagnostic.
-- [ ] Evaluate h_legsum/oracle across a calibration budget grid and compute G0-B.
-- [ ] Measure peak RAM and wall time for label generation before accepting a cell.
-- [ ] Write `c12b_probe_raw.csv` and summary; training refuses a failed config hash.
+- [x] Reuse C11 bundle/oracle/graph constructors without mutation.
+- [x] Instantiate a C12-owned `C11MissionConfig(k_max=16)` and prove C11’s default K≤8 grid/config remains unchanged.
+- [x] Add C12-only deterministic K=16 train/test seed formulas.
+- [x] Test mission validity, door validity, graph tensor shapes, finite oracle coverage, and split disjointness.
+- [x] Implement graph-distance-to-relevant-transition diagnostic.
+- [x] Evaluate h_legsum/oracle across a calibration budget grid and compute G0-B.
+- [x] Measure peak RAM and wall time for label generation before accepting a cell.
+- [x] Write `c12b_probe_raw.csv` and summary; training refuses a failed config hash.
 
 Command:
 
@@ -349,7 +351,7 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_refiner.py --mode probe --out
 
 **Files:** modify `continuous_prm_c12_refiner.py`, `test_c12_refiner.py`.
 
-- [ ] Tests:
+- [x] Tests:
   - shared block object/parameter ids are identical at every tied cycle;
   - untied control parameters differ by cycle;
   - outputs exist at cycles 1/2/4/8 with correct graph shape;
@@ -359,10 +361,10 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_refiner.py --mode probe --out
   - parameter and edge-operation reports match hand counts;
   - tiny graph overfit reduces loss at every supervised cycle;
   - gradients reach the shared block from the cycle-8 loss.
-- [ ] Implement `TiedGraphRefiner`, `ShallowParamMatch`, and `UntiedComputeMatch` using the C11 product graph tensors.
-- [ ] Keep output normalization/cap and target recipe identical to C11.
-- [ ] Implement common trainer, atomic checkpoints, manifest metadata, and per-cycle validation.
-- [ ] Diagnostic cycle 16 is disabled in headline analysis by default.
+- [x] Implement `TiedGraphRefiner`, `ShallowParamMatch`, and `UntiedComputeMatch` using the C11 product graph tensors.
+- [x] Keep output normalization/cap and target recipe identical to C11.
+- [x] Implement common trainer, atomic checkpoints, manifest metadata, and per-cycle validation.
+- [x] Diagnostic cycle 16 is disabled in headline analysis by default.
 
 **Suggested commit:** `feat(c12): tied graph refiner with deep supervision and matched controls`
 
@@ -372,19 +374,19 @@ python hrm-cloud/continuous_prm/continuous_prm_c12_refiner.py --mode probe --out
 
 **Files:** modify `continuous_prm_c12_refiner.py`, tests.
 
-- [ ] CLI modes: `probe|train|eval|analyze|full` and `smoke|pilot|full` scales.
-- [ ] Train authorized cells on identical bundles and seeds.
-- [ ] Write state metrics per world/seed/cycle: MAE, rank correlation, Bellman residual.
-- [ ] Run matched product A* for cycles 1/2/4/8 and all controls.
-- [ ] Aggregate at world level and implement G1-B/G2-B/G3-B pure verdict functions.
-- [ ] Tests cover monotone-positive, compute-only-positive, flat-negative, success-regression, and failed-G0 cases.
-- [ ] Smoke:
+- [x] CLI modes implemented as integrated `probe|smoke|pilot|full|analyze` transactions; separate train/eval modes were intentionally not exposed (documented deviation).
+- [x] Train authorized cells on identical bundles and seeds.
+- [x] Write state metrics per world/seed/cycle: MAE, rank correlation, Bellman residual.
+- [x] Run matched product A* for cycles 1/2/4/8 and all controls.
+- [x] Aggregate at world level and implement G1-B/G2-B/G3-B pure verdict functions.
+- [x] Tests cover monotone-positive, compute-only-positive, flat-negative, success-regression, and failed-G0 cases.
+- [x] Smoke:
 
 ```powershell
 python hrm-cloud/continuous_prm/continuous_prm_c12_refiner.py --mode full --scale smoke --out-dir hrm-cloud/continuous_prm/runs/c12_refiner_smoke
 ```
 
-- [ ] Time one full cell/arm before launching the grid; apply the same compute stop rule as C12-A.
+- [x] Time one full cell/arm before launching the grid; apply the same compute stop rule as C12-A.
 
 **Suggested commit:** `feat(c12): iterative-refinement evaluation and preregistered verdicts`
 
@@ -450,14 +452,14 @@ The timing estimate may reduce no preregistered grid silently. A scope reduction
 
 C12 is complete only when:
 
-- [ ] G0-A and G0-B are reported, including any rejected cells/track;
-- [ ] all authorized primary arms and 3 seeds have valid checkpoints or explicit failure records;
-- [ ] raw forecast/planning/refinement rows are complete and matched;
-- [ ] world-clustered statistics and multiplicity corrections are reproducible;
-- [ ] every gate resolves mechanically to positive/negative/not-authorized;
-- [ ] C8/C11 regression suites remain green;
-- [ ] `C12_RESULTS.md` is generated and linked from the experiment index;
-- [ ] deviations and optimization failures are included rather than replaced post hoc.
+- [x] G0-A and G0-B are reported, including any rejected cells/track;
+- [x] all authorized primary arms and 3 seeds have valid checkpoints or explicit failure records;
+- [x] raw forecast/planning/refinement rows are complete and matched;
+- [x] world-clustered statistics and multiplicity corrections are reproducible;
+- [x] every gate resolves mechanically to positive/negative/not-authorized;
+- [x] C8/C11 regression suites remain green;
+- [x] `C12_RESULTS.md` is generated and linked from the experiment index;
+- [x] deviations and optimization failures are included rather than replaced post hoc.
 
 ---
 

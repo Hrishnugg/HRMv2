@@ -7,6 +7,8 @@
 
 **Complete HRM-ACT-v1 implementation** with modern infrastructure, targeting NVIDIA Blackwell (RTX 5090). Fully tested and production-ready!
 
+Training results, the fidelity audit, the repair plan, revalidation, and superseded historical notes are organized under [direct-solver experiment documentation](../docs/experiments/discrete/direct-solver/). The broader repository record starts at the [experiment documentation index](../docs/experiments/README.md).
+
 ## 🎯 Key Features
 
 - ✅ **Complete HRM-ACT-v1** - Full model implementation with hierarchical reasoning + ACT

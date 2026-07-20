@@ -1,7 +1,9 @@
 # C12 — Persistent Hierarchical Planning: Hidden Regimes and Iterative Refinement
 
 **Date:** 2026-07-10
-**Status:** draft for user approval; not implementation-authorized
+**Status:** approved; C12-A G0 authorization passed and learned-model work is authorized
+**Approval record:** User approved the design on 2026-07-10. Execution is authorized with C12-A through the real G0-A probe as the critical path; C12-B remains an independently gated addendum and is not allowed to delay G0-A.
+**G0-A record:** The full 800-episode probe passed all four gates under config hash `a11a9997e855854f5bd8`; see [C12 results](../results/C12_RESULTS.md). This authorizes C12-A model training but is not itself a learned-hierarchy result.
 **Scope:** one C12 umbrella with two independently gated tracks:
 
 - **C12-A (primary):** persistent, partially observed, multi-timescale dynamics with learned forecasting and closed-loop replanning.
@@ -317,6 +319,8 @@ Select the best flat comparator on VALIDATION before reading TEST. A hierarchica
 
 This gate is mechanistic; failure does not suppress the planning evaluation.
 
+The registered route-critical error follows the mechanism in each stratum: center ADE for `direction_alias` and `route_mode_junction`, and gate-state Brier error for `slow_gate_phase`. Comparator preselection averages these three otherwise incommensurate errors only after dividing each arm's error by the snapshot arm's error for the same seed and stratum. G1 significance remains a world-clustered comparison of the unnormalized stratum-specific errors. Occupancy recall is retained as a secondary diagnostic, not as the selection statistic.
+
 ### G2-A — closed-loop planning hierarchy (primary verdict)
 
 A hierarchical arm is planning-positive only if, versus the preselected best flat comparator:
@@ -565,3 +569,49 @@ Approval of this draft locks the following defaults:
 6. Full runs stop for a compute decision rather than silently reducing scale.
 
 Any change to these six decisions after implementation starts must be recorded as a design amendment before TEST evaluation.
+
+---
+
+## 17. Pre-pilot implementation amendment (2026-07-10)
+
+This amendment was frozen before accepting any pilot checkpoint and before any final TEST evaluation. Superseded pilot shards/checkpoints are retained only as implementation diagnostics.
+
+The first end-to-end development smoke revealed a support error in the environment/metric contract: `direction_alias` and `route_mode_junction` had route-critical events only in horizons 1–16, so the preregistered G1 comparison at horizons 17–32 was undefined in two of three challenge strata. No TEST data existed, and no gate outcome was used to choose a favored architecture. The correction is mechanical:
+
+- direction hazards recur at their seeded 6–12-step fast period, while slow-gate and route-mode events use sparse slow-schedule pulses; all preserve the original 8-step G0 divergence and provide route-critical support in horizons 17–32;
+- `route_critical_mask` is derived from the exact target hazard-edge occupancy/closure table rather than from only the first hazard interval;
+- a hard unit test requires nonzero horizon-17–32 support at the alias point in every challenge stratum;
+- the dynamics/dataset/probe/forecast schemas were advanced, and all earlier smoke artifacts remain diagnostic history rather than canonical evidence.
+
+A second pre-pilot audit found that the provisional `slow_gate_phase` variants closed different route edges at the same future offset. History was relevant, but the mechanism did not yet satisfy the stronger registered claim that identical current gate states have different *time-to-transition*. Before accepting a pilot result, the phase schedule was corrected so paired gates remain visibly open at the alias point but close after different seeded offsets; earlier closed intervals identify the phase. The `heldout_phase_direction` slice swaps this timing/direction correlation. A unit test now requires identical present observations, different transition times, divergent eight-step futures, and divergent oracle actions. The partially started v3 pilot was interrupted before any checkpoint or learned result was accepted, its files were retained as diagnostics, and the schemas advanced again.
+
+A final memory-depth audit then checked the comparison against the *registered* 16-frame Transformer rather than merely against snapshot. In the provisional schedule, the Transformer still saw the slow-gate/route-mode cues, and long gate closures made many route-critical rows trivial after the transition was already visible. The final schedule therefore pins these invariants:
+
+- slow-gate and route-mode variants differ at `t=0`, but every visible frame `t=1..16` is exactly paired-identical at the alias decision; persistent cores receive the cue during burn-in, whereas the exact 16-frame Transformer has dropped it;
+- slow gates use short closure pulses rather than 32–64-step continuously closed intervals, so route-critical evaluation measures transition anticipation;
+- route-mode pulses recur on the 32–64-step slow schedule, while `direction_alias` remains the intended short-memory challenge/control;
+- validation checkpoint loss excludes pre-burn-in frames, preventing the visible `t=0` cue from dominating model selection;
+- hard tests pin full-history divergence, exact last-16-frame equality, long-horizon support for both counterfactual variants, and post-pulse reopening.
+
+The partially started v4 pilot was likewise interrupted before accepting its snapshot checkpoint. No architecture outcome from either provisional pilot was inspected or promoted.
+
+The evaluation split is also frozen into deterministic, recorded slices before pilot:
+
+- `matched_id`;
+- `long_dwell_ood`, with slow dwell sampled from 1.5–2× the training maximum;
+- `heldout_phase_direction`, which swaps the training phase/direction correlation;
+- `scale_ood` for `C_dyn_rooms_large`.
+
+TRAIN and VALIDATION remain in-distribution. The final pre-pilot v6/v11 full G0 rerun passed on 800 episodes: 71.3% constructed aliasing, +0.467 history completion gain, 65.1% regret reduction (95% CI 63.0–66.9%), 97.5% oracle completion, a 75.1% ceiling gap, and zero present-sufficient history headroom.
+
+The outcome-independent width search over `{256, 320, 384, 448, 512}` is frozen as:
+
+| arm | width | trainable parameters | estimated multiply-adds/step |
+|---|---:|---:|---:|
+| snapshot | 512 | 3,007,296 | 5,625,152 |
+| LSTM | 512 | 4,444,480 | 7,066,944 |
+| temporal Transformer | 512 (`ff=1024`) | 3,798,592 | 6,411,584 |
+| ON-LSTM | 448 | 3,713,952 | 6,340,928 |
+| streaming HRM | 448 | 4,196,672 | 6,821,184 |
+
+The optimizer/checkpoint rule remains exactly the approved one: AdamW `2e-4`, weight decay `1e-4`, clip `1.0`, 16 episode streams, TBPTT 32, maximum 20 epochs, patience 4, and post-burn-in VALIDATION route-critical loss only. After checkpoints are fixed, the headline flat and hierarchical arms are preselected from persistent VALIDATION at horizons 17–32 using center ADE for direction/route-mode worlds and gate Brier for slow-gate worlds. Each stratum is normalized to its same-seed snapshot error before averaging, so trajectory distance and gate probability are not mixed in raw units. This mechanism-aligned rule was frozen before accepting a pilot checkpoint; it does not use TEST or planning outcomes. CUDA training forces the deterministic math attention backend and `CUBLAS_WORKSPACE_CONFIG=:4096:8`. Runtime projection is filled from the corrected smoke/pilot timing before any full launch; the 36-GPU-hour/24-CPU-hour stop rule remains binding.
