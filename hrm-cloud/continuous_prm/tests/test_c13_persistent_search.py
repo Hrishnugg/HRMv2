@@ -435,3 +435,23 @@ def test_lifecycle_rejects_stale_and_foreign_carries() -> None:
     foreign=P.PersistentCarryLifecycle(model,"eval-b"); other=foreign.initial_for_world("world-b",1,torch.device("cpu"),torch.float32)
     with pytest.raises(ValueError): first.update(torch.ones(1,70),other)
     assert first.update(torch.ones(1,70),next_carry)[1].step==2
+
+def test_frozen_encoder_preparation_accepts_exact_bound_cache(tmp_path: Path) -> None:
+    encoder=P.load_frozen_flat_encoder(_task3_source(tmp_path),torch.device("cpu")); cache=_task3_features(); path=tmp_path/"exact-cache.npz"; np.savez(path,features=cache["features"]); cache["cache_path"]=str(path); cache["cache_sha256"]=_sha256(path)
+    prepared=P.prepare_world_representation(cache,[[(1,1.)],[(0,1.)]],1,P.resolve_paths(tmp_path),encoder)
+    assert prepared.node_embeddings.shape==(2,64) and all(not p.requires_grad for p in encoder.parameters()) and not encoder.training
+    np.testing.assert_allclose(prepared.base_rank,prepared.euclidean_rank+1.50*(prepared.local_values-prepared.euclidean_rank))
+
+def test_reset_carry_is_zero_causal_and_cadenced(monkeypatch: pytest.MonkeyPatch) -> None:
+    model=P.PersistentSearchHRM(); calls=[]; original=model.high_block.forward
+    monkeypatch.setattr(model.high_block,"forward",lambda *a,**k:(calls.append(1),original(*a,**k))[1])
+    base={"event_index":0,"expanded_node":0,"expanded_g":0.,"expanded_base_rank":0.,"open_count":1,"closed_count":0,"open_nodes":[1],"open_g":[0.],"open_base_rank":[0.]}
+    carries=[P.reset_carry_for_event(model,{**base,"event_index":i},1,torch.device("cpu"),torch.float32) for i in (0,1,2)]
+    assert [c.step for c in carries]==[0,1,2] and all(not torch.count_nonzero(c.low) and not torch.count_nonzero(c.high) for c in carries)
+    with pytest.raises(ValueError): P.reset_carry_for_event(model,base,1,torch.device("cpu"),torch.float32,step=1)
+    for carry in carries: model.update_event(torch.ones(1,70),carry)
+    assert len(calls)==2
+
+def test_privileged_audit_dictionary_is_rejected() -> None:
+    causal={"event_index":0,"expanded_node":0,"expanded_g":0.,"expanded_base_rank":0.,"open_count":1,"closed_count":0,"open_nodes":[1],"open_g":[0.],"open_base_rank":[0.]}; causal["privileged_audit"]={"teacher_path":[0,1]}
+    with pytest.raises(ValueError): P.validate_model_causal_fields(causal)

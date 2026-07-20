@@ -909,20 +909,6 @@ def reset_carry_for_event(model: PersistentSearchHRM, causal_event: Mapping[str,
     return model.initial_carry(batch_size,device,dtype,step=event_index)
 
 class PersistentCarryLifecycle:
-    def __init__(self,model: PersistentSearchHRM,evaluation_id: str)->None:
-        if not isinstance(evaluation_id,str) or not evaluation_id: raise ValueError("evaluation id is invalid")
-        self.model=model; self.evaluation_id=evaluation_id; self._world_id: object|None=None; self._issued=False
-    def initial_for_world(self,world_id: object,batch_size:int,device:torch.device,dtype:torch.dtype,evaluation_id:str|None=None)->HRMCarry:
-        if evaluation_id is not None and evaluation_id != self.evaluation_id: raise ValueError("evaluation id cannot cross lifecycle")
-        if self._issued:
-            if world_id != self._world_id: raise ValueError("carry cannot cross a world boundary")
-            raise ValueError("duplicate evaluation/world allocation")
-        self._world_id=world_id; self._issued=True; return self.model.initial_carry(batch_size,device,dtype)
-    def update(self,event_features:torch.Tensor,carry:HRMCarry)->tuple[torch.Tensor,HRMCarry]:
-        if not self._issued: raise ValueError("persistent carry lifecycle is not initialized")
-        return self.model.update_event(event_features,carry)
-
-class PersistentCarryLifecycle:
     """Explicit scope owner with linear, single-use carry transitions."""
     def __init__(self,model: PersistentSearchHRM,evaluation_id: str)->None:
         if not isinstance(evaluation_id,str) or not evaluation_id: raise ValueError("evaluation id is invalid")
