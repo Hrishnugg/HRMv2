@@ -138,12 +138,52 @@ def _read_json(path: Path, label: str) -> Mapping[str, object]:
     return payload
 
 
+def _resolve_frozen_source_path(root: Path, raw_path: object, label: str) -> Path:
+    """Resolve a frozen path against the configured source snapshot, never its stale origin."""
+    source_root = Path(root).resolve()
+    if not isinstance(raw_path, str) or not raw_path:
+        raise ValueError(f"{label}.path is missing")
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        resolved = (source_root / candidate).resolve()
+        if not resolved.is_relative_to(source_root):
+            raise ValueError(f"{label}.path escapes configured source root: {raw_path}")
+        return resolved
+    candidate = candidate.resolve()
+    if candidate.is_relative_to(source_root):
+        return candidate
+    source_anchor = (source_root.parent.name.casefold(), source_root.name.casefold())
+    candidate_parts = tuple(part.casefold() for part in candidate.parts)
+    matches = [index for index in range(1, len(candidate_parts)) if candidate_parts[index - 1:index + 1] == source_anchor]
+    if len(matches) == 1:
+        suffix = candidate.parts[matches[0] + 1:]
+        rebased = (source_root / Path(*suffix)).resolve()
+        if rebased.is_relative_to(source_root):
+            return rebased
+    continuous_anchor = ("hrm-cloud", "continuous_prm")
+    configured_parts = tuple(part.casefold() for part in source_root.parts)
+    configured_matches = [index for index in range(1, len(configured_parts)) if configured_parts[index - 1:index + 1] == continuous_anchor]
+    candidate_matches = [index for index in range(1, len(candidate_parts)) if candidate_parts[index - 1:index + 1] == continuous_anchor]
+    if len(configured_matches) == 1 and len(candidate_matches) == 1:
+        continuous_root = Path(*source_root.parts[:configured_matches[0] + 1])
+        rebased = (continuous_root / Path(*candidate.parts[candidate_matches[0] + 1:])).resolve()
+        if rebased.is_relative_to(continuous_root):
+            return rebased
+    if len(configured_matches) == 1:
+        repo_root = Path(*source_root.parts[:configured_matches[0] - 1])
+        doc_matches = [index for index, part in enumerate(candidate_parts) if part == "docs"]
+        if len(doc_matches) == 1:
+            rebased = (repo_root / Path(*candidate.parts[doc_matches[0]:])).resolve()
+            if rebased.is_relative_to(repo_root):
+                return rebased
+    raise ValueError(f"{label}.path is outside configured frozen source root: {raw_path}")
+
 def _manifest_entry_path(root: Path, entry: Mapping[str, object], label: str) -> Path:
     raw_path = entry.get("path")
     if not isinstance(raw_path, str) or not raw_path:
         raise ValueError(f"{label}.path is missing")
     candidate = Path(raw_path)
-    return candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
+    return _resolve_frozen_source_path(root, raw_path, label)
 
 
 def verify_integrity_manifest(root: Path, manifest_path: Path) -> dict[str, str]:
@@ -220,12 +260,14 @@ def replay_cohort_records(source: SourceContext) -> dict[str, list[dict[str, obj
                     raise ValueError(f"{split}[{index}].{field} changed")
             if raw_record.get("cache_status") != "reused":
                 raise ValueError(f"{split}[{index}].cache_status must equal reused")
-            cache_path = Path(str(raw_record["cache"])).resolve()
+            cache_path = _resolve_frozen_source_path(source.c13j_root, raw_record["cache"], f"{split}[{index}].cache")
             if not cache_path.is_file():
                 raise ValueError(f"{split}[{index}].cache is missing")
             if sha256_file(cache_path) != raw_record["cache_sha256"]:
                 raise ValueError(f"{split}[{index}].cache_sha256 mismatch")
-            replayed[split].append(dict(raw_record))
+            normalized_record = dict(raw_record)
+            normalized_record["cache"] = str(cache_path)
+            replayed[split].append(normalized_record)
     return replayed
 
 
@@ -288,6 +330,7 @@ def audit_sources(cfg: PersistentSearchConfig) -> SourceContext:
         "c13j_cohorts": sha256_file(c13j_root / "results" / "cohorts.json"),
         "checkpoint": checkpoint_sha256,
         "preregistration": sha256_file(preregistration),
+        "c13j_manifest": sha256_file(c13j_root / "manifest.json"),
         "implementation": sha256_file(implementation),
     }
     return SourceContext(

@@ -83,6 +83,46 @@ def test_integrity_manifest_detects_mutation_without_repairing_input(tmp_path: P
     assert frozen.read_bytes() == mutated
 
 
+def test_integrity_manifest_rebases_stale_absolute_path_to_configured_snapshot(tmp_path: Path) -> None:
+    configured = tmp_path / "configured" / "runs" / "c13_lhbl_multisuite"
+    original = tmp_path / "primary" / "runs" / "c13_lhbl_multisuite"
+    configured.mkdir(parents=True)
+    original.mkdir(parents=True)
+    configured_payload = configured / "payload.bin"
+    stale_payload = original / "payload.bin"
+    configured_payload.write_bytes(b"configured snapshot")
+    stale_payload.write_bytes(b"stale primary checkout")
+    manifest = configured / "integrity.json"
+    manifest.write_text(
+        json.dumps({"inputs": {"payload": {"path": str(stale_payload), "sha256": _sha256(configured_payload)}}}),
+        encoding="utf-8",
+    )
+
+    assert P.verify_integrity_manifest(configured, manifest)["payload"] == _sha256(configured_payload)
+
+
+def test_cohort_replay_rebases_stale_absolute_cache_path_to_configured_snapshot(tmp_path: Path) -> None:
+    configured = tmp_path / "configured" / "runs" / "c13_lhbl_multisuite"
+    original = tmp_path / "primary" / "runs" / "c13_lhbl_multisuite"
+    configured.mkdir(parents=True)
+    original.mkdir(parents=True)
+    configured_cache = configured / "cache.npz"
+    stale_cache = original / "cache.npz"
+    configured_cache.write_bytes(b"configured cache")
+    stale_cache.write_bytes(b"stale cache")
+    record = _record(stale_cache)
+    record["cache_sha256"] = _sha256(configured_cache)
+    records = {split: [copy.deepcopy(record)] for split in ("train", "validation", "development")}
+    source = P.SourceContext(
+        c13j_root=configured, c13m_root=configured,
+        preregistration=configured / "design.md", implementation=configured / "implementation.py",
+        source_manifest={"cohort_records": copy.deepcopy(records)}, source_hashes={},
+        cohort_records=records, checkpoint_path=configured_cache, checkpoint_sha256=_sha256(configured_cache),
+
+    )
+
+    assert P.replay_cohort_records(source)["train"][0]["cache"] == str(configured_cache.resolve())
+
 def test_disjointness_rejects_output_nested_in_a_frozen_source(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
@@ -92,6 +132,7 @@ def test_disjointness_rejects_output_nested_in_a_frozen_source(tmp_path: Path) -
 
 @pytest.mark.parametrize("field,value", [
     ("world_seed", 999),
+    ("roadmap_seed", 1020),
     ("nodes", 193),
     ("edges", 385),
     ("cache", "other-cache.npz"),
@@ -157,3 +198,8 @@ def test_audit_sources_rejects_generated_cache_from_temporary_snapshot(tmp_path:
 
     with pytest.raises(ValueError, match="cache_status"):
         P.audit_sources(P.resolve_paths(repo))
+    records["train"][0]["cache_status"] = "reused"
+    cohorts.write_text(json.dumps({"records": records}), encoding="utf-8")
+
+    source = P.audit_sources(P.resolve_paths(repo))
+    assert source.source_hashes["c13j_manifest"] == _sha256(c13j / "manifest.json")
