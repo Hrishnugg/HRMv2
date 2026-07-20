@@ -470,7 +470,9 @@ def generate_teacher_trace(
     open_nodes = {start_idx}
     closed: set[int] = set()
     heap: list[tuple[float, float, int]] = [(ranks[start_idx], 0.0, start_idx)]
-    raw_events: list[tuple[int, int, float, float, tuple[int, ...], tuple[float, ...], tuple[int | None, ...], tuple[float, ...], int, frozenset[int]]] = []
+    raw_events: list[tuple[int, int, float, float, tuple[int, ...], tuple[float, ...], tuple[int | None, ...], tuple[float, ...], int, frozenset[int]]] = [
+        (0, start_idx, 0.0, ranks[start_idx], (start_idx,), (0.0,), (None,), (ranks[start_idx],), 0, frozenset()),
+    ]
     expansions = 0
     reached_goal = False
 
@@ -541,7 +543,7 @@ def _event_maps(event: TraceEvent) -> tuple[dict[int, float], dict[int, int | No
 
 
 def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[int, float]]]) -> None:
-    """Validate path-frontier labels and exact direct-search candidate replay."""
+    """Validate per-event frontier labels and exact direct-search replay."""
     if trace.node_count != len(graph) or trace.node_count <= 0:
         raise ValueError("trace node_count does not match graph")
     if trace.edge_count != sum(len(outgoing) for outgoing in graph):
@@ -552,30 +554,37 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
         raise ValueError("trace start or goal is invalid")
     if not trace.teacher_path or tuple(trace.teacher_path)[0] != trace.start_idx or tuple(trace.teacher_path)[-1] != trace.goal_idx:
         raise ValueError("trace teacher path is invalid")
-    if len(set(event.positive_node for event in trace.events)) != len(trace.events):
-        raise ValueError("trace has duplicate positive labels")
+    if not trace.events:
+        raise ValueError("trace is missing its initialized frontier")
+
+    initial = trace.events[0]
+    initial_g, initial_parent, initial_rank = _event_maps(initial)
+    if initial.event_index != 0 or initial.expanded_node != trace.start_idx:
+        raise ValueError("trace initialized frontier is invalid")
+    if initial.closed_count != 0 or initial.open_count != 1 or set(initial_g) != {trace.start_idx}:
+        raise ValueError("trace initialized frontier changed")
+    if initial_parent[trace.start_idx] is not None or not math.isclose(initial_g[trace.start_idx], 0.0, rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("trace initialized frontier replay changed")
+    if not math.isclose(initial.expanded_g, 0.0, rel_tol=0.0, abs_tol=1e-12) or not math.isclose(initial.expanded_base_rank, initial_rank[trace.start_idx], rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("trace initialized frontier scalars changed")
+    if initial.positive_node != trace.start_idx:
+        raise ValueError("trace initialized frontier positive is invalid")
 
     open_g: dict[int, float] = {trace.start_idx: 0.0}
     open_parent: dict[int, int | None] = {trace.start_idx: None}
-    open_rank: dict[int, float] = {}
+    open_rank: dict[int, float] = {trace.start_idx: initial_rank[trace.start_idx]}
+    replayed_g: dict[int, float] = {trace.start_idx: 0.0}
+    replayed_parent: dict[int, int | None] = {trace.start_idx: None}
     closed: set[int] = set()
-    path_cost = 0.0
-    for previous, current in zip(trace.teacher_path, trace.teacher_path[1:]):
-        costs = [float(weight) for target, weight in graph[previous] if target == current]
-        if not costs:
-            raise ValueError("trace teacher path uses a missing graph edge")
-        path_cost += min(costs)
-    if not math.isclose(path_cost, _finite_float(trace.teacher_cost, "teacher_cost"), rel_tol=0.0, abs_tol=1e-12):
-        raise ValueError("trace teacher cost does not match parent-chain path")
 
-    for expected_index, event in enumerate(trace.events):
+    for expected_index, event in enumerate(trace.events[1:], start=1):
         if event.event_index != expected_index:
             raise ValueError("trace event index is invalid")
         event_g, event_parent, event_rank = _event_maps(event)
+        if event.expanded_node == trace.goal_idx:
+            raise ValueError("trace terminal goal pop must not be recorded")
         if event.expanded_node not in open_g:
             raise ValueError("trace replay expanded node is not open")
-        if expected_index == 0:
-            open_rank[trace.start_idx] = _finite_float(event.expanded_base_rank, "expanded_base_rank")
         priority_node = min(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node))
         if event.expanded_node != priority_node:
             raise ValueError("trace replay heap order changed")
@@ -602,6 +611,8 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
                 open_g[neighbor] = candidate_g
                 open_parent[neighbor] = event.expanded_node
                 open_rank[neighbor] = event_rank[neighbor]
+                replayed_g[neighbor] = candidate_g
+                replayed_parent[neighbor] = event.expanded_node
         if set(event_g) != set(open_g):
             raise ValueError("trace replay open candidates changed")
         expected_nodes = tuple(sorted(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node)))
@@ -621,14 +632,40 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
         expected_positive = next((node for node in trace.teacher_path if node not in closed), None)
         if event.positive_node != expected_positive:
             raise ValueError("trace positive does not match the path frontier")
-    if trace.teacher_expansions != len(trace.events) + 1:
+
+    if trace.teacher_expansions != len(trace.events):
         raise ValueError("trace teacher expansion count changed")
-    if trace.events:
-        final_node = min(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node))
-        if final_node != trace.goal_idx:
-            raise ValueError("trace terminal goal pop changed")
-
-
+    if trace.goal_idx not in open_g:
+        raise ValueError("trace terminal goal is not open")
+    final_node = min(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node))
+    if final_node != trace.goal_idx:
+        raise ValueError("trace terminal goal pop changed")
+    chain_reversed: list[int] = []
+    node: int | None = trace.goal_idx
+    while node is not None:
+        chain_reversed.append(node)
+        if node == trace.start_idx:
+            break
+        node = replayed_parent.get(node)
+        if len(chain_reversed) > trace.node_count:
+            raise ValueError("trace replay parent chain cycles")
+    if not chain_reversed or chain_reversed[-1] != trace.start_idx:
+        raise ValueError("trace replay parent chain is incomplete")
+    replayed_path = tuple(reversed(chain_reversed))
+    if replayed_path != tuple(trace.teacher_path):
+        raise ValueError("trace replay parent chain does not match privileged teacher path")
+    replayed_cost = 0.0
+    for previous, current in zip(replayed_path, replayed_path[1:]):
+        if previous not in replayed_g or current not in replayed_g:
+            raise ValueError("trace replay parent chain g is missing")
+        increment = replayed_g[current] - replayed_g[previous]
+        if not any(math.isclose(float(weight), increment, rel_tol=0.0, abs_tol=1e-12) for target, weight in graph[previous] if target == current):
+            raise ValueError("trace replay parent chain edge cost changed")
+        replayed_cost += increment
+    if not math.isclose(replayed_cost, replayed_g[trace.goal_idx], rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("trace replay parent chain cost changed")
+    if not math.isclose(replayed_cost, _finite_float(trace.teacher_cost, "teacher_cost"), rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError("trace teacher cost does not match replayed parent-chain path")
 def trace_payload(trace: TeacherTrace) -> dict[str, object]:
     """Return a canonical, audit-separated payload without leaking future teacher fields."""
     return {
