@@ -31,6 +31,7 @@
 - In reset mode, zero the low/high tensors before each event but initialize carry.step to that event's true zero-based event_index. Persistent and reset therefore execute the same k=2 high-level cadence; only remembered tensor values differ.
 - Exact C13-M ordering is ascending (g + rank, g, node_id). Learned search orders by descending logit, then ascending (g + rank, g, node_id).
 - Duplicate evaluation equality applies to deterministic decision/result fields. Timing fields are checked only for finite, nonnegative values.
+- Run every Python, pytest, and py_compile command from hrm-cloud/continuous_prm so sibling-module imports resolve exactly as they do in the established C13 tests.
 
 ## Frozen constants
 
@@ -94,7 +95,7 @@ Use temporary fixtures only. Do not inspect the real development payload in thes
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q
+python -m pytest tests/test_c13_persistent_search.py -q
 ~~~
 
 Expected: FAIL because continuous_prm_c13_persistent_search does not exist.
@@ -163,7 +164,7 @@ Audit requirements:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "config or canonical or audit or disjoint or cohort"
+python -m pytest tests/test_c13_persistent_search.py -q -k "config or canonical or audit or disjoint or cohort"
 ~~~
 
 Expected: PASS.
@@ -218,7 +219,7 @@ Also monkeypatch shortest-path/Dijkstra helpers to raise if trace generation cal
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "teacher or frontier or trace"
+python -m pytest tests/test_c13_persistent_search.py -q -k "teacher or frontier or trace"
 ~~~
 
 Expected: FAIL because the trace contracts are not implemented.
@@ -295,8 +296,8 @@ Implementation rules:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "teacher or frontier or trace"
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "teacher or frontier or trace"
+python -m pytest tests/test_c13_persistent_search.py -q -k "teacher or frontier or trace"
+python -m pytest tests/test_c13_persistent_search.py -q -k "teacher or frontier or trace"
 ~~~
 
 Expected: both runs PASS with the same collected test count.
@@ -342,7 +343,7 @@ Add tests that assert:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "encoder or base_rank or carry or candidate or checkpoint"
+python -m pytest tests/test_c13_persistent_search.py -q -k "encoder or base_rank or carry or candidate or checkpoint"
 ~~~
 
 Expected: FAIL because model construction and carry operations are absent.
@@ -446,7 +447,7 @@ Require the exact MODEL_CAUSAL_KEYS set before tensor construction. Tests must a
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "encoder or base_rank or carry or candidate or privileged or forbidden"
+python -m pytest tests/test_c13_persistent_search.py -q -k "encoder or base_rank or carry or candidate or privileged or forbidden"
 ~~~
 
 Expected: PASS.
@@ -490,7 +491,7 @@ Use tiny synthetic worlds and assert:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "loss or tbptt or train or validation or patience or resume"
+python -m pytest tests/test_c13_persistent_search.py -q -k "loss or tbptt or train or validation or patience or resume"
 ~~~
 
 Expected: FAIL because the trainer is not implemented.
@@ -577,7 +578,7 @@ Training behavior:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "loss or tbptt or train or validation or patience or resume"
+python -m pytest tests/test_c13_persistent_search.py -q -k "loss or tbptt or train or validation or patience or resume"
 ~~~
 
 Expected: PASS. Unit smoke may use CPU; it is not the official train stage.
@@ -620,7 +621,7 @@ Build two short traces and one shared checkpoint. Assert:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "offline or ranking or bootstrap or g1"
+python -m pytest tests/test_c13_persistent_search.py -q -k "offline or ranking or bootstrap or g1"
 ~~~
 
 Expected: FAIL because arm evaluation and G1-P are absent.
@@ -679,7 +680,7 @@ Do not infer G1 from rounded display values.
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "offline or ranking or bootstrap or g1"
+python -m pytest tests/test_c13_persistent_search.py -q -k "offline or ranking or bootstrap or g1"
 ~~~
 
 Expected: PASS.
@@ -727,7 +728,7 @@ Use a graph where the learned scorer changes preference after a second event. As
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "dynamic or search or rescore or tie or timing"
+python -m pytest tests/test_c13_persistent_search.py -q -k "dynamic or search or rescore or tie or timing"
 ~~~
 
 Expected: FAIL because history-conditioned search is not implemented.
@@ -829,7 +830,7 @@ Overall verdict mapping:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "dynamic or search or rescore or tie or timing or g2 or overall"
+python -m pytest tests/test_c13_persistent_search.py -q -k "dynamic or search or rescore or tie or timing or g2 or overall"
 ~~~
 
 Expected: PASS.
@@ -873,7 +874,7 @@ In temporary directories, assert:
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q -k "stage or binding or integrity or report or atomic"
+python -m pytest tests/test_c13_persistent_search.py -q -k "stage or binding or integrity or report or atomic"
 ~~~
 
 Expected: FAIL because stage orchestration is absent.
@@ -964,7 +965,7 @@ Generate runs/c13_persistent_search/results/C13P_RESULT.md from computed JSON. I
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py -q
+python -m pytest tests/test_c13_persistent_search.py -q
 ~~~
 
 Expected: PASS.
@@ -974,8 +975,8 @@ Expected: PASS.
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_hrm_substitution.py hrm-cloud/continuous_prm/tests/test_c13_hrm_alignment.py -q
-python -m py_compile hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py
+python -m pytest tests/test_c13_hrm_substitution.py tests/test_c13_hrm_alignment.py -q
+python -m py_compile continuous_prm_c13_persistent_search.py tests/test_c13_persistent_search.py
 ~~~
 
 Expected: both commands PASS with no C13-P-attributable warnings.
@@ -1010,7 +1011,7 @@ Run:
 git status --short
 git rev-parse HEAD
 git diff --check
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --stage audit
+python continuous_prm_c13_persistent_search.py --stage audit
 ~~~
 
 Expected:
@@ -1024,8 +1025,8 @@ Expected:
 Run:
 
 ~~~powershell
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --stage trace
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --verify-only
+python continuous_prm_c13_persistent_search.py --stage trace
+python continuous_prm_c13_persistent_search.py --verify-only
 ~~~
 
 Expected:
@@ -1040,9 +1041,9 @@ Expected:
 Run:
 
 ~~~powershell
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --stage smoke
+python continuous_prm_c13_persistent_search.py --stage smoke
 nvidia-smi
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --stage train
+python continuous_prm_c13_persistent_search.py --stage train
 ~~~
 
 Expected:
@@ -1060,9 +1061,9 @@ If CUDA is unavailable, stop and report the mechanical blocker. Do not substitut
 Run:
 
 ~~~powershell
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --stage develop
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --stage report
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --verify-only
+python continuous_prm_c13_persistent_search.py --stage develop
+python continuous_prm_c13_persistent_search.py --stage report
+python continuous_prm_c13_persistent_search.py --verify-only
 ~~~
 
 Expected:
@@ -1114,9 +1115,9 @@ If an index contains overlapping uncommitted user changes, preserve them and lea
 Run:
 
 ~~~powershell
-python -m pytest hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py hrm-cloud/continuous_prm/tests/test_c13_hrm_substitution.py hrm-cloud/continuous_prm/tests/test_c13_hrm_alignment.py -q
-python -m py_compile hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py hrm-cloud/continuous_prm/tests/test_c13_persistent_search.py
-python hrm-cloud/continuous_prm/continuous_prm_c13_persistent_search.py --verify-only
+python -m pytest tests/test_c13_persistent_search.py tests/test_c13_hrm_substitution.py tests/test_c13_hrm_alignment.py -q
+python -m py_compile continuous_prm_c13_persistent_search.py tests/test_c13_persistent_search.py
+python continuous_prm_c13_persistent_search.py --verify-only
 git diff --check
 git status --short
 ~~~
