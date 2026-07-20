@@ -42,6 +42,7 @@ BOOTSTRAP_SEEDS = {
 TRAIN_WORLDS = 96
 VALIDATION_WORLDS = 24
 DEVELOPMENT_WORLDS = 24
+TRAINING_BINDING_SCHEMA_VERSION = "c13p-training-binding-v1"
 
 
 @dataclass(frozen=True)
@@ -1012,9 +1013,6 @@ def _prepared_for_trace(prepared_worlds: Mapping[str, PreparedWorld], trace: Tea
     world_id = _trace_world_id(trace)
     if world_id in prepared_worlds:
         return prepared_worlds[world_id]
-    for key in (str(trace.world_index), (trace.split, trace.suite, trace.world_index)):
-        if key in prepared_worlds:  # type: ignore[operator]
-            return prepared_worlds[key]  # type: ignore[index]
     raise ValueError(f"prepared representation is missing for {world_id}")
 
 
@@ -1136,10 +1134,39 @@ def evaluate_stationary_split(traces: Sequence[TeacherTrace], prepared_worlds: M
     return event_rows, world_rows
 
 
-def _binding_fingerprint(binding: Mapping[str, object]) -> str:
+
+def _binding_error(reason: str) -> ValueError:
+    return ValueError(f"training binding {reason}; new output directory required")
+
+
+def _is_sha256(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(character in "0123456789abcdef" for character in value.lower())
+
+
+def validate_training_binding(binding: Mapping[str, object]) -> str:
+    """Validate the complete versioned frozen training binding before allocation."""
     if not isinstance(binding, Mapping):
-        raise ValueError("training binding is invalid")
+        raise _binding_error("is invalid")
+    required = {"binding_schema_version", "experiment_schema_version", "source_hashes", "trace_dataset_hash", "trace_generation_fingerprint", "model_config", "optimizer_config", "gate_config"}
+    if not required.issubset(binding) or binding.get("binding_schema_version") != TRAINING_BINDING_SCHEMA_VERSION or binding.get("experiment_schema_version") != SCHEMA_VERSION:
+        raise _binding_error("is incomplete or has a schema mismatch")
+    source_hashes = binding["source_hashes"]
+    if not isinstance(source_hashes, Mapping) or not source_hashes or any(not isinstance(name, str) or not name or not _is_sha256(digest) for name, digest in source_hashes.items()):
+        raise _binding_error("source hashes are invalid")
+    if not _is_sha256(binding["trace_dataset_hash"]) or not _is_sha256(binding["trace_generation_fingerprint"]):
+        raise _binding_error("trace hashes are invalid")
+    expected_model = {"model_seed": MODEL_SEED, "hidden_dim": HIDDEN_DIM, "num_layers": NUM_LAYERS, "num_heads": NUM_HEADS, "k_step": K_STEP}
+    expected_optimizer = {"name": "AdamW", "learning_rate": LEARNING_RATE, "weight_decay": WEIGHT_DECAY, "grad_clip_norm": GRAD_CLIP_NORM}
+    if binding["model_config"] != expected_model:
+        raise _binding_error("model configuration changed")
+    if binding["optimizer_config"] != expected_optimizer:
+        raise _binding_error("optimizer configuration changed")
+    gate_config = binding["gate_config"]
+    if not isinstance(gate_config, Mapping) or not isinstance(gate_config.get("schema_version"), str) or not gate_config["schema_version"] or not _is_sha256(gate_config.get("fingerprint")):
+        raise _binding_error("gate configuration is invalid")
     return hashlib.sha256(canonical_json_bytes(dict(binding))).hexdigest()
+def _binding_fingerprint(binding: Mapping[str, object]) -> str:
+    return validate_training_binding(binding)
 
 
 def save_training_checkpoint(path: Path, model: PersistentSearchHRM, optimizer: torch.optim.Optimizer, completed_epoch: int, binding: Mapping[str, object]) -> str:
@@ -1151,7 +1178,7 @@ def save_training_checkpoint(path: Path, model: PersistentSearchHRM, optimizer: 
     payload = {
         "model": model.state_dict(), "optimizer": optimizer.state_dict(), "completed_epoch": completed_epoch,
         "binding": copy.deepcopy(dict(binding)), "binding_fingerprint": fingerprint,
-        "source_hashes": copy.deepcopy(binding.get("source_hashes")), "trace_hash": binding.get("trace_hash"),
+        "source_hashes": copy.deepcopy(binding["source_hashes"]), "trace_dataset_hash": binding["trace_dataset_hash"], "trace_generation_fingerprint": binding["trace_generation_fingerprint"], "model_config": copy.deepcopy(binding["model_config"]), "optimizer_config": copy.deepcopy(binding["optimizer_config"]), "gate_config": copy.deepcopy(binding["gate_config"]),
         "rng": {"python": random.getstate(), "numpy": np.random.get_state(), "torch_cpu": torch.get_rng_state(), "torch_cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []},
     }
     torch.save(payload, destination)
@@ -1230,6 +1257,10 @@ def train_stationary_model(train_traces: Sequence[TeacherTrace], validation_trac
         history = pd.read_csv(history_path)
         if history.empty or int(history["epoch"].max()) != completed:
             raise ValueError("partial output history disagrees with checkpoint; new output directory required")
+        epochs = [int(value) for value in history.sort_values("epoch", kind="stable")["epoch"]]
+        if epochs != list(range(1, completed + 1)):
+            raise ValueError("partial output history epochs are invalid; new output directory required")
+        select_checkpoint(history)
     trace_by_id = {_trace_world_id(trace): trace for trace in train_traces}
     if len(trace_by_id) != len(train_traces):
         raise ValueError("training traces have duplicate world ids")
@@ -1241,6 +1272,8 @@ def train_stationary_model(train_traces: Sequence[TeacherTrace], validation_trac
             best_loss, stalled = value, 0
         else:
             stalled += 1
+    if completed and stalled >= cfg.patience:
+        return select_checkpoint(history)
     for epoch in range(completed + 1, cfg.max_epochs + 1):
         train_loss_sum, train_events = 0.0, 0.0
         for world_id in deterministic_world_order(tuple(trace_by_id), cfg.model_seed, epoch):
