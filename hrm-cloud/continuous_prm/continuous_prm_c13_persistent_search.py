@@ -349,7 +349,8 @@ def audit_sources(cfg: PersistentSearchConfig) -> SourceContext:
 @dataclass(frozen=True)
 class TraceEvent:
     event_index: int
-    expanded_node: int
+    event_kind: str
+    expanded_node: int | None
     expanded_g: float
     expanded_base_rank: float
     open_nodes: Sequence[int]
@@ -359,7 +360,6 @@ class TraceEvent:
     open_count: int
     closed_count: int
     positive_node: int
-
 
 @dataclass(frozen=True)
 class TeacherTrace:
@@ -470,8 +470,8 @@ def generate_teacher_trace(
     open_nodes = {start_idx}
     closed: set[int] = set()
     heap: list[tuple[float, float, int]] = [(ranks[start_idx], 0.0, start_idx)]
-    raw_events: list[tuple[int, int, float, float, tuple[int, ...], tuple[float, ...], tuple[int | None, ...], tuple[float, ...], int, frozenset[int]]] = [
-        (0, start_idx, 0.0, ranks[start_idx], (start_idx,), (0.0,), (None,), (ranks[start_idx],), 0, frozenset()),
+    raw_events: list[tuple[int, str, int | None, float, float, tuple[int, ...], tuple[float, ...], tuple[int | None, ...], tuple[float, ...], int, frozenset[int]]] = [
+        (0, "initialized_frontier", None, 0.0, ranks[start_idx], (start_idx,), (0.0,), (None,), (ranks[start_idx],), 0, frozenset()),
     ]
     expansions = 0
     reached_goal = False
@@ -498,7 +498,7 @@ def generate_teacher_trace(
                 heapq.heappush(heap, (candidate_g + ranks[neighbor], candidate_g, neighbor))
         ordered_open = tuple(sorted(open_nodes, key=lambda candidate: (g[candidate] + ranks[candidate], g[candidate], candidate)))
         raw_events.append((
-            len(raw_events), node, g[node], ranks[node], ordered_open,
+            len(raw_events), "post_expansion", node, g[node], ranks[node], ordered_open,
             tuple(g[candidate] for candidate in ordered_open),
             tuple(parent[candidate] for candidate in ordered_open),
             tuple(ranks[candidate] for candidate in ordered_open), len(closed), frozenset(closed),
@@ -508,12 +508,12 @@ def generate_teacher_trace(
         raise ValueError("teacher did not return a valid path")
     teacher_path = _path_from_parent(parent, start_idx, goal_idx)
     events: list[TraceEvent] = []
-    for event_index, node, expanded_g, expanded_rank, candidates, candidate_g, candidate_parent, candidate_rank, closed_count, closed_snapshot in raw_events:
+    for event_index, event_kind, node, expanded_g, expanded_rank, candidates, candidate_g, candidate_parent, candidate_rank, closed_count, closed_snapshot in raw_events:
         positive = next((path_node for path_node in teacher_path if path_node not in closed_snapshot), None)
         if positive is None or positive not in candidates:
             raise ValueError("teacher event has no open path-frontier positive")
         events.append(TraceEvent(
-            event_index=event_index, expanded_node=node, expanded_g=expanded_g, expanded_base_rank=expanded_rank,
+            event_index=event_index, event_kind=event_kind, expanded_node=node, expanded_g=expanded_g, expanded_base_rank=expanded_rank,
             open_nodes=candidates, open_g=candidate_g, open_parent=candidate_parent, open_base_rank=candidate_rank,
             open_count=len(candidates), closed_count=closed_count, positive_node=positive,
         ))
@@ -559,7 +559,7 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
 
     initial = trace.events[0]
     initial_g, initial_parent, initial_rank = _event_maps(initial)
-    if initial.event_index != 0 or initial.expanded_node != trace.start_idx:
+    if initial.event_index != 0 or initial.event_kind != "initialized_frontier" or initial.expanded_node is not None:
         raise ValueError("trace initialized frontier is invalid")
     if initial.closed_count != 0 or initial.open_count != 1 or set(initial_g) != {trace.start_idx}:
         raise ValueError("trace initialized frontier changed")
@@ -666,26 +666,36 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
         raise ValueError("trace replay parent chain cost changed")
     if not math.isclose(replayed_cost, _finite_float(trace.teacher_cost, "teacher_cost"), rel_tol=0.0, abs_tol=1e-12):
         raise ValueError("trace teacher cost does not match replayed parent-chain path")
+def _causal_static_fields(trace: TeacherTrace) -> dict[str, object]:
+    return {
+        "split": trace.split, "suite": trace.suite, "world_index": trace.world_index,
+        "world_seed": trace.world_seed, "roadmap_seed": trace.roadmap_seed,
+        "feature_cache_path": trace.feature_cache_path, "feature_cache_sha256": trace.feature_cache_sha256,
+        "node_count": trace.node_count, "edge_count": trace.edge_count,
+        "start_idx": trace.start_idx, "goal_idx": trace.goal_idx,
+    }
+
+
 def trace_payload(trace: TeacherTrace) -> dict[str, object]:
-    """Return a canonical, audit-separated payload without leaking future teacher fields."""
+    """Serialize one isolated model-causal record per event and keep teacher data privileged."""
+    static = _causal_static_fields(trace)
+    examples: list[dict[str, object]] = []
+    for event in trace.events:
+        current_event = {
+            "event_index": event.event_index, "event_kind": event.event_kind,
+            "expanded_node": event.expanded_node, "expanded_g": event.expanded_g,
+            "expanded_base_rank": event.expanded_base_rank, "open_nodes": list(event.open_nodes),
+            "open_g": list(event.open_g), "open_base_rank": list(event.open_base_rank),
+            "open_count": event.open_count, "closed_count": event.closed_count,
+        }
+        examples.append({
+            "model_causal": {**static, "event": current_event},
+            "labels": {"positive_node": event.positive_node},
+            "replay_audit": {"open_parent": list(event.open_parent)},
+        })
     return {
         "schema_version": SCHEMA_VERSION,
-        "model_causal": {
-            "split": trace.split, "suite": trace.suite, "world_index": trace.world_index,
-            "world_seed": trace.world_seed, "roadmap_seed": trace.roadmap_seed,
-            "feature_cache_path": trace.feature_cache_path, "feature_cache_sha256": trace.feature_cache_sha256,
-            "node_count": trace.node_count, "edge_count": trace.edge_count,
-            "start_idx": trace.start_idx, "goal_idx": trace.goal_idx,
-            "events": [{
-                "event_index": event.event_index, "expanded_node": event.expanded_node,
-                "expanded_g": event.expanded_g, "expanded_base_rank": event.expanded_base_rank,
-                "open_nodes": list(event.open_nodes), "open_g": list(event.open_g),
-                "open_base_rank": list(event.open_base_rank), "open_count": event.open_count,
-                "closed_count": event.closed_count,
-            } for event in trace.events],
-        },
-        "labels": {"positive_node": [event.positive_node for event in trace.events]},
-        "replay_audit": {"open_parent": [list(event.open_parent) for event in trace.events]},
+        "examples": examples,
         "privileged_audit": {
             "teacher_path": list(trace.teacher_path), "teacher_cost": trace.teacher_cost,
             "teacher_expansions": trace.teacher_expansions, "teacher_valid": trace.teacher_valid,
@@ -696,59 +706,67 @@ def trace_payload(trace: TeacherTrace) -> dict[str, object]:
 def trace_from_payload(payload: Mapping[str, object]) -> TeacherTrace:
     if payload.get("schema_version") != SCHEMA_VERSION:
         raise ValueError("trace payload schema version changed")
-    sections = ("model_causal", "labels", "replay_audit", "privileged_audit")
-    if any(not isinstance(payload.get(name), Mapping) for name in sections):
-        raise ValueError("trace payload audit sections are incomplete")
-    causal = payload["model_causal"]  # type: ignore[assignment]
-    labels = payload["labels"]  # type: ignore[assignment]
-    replay = payload["replay_audit"]  # type: ignore[assignment]
-    privileged = payload["privileged_audit"]  # type: ignore[assignment]
-    events_raw = causal.get("events")  # type: ignore[union-attr]
-    positives = labels.get("positive_node")  # type: ignore[union-attr]
-    parents = replay.get("open_parent")  # type: ignore[union-attr]
-    if not isinstance(events_raw, Sequence) or isinstance(events_raw, (str, bytes)) or not isinstance(positives, Sequence) or not isinstance(parents, Sequence):
-        raise ValueError("trace payload events are invalid")
-    if len(events_raw) != len(positives) or len(events_raw) != len(parents):
-        raise ValueError("trace payload event sections disagree")
+    examples = payload.get("examples")
+    privileged = payload.get("privileged_audit")
+    if not isinstance(examples, Sequence) or isinstance(examples, (str, bytes)) or not examples or not isinstance(privileged, Mapping):
+        raise ValueError("trace payload examples are invalid")
+    static: dict[str, object] | None = None
     events: list[TraceEvent] = []
-    for index, raw in enumerate(events_raw):
-        if not isinstance(raw, Mapping) or not isinstance(parents[index], Sequence) or isinstance(parents[index], (str, bytes)):
+    static_names = ("split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count", "start_idx", "goal_idx")
+    for raw_example in examples:
+        if not isinstance(raw_example, Mapping):
+            raise ValueError("trace payload example is invalid")
+        causal = raw_example.get("model_causal")
+        labels = raw_example.get("labels")
+        replay = raw_example.get("replay_audit")
+        if not isinstance(causal, Mapping) or not isinstance(labels, Mapping) or not isinstance(replay, Mapping):
+            raise ValueError("trace payload example sections are invalid")
+        raw_event = causal.get("event")
+        raw_parent = replay.get("open_parent")
+        if not isinstance(raw_event, Mapping) or not isinstance(raw_parent, Sequence) or isinstance(raw_parent, (str, bytes)):
             raise ValueError("trace payload event is invalid")
+        current_static = {name: causal.get(name) for name in static_names}
+        if static is None:
+            static = current_static
+        elif current_static != static:
+            raise ValueError("trace payload static fields changed across examples")
         fields = ("open_nodes", "open_g", "open_base_rank")
-        if any(not isinstance(raw.get(field), Sequence) or isinstance(raw.get(field), (str, bytes)) for field in fields):
+        if any(not isinstance(raw_event.get(field), Sequence) or isinstance(raw_event.get(field), (str, bytes)) for field in fields):
             raise ValueError("trace payload candidate fields are invalid")
+        event_kind = raw_event.get("event_kind")
+        if not isinstance(event_kind, str):
+            raise ValueError("trace event_kind is invalid")
+        raw_expanded = raw_event.get("expanded_node")
+        if raw_expanded is not None and (isinstance(raw_expanded, bool) or not isinstance(raw_expanded, int)):
+            raise ValueError("trace expanded_node is invalid")
         events.append(TraceEvent(
-            event_index=_integer(raw.get("event_index"), "event_index"),
-            expanded_node=_integer(raw.get("expanded_node"), "expanded_node"),
-            expanded_g=_finite_float(raw.get("expanded_g"), "expanded_g"),
-            expanded_base_rank=_finite_float(raw.get("expanded_base_rank"), "expanded_base_rank"),
-            open_nodes=tuple(_integer(value, "open_node") for value in raw["open_nodes"]),
-            open_g=tuple(_finite_float(value, "open_g") for value in raw["open_g"]),
-            open_parent=tuple(None if value is None else _integer(value, "open_parent") for value in parents[index]),
-            open_base_rank=tuple(_finite_float(value, "open_base_rank") for value in raw["open_base_rank"]),
-            open_count=_integer(raw.get("open_count"), "open_count"),
-            closed_count=_integer(raw.get("closed_count"), "closed_count"),
-            positive_node=_integer(positives[index], "positive_node"),
+            event_index=_integer(raw_event.get("event_index"), "event_index"), event_kind=event_kind,
+            expanded_node=raw_expanded, expanded_g=_finite_float(raw_event.get("expanded_g"), "expanded_g"),
+            expanded_base_rank=_finite_float(raw_event.get("expanded_base_rank"), "expanded_base_rank"),
+            open_nodes=tuple(_integer(value, "open_node") for value in raw_event["open_nodes"]),
+            open_g=tuple(_finite_float(value, "open_g") for value in raw_event["open_g"]),
+            open_parent=tuple(None if value is None else _integer(value, "open_parent") for value in raw_parent),
+            open_base_rank=tuple(_finite_float(value, "open_base_rank") for value in raw_event["open_base_rank"]),
+            open_count=_integer(raw_event.get("open_count"), "open_count"),
+            closed_count=_integer(raw_event.get("closed_count"), "closed_count"),
+            positive_node=_integer(labels.get("positive_node"), "positive_node"),
         ))
-    required = ("split", "suite", "feature_cache_path", "feature_cache_sha256")
-    if any(not isinstance(causal.get(field), str) for field in required):  # type: ignore[union-attr]
+    if static is None or not isinstance(static["split"], str) or not isinstance(static["suite"], str) or not isinstance(static["feature_cache_path"], str) or not isinstance(static["feature_cache_sha256"], str):
         raise ValueError("trace payload metadata is invalid")
-    teacher_path = privileged.get("teacher_path")  # type: ignore[union-attr]
+    teacher_path = privileged.get("teacher_path")
     if not isinstance(teacher_path, Sequence) or isinstance(teacher_path, (str, bytes)):
         raise ValueError("trace payload teacher path is invalid")
     return TeacherTrace(
-        split=causal["split"], suite=causal["suite"], world_index=_integer(causal.get("world_index"), "world_index"),  # type: ignore[index,union-attr]
-        world_seed=_integer(causal.get("world_seed"), "world_seed"), roadmap_seed=_integer(causal.get("roadmap_seed"), "roadmap_seed"),  # type: ignore[union-attr]
-        feature_cache_path=causal["feature_cache_path"], feature_cache_sha256=causal["feature_cache_sha256"],  # type: ignore[index,union-attr]
-        node_count=_integer(causal.get("node_count"), "node_count"), edge_count=_integer(causal.get("edge_count"), "edge_count"),  # type: ignore[union-attr]
-        start_idx=_integer(causal.get("start_idx"), "start_idx"), goal_idx=_integer(causal.get("goal_idx"), "goal_idx"),  # type: ignore[union-attr]
+        split=static["split"], suite=static["suite"], world_index=_integer(static["world_index"], "world_index"),
+        world_seed=_integer(static["world_seed"], "world_seed"), roadmap_seed=_integer(static["roadmap_seed"], "roadmap_seed"),
+        feature_cache_path=static["feature_cache_path"], feature_cache_sha256=static["feature_cache_sha256"],
+        node_count=_integer(static["node_count"], "node_count"), edge_count=_integer(static["edge_count"], "edge_count"),
+        start_idx=_integer(static["start_idx"], "start_idx"), goal_idx=_integer(static["goal_idx"], "goal_idx"),
         events=tuple(events), teacher_path=tuple(_integer(value, "teacher_path node") for value in teacher_path),
-        teacher_cost=_finite_float(privileged.get("teacher_cost"), "teacher_cost"),  # type: ignore[union-attr]
-        teacher_expansions=_integer(privileged.get("teacher_expansions"), "teacher_expansions"),  # type: ignore[union-attr]
-        teacher_valid=privileged.get("teacher_valid") is True,  # type: ignore[union-attr]
+        teacher_cost=_finite_float(privileged.get("teacher_cost"), "teacher_cost"),
+        teacher_expansions=_integer(privileged.get("teacher_expansions"), "teacher_expansions"),
+        teacher_valid=privileged.get("teacher_valid") is True,
     )
-
-
 def trace_generation_fingerprint(
     source_hashes: Mapping[str, str], cohort_record: Mapping[str, object], base_rank: Sequence[float],
 ) -> str:

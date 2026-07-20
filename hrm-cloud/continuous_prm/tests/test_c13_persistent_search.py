@@ -231,13 +231,15 @@ def test_teacher_trace_records_initialized_frontier_then_post_relaxation_snapsho
     assert trace.teacher_expansions == 5
     assert [event.event_index for event in trace.events] == [0, 1, 2, 3, 4]
     # Event zero is causal state before the first pop, so it retains the start candidate and label.
-    assert trace.events[0].expanded_node == 0
+    assert trace.events[0].event_kind == "initialized_frontier"
+    assert trace.events[0].expanded_node is None
     assert trace.events[0].open_nodes == (0,)
     assert trace.events[0].open_g == (0.0,)
     assert trace.events[0].open_parent == (None,)
     assert trace.events[0].closed_count == 0
     assert trace.events[0].positive_node == 0
     # After expanding the start, 2 and 3 tie on f=5 and g chooses 2; 3 is then actually popped.
+    assert all(event.event_kind == "post_expansion" for event in trace.events[1:])
     assert trace.events[1].expanded_node == 0
     assert trace.events[1].open_nodes == (2, 3, 1)
     assert trace.events[2].expanded_node == 2
@@ -322,6 +324,30 @@ def test_teacher_trace_generation_does_not_call_shortest_path_oracle(monkeypatch
     trace = P.generate_teacher_trace(graph, 0, 4, base_rank, metadata)
     assert trace.teacher_valid is True
 
+
+def test_teacher_trace_payload_exposes_only_one_causal_event_per_example() -> None:
+    trace, _ = _hand_trace()
+    payload = P.trace_payload(trace)
+
+    assert "model_causal" not in payload
+    examples = payload["examples"]
+    assert len(examples) == len(trace.events)
+    for index, example in enumerate(examples):
+        event = trace.events[index]
+        causal = example["model_causal"]
+        assert set(causal) == {"split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count", "start_idx", "goal_idx", "event"}
+        assert "events" not in causal
+        assert causal["event"] == {
+            "event_index": event.event_index, "event_kind": event.event_kind,
+            "expanded_node": event.expanded_node, "expanded_g": event.expanded_g,
+            "expanded_base_rank": event.expanded_base_rank, "open_nodes": list(event.open_nodes),
+            "open_g": list(event.open_g), "open_base_rank": list(event.open_base_rank),
+            "open_count": event.open_count, "closed_count": event.closed_count,
+        }
+        assert example["labels"] == {"positive_node": event.positive_node}
+        assert example["replay_audit"] == {"open_parent": list(event.open_parent)}
+    assert payload["privileged_audit"]["teacher_path"] == list(trace.teacher_path)
+    assert P.trace_from_payload(payload) == trace
 
 def test_teacher_trace_payload_and_shard_are_byte_identical_across_duplicate_passes() -> None:
     first, _ = _hand_trace()
