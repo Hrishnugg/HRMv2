@@ -227,41 +227,39 @@ def _hand_trace() -> tuple[P.TeacherTrace, list[list[tuple[int, float]]]]:
     return P.generate_teacher_trace(graph, 0, 4, base_rank, metadata), graph
 
 
-def test_teacher_trace_records_initialized_frontier_then_post_relaxation_snapshots() -> None:
+def test_teacher_trace_event_zero_is_start_post_expansion_and_goal_is_unrecorded() -> None:
     trace, _ = _hand_trace()
 
     assert trace.teacher_path == (0, 2, 1, 4)
     assert trace.teacher_cost == 3.0
     assert trace.teacher_expansions == 5
-    assert [event.event_index for event in trace.events] == [0, 1, 2, 3, 4]
-    # Event zero is causal state before the first pop, so it retains the start candidate and label.
-    assert trace.events[0].event_kind == "initialized_frontier"
-    assert trace.events[0].expanded_node is None
-    assert trace.events[0].open_nodes == (0,)
-    assert trace.events[0].open_g == (0.0,)
-    assert trace.events[0].open_parent == (None,)
-    assert trace.events[0].closed_count == 0
-    assert trace.events[0].positive_node == 0
-    # After expanding the start, 2 and 3 tie on f=5 and g chooses 2; 3 is then actually popped.
-    assert all(event.event_kind == "post_expansion" for event in trace.events[1:])
-    assert trace.events[1].expanded_node == 0
-    assert trace.events[1].open_nodes == (2, 3, 1)
-    assert trace.events[2].expanded_node == 2
-    assert trace.events[2].open_nodes == (3, 1)
-    assert trace.events[2].open_g == (2.0, 2.0)
-    assert trace.events[2].open_parent == (0, 2)
-    assert trace.events[3].expanded_node == 3
-    assert trace.events[3].open_nodes == (1,)
-    assert trace.events[4].expanded_node == 1
-    assert trace.events[4].open_nodes == (4,)
+    assert len(trace.events) == trace.teacher_expansions - 1
+    assert [event.event_index for event in trace.events] == [0, 1, 2, 3]
+    # Event zero is the completed expansion of start: pop/close and every relaxation are visible.
+    assert trace.events[0].expanded_node == trace.start_idx == 0
+    assert trace.events[0].expanded_g == 0.0
+    assert trace.events[0].open_nodes == (2, 3, 1)
+    assert trace.events[0].open_g == (1.0, 2.0, 5.0)
+    assert trace.events[0].open_parent == (0, 0, 0)
+    assert trace.events[0].closed_count == 1
+    assert trace.events[0].positive_node == 2
+    # Nodes 2 and 3 tie on f=5 and g chooses 2; off-path node 3 is then actually popped.
+    assert trace.events[1].expanded_node == 2
+    assert trace.events[1].open_nodes == (3, 1)
+    assert trace.events[1].open_g == (2.0, 2.0)
+    assert trace.events[1].open_parent == (0, 2)
+    assert trace.events[2].expanded_node == 3
+    assert trace.events[2].open_nodes == (1,)
+    assert trace.events[3].expanded_node == 1
+    assert trace.events[3].open_nodes == (4,)
     assert all(event.expanded_node != trace.goal_idx for event in trace.events)
 
 
 def test_teacher_trace_allows_repeated_path_frontier_when_off_path_node_is_expanded() -> None:
     trace, graph = _hand_trace()
 
-    assert [event.positive_node for event in trace.events] == [0, 2, 1, 1, 4]
-    assert trace.events[2].positive_node == trace.events[3].positive_node == 1
+    assert [event.positive_node for event in trace.events] == [2, 1, 1, 4]
+    assert trace.events[1].positive_node == trace.events[2].positive_node == 1
     P.validate_teacher_trace(trace, graph)
     for event in trace.events:
         assert event.positive_node in event.open_nodes
@@ -270,7 +268,7 @@ def test_teacher_trace_allows_repeated_path_frontier_when_off_path_node_is_expan
 
 def test_teacher_trace_validation_rejects_missing_closed_and_nonopen_positive() -> None:
     trace, graph = _hand_trace()
-    cases = ((2, None, "positive"), (3, 2, "closed"), (1, 5, "open"))
+    cases = ((1, None, "positive"), (2, 2, "closed"), (0, 5, "open"))
     for event_index, positive_node, match in cases:
         events = list(trace.events)
         events[event_index] = replace(events[event_index], positive_node=positive_node)  # type: ignore[arg-type]
@@ -280,7 +278,7 @@ def test_teacher_trace_validation_rejects_missing_closed_and_nonopen_positive() 
 
 def test_teacher_trace_validation_rejects_duplicate_open_candidate() -> None:
     trace, graph = _hand_trace()
-    event = trace.events[2]
+    event = trace.events[1]
     duplicate = replace(
         event,
         open_nodes=event.open_nodes + (event.open_nodes[-1],),
@@ -290,19 +288,19 @@ def test_teacher_trace_validation_rejects_duplicate_open_candidate() -> None:
         open_count=event.open_count + 1,
     )
     events = list(trace.events)
-    events[2] = duplicate
+    events[1] = duplicate
     with pytest.raises(ValueError, match="duplicate"):
         P.validate_teacher_trace(replace(trace, events=tuple(events)), graph)
 
 
 def test_teacher_trace_replay_rejects_changed_candidate_g_or_parent_snapshot() -> None:
     trace, graph = _hand_trace()
-    first = trace.events[2]
+    first = trace.events[1]
     changed_g = replace(first, open_g=(9.0, first.open_g[1]))
     changed_parent = replace(first, open_parent=(2, first.open_parent[1]))
     for changed in (changed_g, changed_parent):
         events = list(trace.events)
-        events[2] = changed
+        events[1] = changed
         with pytest.raises(ValueError, match="replay"):
             P.validate_teacher_trace(replace(trace, events=tuple(events)), graph)
 
@@ -312,12 +310,11 @@ def test_teacher_trace_replay_rejects_equal_cost_privileged_path_substitution() 
     metadata = {"split": "train", "suite": "equal", "world_index": 0, "world_seed": 1, "roadmap_seed": 2, "feature_cache_path": "equal.npz", "feature_cache_sha256": "c" * 64}
     trace = P.generate_teacher_trace(graph, 0, 3, np.asarray([0.0, 0.0, 1.0, 0.0]), metadata)
     events = list(trace.events)
+    events[0] = replace(events[0], positive_node=2)
     events[1] = replace(events[1], positive_node=2)
-    events[2] = replace(events[2], positive_node=2)
     substituted = replace(trace, events=tuple(events), teacher_path=(0, 2, 3))
     with pytest.raises(ValueError, match="parent chain"):
         P.validate_teacher_trace(substituted, graph)
-
 
 def test_teacher_trace_generation_does_not_call_shortest_path_oracle(monkeypatch: pytest.MonkeyPatch) -> None:
     graph, base_rank, metadata = _teacher_hand_graph()
@@ -342,29 +339,36 @@ def test_teacher_trace_payload_exposes_only_one_causal_event_per_example() -> No
         assert set(causal) == {"split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count", "start_idx", "goal_idx", "event"}
         assert "events" not in causal
         assert causal["event"] == {
-            "event_index": event.event_index, "event_kind": event.event_kind,
+            "event_index": event.event_index,
             "expanded_node": event.expanded_node, "expanded_g": event.expanded_g,
             "expanded_base_rank": event.expanded_base_rank, "open_nodes": list(event.open_nodes),
             "open_g": list(event.open_g), "open_base_rank": list(event.open_base_rank),
             "open_count": event.open_count, "closed_count": event.closed_count,
         }
+        assert isinstance(causal["event"]["expanded_node"], int)
+        assert "event_kind" not in causal["event"]
         assert example["labels"] == {"positive_node": event.positive_node}
         assert example["replay_audit"] == {"open_parent": list(event.open_parent)}
     assert payload["privileged_audit"]["teacher_path"] == list(trace.teacher_path)
     assert P.trace_from_payload(payload) == trace
 
-def test_teacher_trace_payload_rejects_noncanonical_or_relabelled_event_kinds() -> None:
+
+def test_teacher_trace_payload_rejects_null_or_noninteger_expanded_node() -> None:
     trace, graph = _hand_trace()
-    cases = ((0, "post_expansion", "initialized"), (1, "initialized_frontier", "post-expansion"), (1, "forged_kind", "event_kind"))
-    for index, event_kind, match in cases:
+    for invalid in (None, "0"):
         payload = copy.deepcopy(P.trace_payload(trace))
-        payload["examples"][index]["model_causal"]["event"]["event_kind"] = event_kind
-        with pytest.raises(ValueError, match=match):
+        payload["examples"][0]["model_causal"]["event"]["expanded_node"] = invalid
+        with pytest.raises(ValueError, match="expanded_node"):
             P.trace_from_payload(payload)
         events = list(trace.events)
-        events[index] = replace(events[index], event_kind=event_kind)
-        with pytest.raises(ValueError, match=match):
+        events[0] = replace(events[0], expanded_node=invalid)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="expanded_node"):
             P.validate_teacher_trace(replace(trace, events=tuple(events)), graph)
+
+    legacy = copy.deepcopy(P.trace_payload(trace))
+    legacy["examples"][0]["model_causal"]["event"]["event_kind"] = "post_expansion"
+    with pytest.raises(ValueError, match="fields"):
+        P.trace_from_payload(legacy)
 
 def test_teacher_trace_payload_and_shard_are_byte_identical_across_duplicate_passes() -> None:
     first, _ = _hand_trace()
@@ -385,6 +389,43 @@ def _task3_source(tmp_path: Path) -> P.SourceContext:
 
 def _task3_features() -> dict[str, np.ndarray]:
     return {"features": np.arange(96, dtype=np.float32).reshape(2,3,16)/100, "euclidean_to_goal": np.asarray([.8,0.]), "local_value_radius_0_20": np.asarray([1.2,0.])}
+
+def test_first_teacher_event_is_start_expansion_and_first_hrm_update(monkeypatch: pytest.MonkeyPatch) -> None:
+    trace, _ = _hand_trace()
+    prepared = P.PreparedWorld(
+        np.zeros((6, 3, 16), dtype=np.float32),
+        np.arange(6 * 64, dtype=np.float32).reshape(6, 64),
+        np.zeros(6, dtype=np.float64),
+        np.zeros(6, dtype=np.float64),
+        np.asarray([0.0, 4.0, 4.0, 3.0, 0.0, 0.0], dtype=np.float64),
+    )
+
+    causal, event_features, _, _, candidate_nodes = P._event_tensors(trace.events[0], prepared, torch.device("cpu"))
+    assert causal["event_index"] == 0
+    assert causal["expanded_node"] == trace.start_idx == 0
+    assert candidate_nodes == (2, 3, 1)
+    torch.testing.assert_close(event_features[0, :64], torch.as_tensor(prepared.node_embeddings[0]))
+    assert event_features[0, -1].item() == 0.0
+
+    model = P.PersistentSearchHRM()
+    high_calls: list[int] = []
+    original = model.high_block.forward
+
+    def counted(*args: object, **kwargs: object) -> torch.Tensor:
+        high_calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(model.high_block, "forward", counted)
+    lifecycle = P.PersistentCarryLifecycle(model, "event-zero")
+    carry = lifecycle.initial_for_world("hand", 1, torch.device("cpu"), torch.float32)
+    assert high_calls == [] and carry.step == 0
+    _, persistent_next = lifecycle.update(event_features, carry)
+    assert len(high_calls) == 1 and persistent_next.step == 1
+
+    reset = P.reset_carry_for_event(model, causal, 1, torch.device("cpu"), torch.float32)
+    assert len(high_calls) == 1 and reset.step == 0
+    _, reset_next = model.update_event(event_features, reset)
+    assert len(high_calls) == 2 and reset_next.step == 1
 
 def test_persistent_and_reset_carries_share_one_model_and_preserve_true_cadence() -> None:
     model = P.PersistentSearchHRM(); carry = model.initial_carry(1,torch.device("cpu"),torch.float32); assert carry.step == 0 and not torch.count_nonzero(carry.low) and not torch.count_nonzero(carry.high)
@@ -462,13 +503,11 @@ def _training_trace(event_count: int = 2, *, world_index: int = 0) -> P.TeacherT
     events = []
     for index in range(event_count):
         events.append(P.TraceEvent(
-            event_index=index, event_kind="initialized_frontier" if index == 0 else "post_expansion",
-            expanded_node=None if index == 0 else 0, expanded_g=0.0, expanded_base_rank=0.0,
+            event_index=index, expanded_node=0, expanded_g=0.0, expanded_base_rank=0.0,
             open_nodes=(0, 1), open_g=(0.0, 1.0), open_parent=(None, 0),
-            open_base_rank=(0.0, 0.5), open_count=2, closed_count=index, positive_node=0,
+            open_base_rank=(0.0, 0.5), open_count=2, closed_count=index + 1, positive_node=0,
         ))
-    return P.TeacherTrace("train", "maze", world_index, 1, 2, "cache", "0" * 64, 2, 1, 0, 1, tuple(events), (0, 1), 1.0, event_count, True)
-
+    return P.TeacherTrace("train", "maze", world_index, 1, 2, "cache", "0" * 64, 2, 1, 0, 1, tuple(events), (0, 1), 1.0, event_count + 1, True)
 
 def _prepared_training_world() -> P.PreparedWorld:
     return P.PreparedWorld(

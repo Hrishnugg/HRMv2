@@ -358,8 +358,7 @@ def audit_sources(cfg: PersistentSearchConfig) -> SourceContext:
 @dataclass(frozen=True)
 class TraceEvent:
     event_index: int
-    event_kind: str
-    expanded_node: int | None
+    expanded_node: int
     expanded_g: float
     expanded_base_rank: float
     open_nodes: Sequence[int]
@@ -479,9 +478,7 @@ def generate_teacher_trace(
     open_nodes = {start_idx}
     closed: set[int] = set()
     heap: list[tuple[float, float, int]] = [(ranks[start_idx], 0.0, start_idx)]
-    raw_events: list[tuple[int, str, int | None, float, float, tuple[int, ...], tuple[float, ...], tuple[int | None, ...], tuple[float, ...], int, frozenset[int]]] = [
-        (0, "initialized_frontier", None, 0.0, ranks[start_idx], (start_idx,), (0.0,), (None,), (ranks[start_idx],), 0, frozenset()),
-    ]
+    raw_events: list[tuple[int, int, float, float, tuple[int, ...], tuple[float, ...], tuple[int | None, ...], tuple[float, ...], int, frozenset[int]]] = []
     expansions = 0
     reached_goal = False
 
@@ -507,7 +504,7 @@ def generate_teacher_trace(
                 heapq.heappush(heap, (candidate_g + ranks[neighbor], candidate_g, neighbor))
         ordered_open = tuple(sorted(open_nodes, key=lambda candidate: (g[candidate] + ranks[candidate], g[candidate], candidate)))
         raw_events.append((
-            len(raw_events), "post_expansion", node, g[node], ranks[node], ordered_open,
+            len(raw_events), node, g[node], ranks[node], ordered_open,
             tuple(g[candidate] for candidate in ordered_open),
             tuple(parent[candidate] for candidate in ordered_open),
             tuple(ranks[candidate] for candidate in ordered_open), len(closed), frozenset(closed),
@@ -517,12 +514,12 @@ def generate_teacher_trace(
         raise ValueError("teacher did not return a valid path")
     teacher_path = _path_from_parent(parent, start_idx, goal_idx)
     events: list[TraceEvent] = []
-    for event_index, event_kind, node, expanded_g, expanded_rank, candidates, candidate_g, candidate_parent, candidate_rank, closed_count, closed_snapshot in raw_events:
+    for event_index, node, expanded_g, expanded_rank, candidates, candidate_g, candidate_parent, candidate_rank, closed_count, closed_snapshot in raw_events:
         positive = next((path_node for path_node in teacher_path if path_node not in closed_snapshot), None)
         if positive is None or positive not in candidates:
             raise ValueError("teacher event has no open path-frontier positive")
         events.append(TraceEvent(
-            event_index=event_index, event_kind=event_kind, expanded_node=node, expanded_g=expanded_g, expanded_base_rank=expanded_rank,
+            event_index=event_index, expanded_node=node, expanded_g=expanded_g, expanded_base_rank=expanded_rank,
             open_nodes=candidates, open_g=candidate_g, open_parent=candidate_parent, open_base_rank=candidate_rank,
             open_count=len(candidates), closed_count=closed_count, positive_node=positive,
         ))
@@ -538,92 +535,89 @@ def generate_teacher_trace(
 
 
 def _event_maps(event: TraceEvent) -> tuple[dict[int, float], dict[int, int | None], dict[int, float]]:
+    open_count = _integer(event.open_count, "open_count")
     lengths = (len(event.open_nodes), len(event.open_g), len(event.open_parent), len(event.open_base_rank))
-    if any(length != event.open_count for length in lengths):
+    if any(length != open_count for length in lengths):
         raise ValueError("trace event open snapshot lengths are invalid")
-    if event.open_count <= 0:
+    if open_count <= 0:
         raise ValueError("trace event open set is empty")
-    if len(set(event.open_nodes)) != event.open_count:
+    nodes = tuple(_integer(node, "open_node") for node in event.open_nodes)
+    if len(set(nodes)) != open_count:
         raise ValueError("trace event contains duplicate open nodes")
-    candidate_g = {node: _finite_float(value, "trace open_g") for node, value in zip(event.open_nodes, event.open_g)}
-    parent = {node: value for node, value in zip(event.open_nodes, event.open_parent)}
-    rank = {node: _finite_float(value, "trace open_base_rank") for node, value in zip(event.open_nodes, event.open_base_rank)}
+    candidate_g = {node: _finite_float(value, "trace open_g") for node, value in zip(nodes, event.open_g)}
+    parent = {
+        node: None if value is None else _integer(value, "open_parent")
+        for node, value in zip(nodes, event.open_parent)
+    }
+    rank = {node: _finite_float(value, "trace open_base_rank") for node, value in zip(nodes, event.open_base_rank)}
     return candidate_g, parent, rank
 
 
 def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[int, float]]]) -> None:
-    """Validate per-event frontier labels and exact direct-search replay."""
+    """Validate post-expansion frontier labels and exact direct-search replay."""
     if trace.node_count != len(graph) or trace.node_count <= 0:
         raise ValueError("trace node_count does not match graph")
     if trace.edge_count != sum(len(outgoing) for outgoing in graph):
         raise ValueError("trace edge_count does not match graph")
-    if not trace.teacher_valid:
+    if trace.teacher_valid is not True:
         raise ValueError("teacher trace is not valid")
     if not (0 <= trace.start_idx < trace.node_count and 0 <= trace.goal_idx < trace.node_count):
         raise ValueError("trace start or goal is invalid")
-    if not trace.teacher_path or tuple(trace.teacher_path)[0] != trace.start_idx or tuple(trace.teacher_path)[-1] != trace.goal_idx:
+    teacher_path = tuple(_integer(node, "teacher path node") for node in trace.teacher_path)
+    if not teacher_path or teacher_path[0] != trace.start_idx or teacher_path[-1] != trace.goal_idx:
         raise ValueError("trace teacher path is invalid")
+    if any(not 0 <= node < trace.node_count for node in teacher_path):
+        raise ValueError("trace teacher path node is invalid")
     if not trace.events:
-        raise ValueError("trace is missing its initialized frontier")
+        raise ValueError("trace is missing post-expansion events")
 
-    initial = trace.events[0]
-    initial_g, initial_parent, initial_rank = _event_maps(initial)
-    if initial.event_index != 0 or initial.event_kind != "initialized_frontier" or initial.expanded_node is not None:
-        raise ValueError("trace initialized frontier is invalid")
-    if initial.closed_count != 0 or initial.open_count != 1 or set(initial_g) != {trace.start_idx}:
-        raise ValueError("trace initialized frontier changed")
-    if initial_parent[trace.start_idx] is not None or not math.isclose(initial_g[trace.start_idx], 0.0, rel_tol=0.0, abs_tol=1e-12):
-        raise ValueError("trace initialized frontier replay changed")
-    if not math.isclose(initial.expanded_g, 0.0, rel_tol=0.0, abs_tol=1e-12) or not math.isclose(initial.expanded_base_rank, initial_rank[trace.start_idx], rel_tol=0.0, abs_tol=1e-12):
-        raise ValueError("trace initialized frontier scalars changed")
-    if initial.positive_node != trace.start_idx:
-        raise ValueError("trace initialized frontier positive is invalid")
-
+    first = trace.events[0]
     open_g: dict[int, float] = {trace.start_idx: 0.0}
     open_parent: dict[int, int | None] = {trace.start_idx: None}
-    open_rank: dict[int, float] = {trace.start_idx: initial_rank[trace.start_idx]}
+    open_rank: dict[int, float] = {trace.start_idx: _finite_float(first.expanded_base_rank, "expanded_base_rank")}
     replayed_g: dict[int, float] = {trace.start_idx: 0.0}
     replayed_parent: dict[int, int | None] = {trace.start_idx: None}
     closed: set[int] = set()
 
-    for expected_index, event in enumerate(trace.events[1:], start=1):
-        if event.event_index != expected_index:
+    for expected_index, event in enumerate(trace.events):
+        if _integer(event.event_index, "event_index") != expected_index:
             raise ValueError("trace event index is invalid")
-        if event.event_kind != "post_expansion" or event.expanded_node is None:
-            raise ValueError("trace event_kind must be post-expansion")
+        expanded_node = _integer(event.expanded_node, "expanded_node")
+        expanded_g = _finite_float(event.expanded_g, "expanded_g")
+        expanded_rank = _finite_float(event.expanded_base_rank, "expanded_base_rank")
         event_g, event_parent, event_rank = _event_maps(event)
-        if event.expanded_node == trace.goal_idx:
+        if expanded_node == trace.goal_idx:
             raise ValueError("trace terminal goal pop must not be recorded")
-        if event.expanded_node not in open_g:
+        if expanded_node not in open_g:
             raise ValueError("trace replay expanded node is not open")
         priority_node = min(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node))
-        if event.expanded_node != priority_node:
+        if expanded_node != priority_node:
             raise ValueError("trace replay heap order changed")
-        if not math.isclose(event.expanded_g, open_g[event.expanded_node], rel_tol=0.0, abs_tol=1e-12):
+        if not math.isclose(expanded_g, open_g[expanded_node], rel_tol=0.0, abs_tol=1e-12):
             raise ValueError("trace replay expanded g changed")
-        if not math.isclose(event.expanded_base_rank, open_rank[event.expanded_node], rel_tol=0.0, abs_tol=1e-12):
+        if not math.isclose(expanded_rank, open_rank[expanded_node], rel_tol=0.0, abs_tol=1e-12):
             raise ValueError("trace replay expanded rank changed")
-        open_g.pop(event.expanded_node)
-        open_parent.pop(event.expanded_node)
-        open_rank.pop(event.expanded_node)
-        closed.add(event.expanded_node)
-        if event.closed_count != len(closed):
+        open_g.pop(expanded_node)
+        open_parent.pop(expanded_node)
+        open_rank.pop(expanded_node)
+        closed.add(expanded_node)
+        if _integer(event.closed_count, "closed_count") != len(closed):
             raise ValueError("trace closed count changed")
-        for neighbor, raw_weight in graph[event.expanded_node]:
+        for neighbor, raw_weight in graph[expanded_node]:
             weight = _finite_float(raw_weight, "graph edge weight")
             if weight < 0.0:
                 raise ValueError("teacher search requires nonnegative edge weights")
             if neighbor in closed:
                 continue
-            candidate_g = event.expanded_g + weight
+            candidate_g = expanded_g + weight
             if candidate_g < open_g.get(neighbor, math.inf):
                 if neighbor not in event_g:
                     raise ValueError("trace replay is missing an open candidate")
                 open_g[neighbor] = candidate_g
-                open_parent[neighbor] = event.expanded_node
+                open_parent[neighbor] = expanded_node
                 open_rank[neighbor] = event_rank[neighbor]
                 replayed_g[neighbor] = candidate_g
-                replayed_parent[neighbor] = event.expanded_node
+                replayed_parent[neighbor] = expanded_node
         if set(event_g) != set(open_g):
             raise ValueError("trace replay open candidates changed")
         expected_nodes = tuple(sorted(open_g, key=lambda node: (open_g[node] + open_rank[node], open_g[node], node)))
@@ -634,17 +628,16 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
                 raise ValueError("trace replay candidate g or parent changed")
             if not math.isclose(event_rank[node], open_rank[node], rel_tol=0.0, abs_tol=1e-12):
                 raise ValueError("trace replay candidate rank changed")
-        if not isinstance(event.positive_node, int):
-            raise ValueError("trace positive is missing")
-        if event.positive_node in closed:
+        positive_node = _integer(event.positive_node, "positive_node")
+        if positive_node in closed:
             raise ValueError("trace positive is already closed")
-        if event.positive_node not in event_g:
+        if positive_node not in event_g:
             raise ValueError("trace positive is not open")
-        expected_positive = next((node for node in trace.teacher_path if node not in closed), None)
-        if event.positive_node != expected_positive:
+        expected_positive = next((node for node in teacher_path if node not in closed), None)
+        if positive_node != expected_positive:
             raise ValueError("trace positive does not match the path frontier")
 
-    if trace.teacher_expansions != len(trace.events):
+    if _integer(trace.teacher_expansions, "teacher_expansions") != len(trace.events) + 1:
         raise ValueError("trace teacher expansion count changed")
     if trace.goal_idx not in open_g:
         raise ValueError("trace terminal goal is not open")
@@ -663,7 +656,7 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
     if not chain_reversed or chain_reversed[-1] != trace.start_idx:
         raise ValueError("trace replay parent chain is incomplete")
     replayed_path = tuple(reversed(chain_reversed))
-    if replayed_path != tuple(trace.teacher_path):
+    if replayed_path != teacher_path:
         raise ValueError("trace replay parent chain does not match privileged teacher path")
     replayed_cost = 0.0
     for previous, current in zip(replayed_path, replayed_path[1:]):
@@ -677,6 +670,7 @@ def validate_teacher_trace(trace: TeacherTrace, graph: Sequence[Sequence[tuple[i
         raise ValueError("trace replay parent chain cost changed")
     if not math.isclose(replayed_cost, _finite_float(trace.teacher_cost, "teacher_cost"), rel_tol=0.0, abs_tol=1e-12):
         raise ValueError("trace teacher cost does not match replayed parent-chain path")
+
 def _causal_static_fields(trace: TeacherTrace) -> dict[str, object]:
     return {
         "split": trace.split, "suite": trace.suite, "world_index": trace.world_index,
@@ -693,7 +687,7 @@ def trace_payload(trace: TeacherTrace) -> dict[str, object]:
     examples: list[dict[str, object]] = []
     for event in trace.events:
         current_event = {
-            "event_index": event.event_index, "event_kind": event.event_kind,
+            "event_index": event.event_index,
             "expanded_node": event.expanded_node, "expanded_g": event.expanded_g,
             "expanded_base_rank": event.expanded_base_rank, "open_nodes": list(event.open_nodes),
             "open_g": list(event.open_g), "open_base_rank": list(event.open_base_rank),
@@ -724,6 +718,7 @@ def trace_from_payload(payload: Mapping[str, object]) -> TeacherTrace:
     static: dict[str, object] | None = None
     events: list[TraceEvent] = []
     static_names = ("split", "suite", "world_index", "world_seed", "roadmap_seed", "feature_cache_path", "feature_cache_sha256", "node_count", "edge_count", "start_idx", "goal_idx")
+    event_names = frozenset({"event_index", "expanded_node", "expanded_g", "expanded_base_rank", "open_nodes", "open_g", "open_base_rank", "open_count", "closed_count"})
     for raw_example in examples:
         if not isinstance(raw_example, Mapping):
             raise ValueError("trace payload example is invalid")
@@ -736,6 +731,8 @@ def trace_from_payload(payload: Mapping[str, object]) -> TeacherTrace:
         raw_parent = replay.get("open_parent")
         if not isinstance(raw_event, Mapping) or not isinstance(raw_parent, Sequence) or isinstance(raw_parent, (str, bytes)):
             raise ValueError("trace payload event is invalid")
+        if set(raw_event) != event_names:
+            raise ValueError("trace payload event fields are invalid")
         current_static = {name: causal.get(name) for name in static_names}
         if static is None:
             static = current_static
@@ -744,21 +741,19 @@ def trace_from_payload(payload: Mapping[str, object]) -> TeacherTrace:
         fields = ("open_nodes", "open_g", "open_base_rank")
         if any(not isinstance(raw_event.get(field), Sequence) or isinstance(raw_event.get(field), (str, bytes)) for field in fields):
             raise ValueError("trace payload candidate fields are invalid")
-        event_kind = raw_event.get("event_kind")
-        if event_kind not in ("initialized_frontier", "post_expansion"):
-            raise ValueError("trace event_kind is invalid")
-        raw_expanded = raw_event.get("expanded_node")
-        if raw_expanded is not None and (isinstance(raw_expanded, bool) or not isinstance(raw_expanded, int)):
-            raise ValueError("trace expanded_node is invalid")
         event_index = _integer(raw_event.get("event_index"), "event_index")
-        if event_index == 0:
-            if event_kind != "initialized_frontier" or raw_expanded is not None:
-                raise ValueError("trace initialized frontier event_kind is invalid")
-        elif event_kind != "post_expansion" or raw_expanded is None:
-            raise ValueError("trace event_kind must be post-expansion")
-        events.append(TraceEvent(
-            event_index=event_index, event_kind=event_kind,
-            expanded_node=raw_expanded, expanded_g=_finite_float(raw_event.get("expanded_g"), "expanded_g"),
+        if event_index != len(events):
+            raise ValueError("trace event_index is invalid")
+        expanded_node = _integer(raw_event.get("expanded_node"), "expanded_node")
+        start_idx = _integer(current_static["start_idx"], "start_idx")
+        goal_idx = _integer(current_static["goal_idx"], "goal_idx")
+        if event_index == 0 and expanded_node != start_idx:
+            raise ValueError("trace event zero expanded_node is not start")
+        if expanded_node == goal_idx:
+            raise ValueError("trace terminal goal expanded_node must not be recorded")
+        event = TraceEvent(
+            event_index=event_index, expanded_node=expanded_node,
+            expanded_g=_finite_float(raw_event.get("expanded_g"), "expanded_g"),
             expanded_base_rank=_finite_float(raw_event.get("expanded_base_rank"), "expanded_base_rank"),
             open_nodes=tuple(_integer(value, "open_node") for value in raw_event["open_nodes"]),
             open_g=tuple(_finite_float(value, "open_g") for value in raw_event["open_g"]),
@@ -767,23 +762,38 @@ def trace_from_payload(payload: Mapping[str, object]) -> TeacherTrace:
             open_count=_integer(raw_event.get("open_count"), "open_count"),
             closed_count=_integer(raw_event.get("closed_count"), "closed_count"),
             positive_node=_integer(labels.get("positive_node"), "positive_node"),
-        ))
+        )
+        _event_maps(event)
+        if event.closed_count != event_index + 1:
+            raise ValueError("trace closed_count does not match post-expansion event_index")
+        if event.expanded_node in event.open_nodes:
+            raise ValueError("trace expanded_node remains open")
+        if event.positive_node not in event.open_nodes:
+            raise ValueError("trace positive_node is not open")
+        events.append(event)
     if static is None or not isinstance(static["split"], str) or not isinstance(static["suite"], str) or not isinstance(static["feature_cache_path"], str) or not isinstance(static["feature_cache_sha256"], str):
         raise ValueError("trace payload metadata is invalid")
     teacher_path = privileged.get("teacher_path")
     if not isinstance(teacher_path, Sequence) or isinstance(teacher_path, (str, bytes)):
         raise ValueError("trace payload teacher path is invalid")
+    path = tuple(_integer(value, "teacher_path node") for value in teacher_path)
+    start_idx = _integer(static["start_idx"], "start_idx")
+    goal_idx = _integer(static["goal_idx"], "goal_idx")
+    if not path or path[0] != start_idx or path[-1] != goal_idx:
+        raise ValueError("trace payload teacher path is invalid")
+    teacher_expansions = _integer(privileged.get("teacher_expansions"), "teacher_expansions")
+    if teacher_expansions != len(events) + 1:
+        raise ValueError("trace teacher_expansions does not match event count")
     return TeacherTrace(
         split=static["split"], suite=static["suite"], world_index=_integer(static["world_index"], "world_index"),
         world_seed=_integer(static["world_seed"], "world_seed"), roadmap_seed=_integer(static["roadmap_seed"], "roadmap_seed"),
         feature_cache_path=static["feature_cache_path"], feature_cache_sha256=static["feature_cache_sha256"],
         node_count=_integer(static["node_count"], "node_count"), edge_count=_integer(static["edge_count"], "edge_count"),
-        start_idx=_integer(static["start_idx"], "start_idx"), goal_idx=_integer(static["goal_idx"], "goal_idx"),
-        events=tuple(events), teacher_path=tuple(_integer(value, "teacher_path node") for value in teacher_path),
+        start_idx=start_idx, goal_idx=goal_idx, events=tuple(events), teacher_path=path,
         teacher_cost=_finite_float(privileged.get("teacher_cost"), "teacher_cost"),
-        teacher_expansions=_integer(privileged.get("teacher_expansions"), "teacher_expansions"),
-        teacher_valid=privileged.get("teacher_valid") is True,
+        teacher_expansions=teacher_expansions, teacher_valid=privileged.get("teacher_valid") is True,
     )
+
 def trace_generation_fingerprint(
     source_hashes: Mapping[str, str], cohort_record: Mapping[str, object], base_rank: Sequence[float],
 ) -> str:
@@ -1017,30 +1027,22 @@ def _prepared_for_trace(prepared_worlds: Mapping[str, PreparedWorld], trace: Tea
 
 
 def _event_causal(event: TraceEvent) -> Mapping[str, object]:
-    if event.event_kind == "initialized_frontier":
-        if event.expanded_node is not None or not event.open_nodes:
-            raise ValueError("initialized frontier event is invalid")
-        # Event zero has no popped node; its sole causal observation is its recorded open frontier.
-        node, g, rank = event.open_nodes[0], event.open_g[0], event.open_base_rank[0]
-    elif event.event_kind == "post_expansion":
-        if event.expanded_node is None:
-            raise ValueError("post-expansion event is missing its expanded node")
-        node, g, rank = event.expanded_node, event.expanded_g, event.expanded_base_rank
-    else:
-        raise ValueError("trace event kind is invalid")
     return {
-        "event_index": event.event_index, "expanded_node": node, "expanded_g": g,
-        "expanded_base_rank": rank, "open_count": event.open_count, "closed_count": event.closed_count,
+        "event_index": _integer(event.event_index, "event_index"),
+        "expanded_node": _integer(event.expanded_node, "expanded_node"),
+        "expanded_g": _finite_float(event.expanded_g, "expanded_g"),
+        "expanded_base_rank": _finite_float(event.expanded_base_rank, "expanded_base_rank"),
+        "open_count": _integer(event.open_count, "open_count"),
+        "closed_count": _integer(event.closed_count, "closed_count"),
         "open_nodes": event.open_nodes, "open_g": event.open_g, "open_base_rank": event.open_base_rank,
     }
-
 
 def _trace_side_len(trace: TeacherTrace) -> float:
     # The trace contains node-local quantities only; this fixed normalizer is not a map-wide feature.
     return float(max(1, int(math.ceil(math.sqrt(trace.node_count)))))
 
 
-def _event_tensors(event: TraceEvent, prepared: PreparedWorld, device: torch.device) -> tuple[Mapping[str, object], torch.Tensor, torch.Tensor, Sequence[int]]:
+def _event_tensors(event: TraceEvent, prepared: PreparedWorld, device: torch.device) -> tuple[Mapping[str, object], torch.Tensor, torch.Tensor, torch.Tensor, Sequence[int]]:
     causal = _event_causal(event)
     embeddings = torch.as_tensor(prepared.node_embeddings, dtype=torch.float32, device=device)
     side_len = _trace_side_len_from_prepared(prepared)
