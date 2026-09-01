@@ -1,0 +1,74 @@
+{
+ "raw": "C:\\Users\\hrish\\Code Projects\\HRMv2\\hrm-cloud\\continuous_prm\\runs\\c8r_fresh_eval\\results\\continuous_prm_c8_eval_raw.csv",
+ "learned": "field_unet_blind",
+ "anchor": "euclid",
+ "suites": {
+  "C_dyn_crossing": {
+   "n_joint": 6,
+   "learned_subopt_mean": 1.2157407407407408,
+   "anchor_subopt_mean": 1.0,
+   "anchor_optimal_on_all_solved": true,
+   "paired_diff_mean": 0.21574074074074076,
+   "paired_diff_ci": [
+    0.10740740740740744,
+    0.38240740740740736
+   ]
+  },
+  "C_dyn_maze": {
+   "n_joint": 6,
+   "learned_subopt_mean": 1.0042735042735043,
+   "anchor_subopt_mean": 1.0,
+   "anchor_optimal_on_all_solved": true,
+   "paired_diff_mean": 0.004273504273504258,
+   "paired_diff_ci": [
+    0.0,
+    0.012820512820512775
+   ]
+  },
+  "C_dyn_maze_dense": {
+   "n_joint": 3,
+   "learned_subopt_mean": 1.0,
+   "anchor_subopt_mean": 1.0,
+   "anchor_optimal_on_all_solved": true,
+   "paired_diff_mean": 0.0,
+   "paired_diff_ci": [
+    0.0,
+    0.0
+   ]
+  },
+  "C_dyn_rooms": {
+   "n_joint": 21,
+   "learned_subopt_mean": 1.031454109875843,
+   "anchor_subopt_mean": 1.0,
+   "anchor_optimal_on_all_solved": true,
+   "paired_diff_mean": 0.031454109875842864,
+   "paired_diff_ci": [
+    0.014326805913936464,
+    0.05129964527992371
+   ]
+  },
+  "C_dyn_rooms_large": {
+   "n_joint": 41,
+   "learned_subopt_mean": 1.0951475814064031,
+   "anchor_subopt_mean": 1.0,
+   "anchor_optimal_on_all_solved": true,
+   "paired_diff_mean": 0.0951475814064032,
+   "paired_diff_ci": [
+    0.07083188580176367,
+    0.1213139535559819
+   ]
+  },
+  "C_dyn_spiral": {
+   "n_joint": 8,
+   "learned_subopt_mean": 1.0268325589420129,
+   "anchor_subopt_mean": 1.0,
+   "anchor_optimal_on_all_solved": true,
+   "paired_diff_mean": 0.026832558942012946,
+   "paired_diff_ci": [
+    0.009899068322981402,
+    0.0457939115990178
+   ]
+  }
+ },
+ "anchor_optimal_everywhere": true
+}

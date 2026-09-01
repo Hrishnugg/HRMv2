@@ -1,0 +1,10 @@
+{
+ "mlp": 1274881,
+ "unet_film": 2096521,
+ "gnn": 681089,
+ "hrm_trace": 2901473,
+ "onlstm_trace": 1251457,
+ "hrmv2_act": 3414786,
+ "unet_film_big": 14824161,
+ "hrm_trace_big": 15015937
+}

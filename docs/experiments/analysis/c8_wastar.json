@@ -1,0 +1,106 @@
+{
+ "suites": {
+  "C_dyn_crossing": {
+   "w_h": 1.5,
+   "wastar_succ": 1.0,
+   "euclid_succ": 0.12,
+   "blind_succ": 0.92,
+   "blind_minus_wastar": -0.08,
+   "ci": [
+    -0.16,
+    -0.02
+   ],
+   "wastar_ratio": 0.13926739926739928,
+   "wastar_ratio_n": 6,
+   "blind_over_wastar_ratio": 0.8248299319727892,
+   "blind_over_wastar_n": 46,
+   "wastar_subopt": 1.0079097744360903,
+   "blind_subopt": 1.163504261024906
+  },
+  "C_dyn_maze": {
+   "w_h": 5.0,
+   "wastar_succ": 0.96,
+   "euclid_succ": 0.12,
+   "blind_succ": 0.96,
+   "blind_minus_wastar": 0.0,
+   "ci": [
+    -0.06,
+    0.06
+   ],
+   "wastar_ratio": 0.12007069363757261,
+   "wastar_ratio_n": 6,
+   "blind_over_wastar_ratio": 0.6008403361344538,
+   "blind_over_wastar_n": 47,
+   "wastar_subopt": 1.0170474507789857,
+   "blind_subopt": 1.0124405861144326
+  },
+  "C_dyn_maze_dense": {
+   "w_h": 5.0,
+   "wastar_succ": 0.7,
+   "euclid_succ": 0.06,
+   "blind_succ": 0.7,
+   "blind_minus_wastar": 0.0,
+   "ci": [
+    -0.06,
+    0.06
+   ],
+   "wastar_ratio": 0.1057481351469943,
+   "wastar_ratio_n": 3,
+   "blind_over_wastar_ratio": 0.9817533374476239,
+   "blind_over_wastar_n": 34,
+   "wastar_subopt": 1.0062947007226768,
+   "blind_subopt": 1.0078772652756443
+  },
+  "C_dyn_rooms": {
+   "w_h": 3.0,
+   "wastar_succ": 0.98,
+   "euclid_succ": 0.42,
+   "blind_succ": 1.0,
+   "blind_minus_wastar": 0.02,
+   "ci": [
+    0.0,
+    0.06
+   ],
+   "wastar_ratio": 0.15827338129496402,
+   "wastar_ratio_n": 21,
+   "blind_over_wastar_ratio": 0.5535880708294502,
+   "blind_over_wastar_n": 49,
+   "wastar_subopt": 1.015013710163095,
+   "blind_subopt": 1.0186097307217812
+  },
+  "C_dyn_rooms_large": {
+   "w_h": 1.5,
+   "wastar_succ": 0.98,
+   "euclid_succ": 0.82,
+   "blind_succ": 1.0,
+   "blind_minus_wastar": 0.02,
+   "ci": [
+    0.0,
+    0.06
+   ],
+   "wastar_ratio": 0.33473684210526317,
+   "wastar_ratio_n": 41,
+   "blind_over_wastar_ratio": 0.7282051282051282,
+   "blind_over_wastar_n": 49,
+   "wastar_subopt": 1.0031513875391427,
+   "blind_subopt": 1.0818294583116923
+  },
+  "C_dyn_spiral": {
+   "w_h": 5.0,
+   "wastar_succ": 0.7,
+   "euclid_succ": 0.16,
+   "blind_succ": 1.0,
+   "blind_minus_wastar": 0.3,
+   "ci": [
+    0.18,
+    0.42
+   ],
+   "wastar_ratio": 0.5672297855483517,
+   "wastar_ratio_n": 8,
+   "blind_over_wastar_ratio": 0.2169811320754717,
+   "blind_over_wastar_n": 35,
+   "wastar_subopt": 1.0130980481817338,
+   "blind_subopt": 1.0114938213042144
+  }
+ }
+}

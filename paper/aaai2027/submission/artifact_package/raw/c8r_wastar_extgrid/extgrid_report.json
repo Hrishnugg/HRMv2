@@ -1,0 +1,33 @@
+{
+ "C_dyn_maze": {
+  "extended_selection": 5.0,
+  "dev_success": 1.0,
+  "frozen_selection": 5.0
+ },
+ "C_dyn_rooms": {
+  "extended_selection": 3.0,
+  "dev_success": 1.0,
+  "frozen_selection": 3.0
+ },
+ "C_dyn_spiral": {
+  "extended_selection": 5.0,
+  "dev_success": 0.8,
+  "frozen_selection": 5.0
+ },
+ "C_dyn_maze_dense": {
+  "extended_selection": 7.0,
+  "dev_success": 0.95,
+  "frozen_selection": 5.0
+ },
+ "C_dyn_crossing": {
+  "extended_selection": 1.5,
+  "dev_success": 1.0,
+  "frozen_selection": 1.5
+ },
+ "C_dyn_rooms_large": {
+  "extended_selection": 1.5,
+  "dev_success": 1.0,
+  "frozen_selection": 1.5
+ },
+ "confirmation_ext_csv": "C:\\Users\\hrish\\Code Projects\\HRMv2\\hrm-cloud\\continuous_prm\\runs\\c8r_wastar\\confirmation_ext_raw.csv"
+}

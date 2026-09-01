@@ -1,0 +1,26 @@
+{
+ "C_dyn_maze": {
+  "w_h": 5.0,
+  "dev_success": 1.0
+ },
+ "C_dyn_rooms": {
+  "w_h": 3.0,
+  "dev_success": 1.0
+ },
+ "C_dyn_spiral": {
+  "w_h": 5.0,
+  "dev_success": 0.8
+ },
+ "C_dyn_maze_dense": {
+  "w_h": 5.0,
+  "dev_success": 0.9
+ },
+ "C_dyn_crossing": {
+  "w_h": 1.5,
+  "dev_success": 1.0
+ },
+ "C_dyn_rooms_large": {
+  "w_h": 1.5,
+  "dev_success": 1.0
+ }
+}

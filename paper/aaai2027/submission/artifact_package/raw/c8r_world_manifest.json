@@ -1,0 +1,3014 @@
+{
+ "cohort_seed": 999999,
+ "suite_order": [
+  "C_dyn_maze",
+  "C_dyn_rooms",
+  "C_dyn_spiral",
+  "C_dyn_maze_dense",
+  "C_dyn_crossing",
+  "C_dyn_rooms_large"
+ ],
+ "n_instances": 300,
+ "records": [
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 0,
+   "world_sha256": "a627b03a95383d4a5e52909bca9ff06329309cbb5ae6b033ec53dd80a45de156",
+   "start_goal": "bf3f34e60f1bac76d34b9949551d83b02d6e9944fd267e978b0ba76902f2c38e",
+   "obstacles": "380ba6f0b38b2080f34a4cfccbec57fff5661b90bd20af5394d3801ab9be8dfd",
+   "patrollers": "447bc05d6b963ef6b1f4c8efcde12d5b5b7c4c699e51e8402a91c8fa8f5c949b",
+   "roadmap_points": "97c2eae60c9c9a63747ae4af002df8bc4e4384113bb1b3436a4dcd4ad6a7991f",
+   "roadmap_adj": "dfb8a96449e43141befa34422d9fff289b6a2398a60704bf00e8e59bb23b419a"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 1,
+   "world_sha256": "3bd4b9918a1fa8d08f0c9049e919817cd0ac54aad48ceed72a2f4215c4a9bbc5",
+   "start_goal": "f5bbf93cfa10d13fc324d981b2c90755ec10ba3e8457c57d52fd30f3361c4dbc",
+   "obstacles": "78b0402f77e5bec8fe5bc739bd79c90a46de550027e218f8ebbdad2fd0df6d6a",
+   "patrollers": "b38a69f5e965752df5494a4f9f1277501eaaa87e1eae3c657f4423f133cd5895",
+   "roadmap_points": "c6030b91712ec9ef9342df960f25da8ce8255cc840bd4892a12b6383400b2d5c",
+   "roadmap_adj": "6af69dfb590a49846fbdab7830905bcaa003b3b00012a634698c7b37bafab069"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 2,
+   "world_sha256": "51c64b825718d52b66809730f58b55bc1ec282b952210f9e25747a404d66f9f1",
+   "start_goal": "a824d763d0a15005cd88e6a20b6e107187423085758394839e7bc73ad5984230",
+   "obstacles": "f9df15232f66e48a4257f1db33ff865e6182f9a86dd98a4b0bf6ae1a878f3f9b",
+   "patrollers": "0ae3ff813af1fdb6b51327fefb69c6ee21674fcbc766a6076b4b7921eb557e67",
+   "roadmap_points": "7ae7baf2ab2dcffb42191e92c689b7da6cf6888851e3790109937936854327fa",
+   "roadmap_adj": "f1d7ff2aea4ca59d307a8dec5499bda4512416f7327c692bdd41de413cdf8444"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 3,
+   "world_sha256": "0dce41d7144822dc07c23221ba8ca5172bc91939261592ba9ee2c0dd8c3b370b",
+   "start_goal": "f3b9c84c3714ffb3fe9842c8e31b0e4f619b4cd0c71f8520d7f0eaa23f4c8931",
+   "obstacles": "771736e7300027ca63a60265a2c603fb8f52428dbcae12e898b49feed950bbd1",
+   "patrollers": "459fa4df3c4be7adb0a967c1c377179a1b8e5775fffcb233b00d59055a75cb20",
+   "roadmap_points": "b26e43359a37d29f1e42876194258c61eabb1515d618baebd169d4cbc5e0bead",
+   "roadmap_adj": "abed1692778b5b2498ff8d29449e972c70caa865d2915e2278b8ba2d5942c656"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 4,
+   "world_sha256": "ecb83954676b48b0bd950e19ef78e46c01540535ee15b1cd68b7f1340cc541b2",
+   "start_goal": "8bd1272263d46d6151f81367862b4e4a6ffa5859456c9a13e1b1953361b78fd0",
+   "obstacles": "0625d6dae9be6710c53f638370506302c9eee283c3ac288fa3b66f742d1f6970",
+   "patrollers": "bf511455b9e4cb877f35f201732770f54b94b3bc9de917e067ba66e23bc798e2",
+   "roadmap_points": "c0dd3b165d14359627e436e20750d53e0791af88d486764b63d05ab86e95fe47",
+   "roadmap_adj": "9c256117c33dd2ecfd1f7d84050268ce906177450aaf78ba22fb6462c9497d27"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 5,
+   "world_sha256": "9d154ca05f133685fe93199cf4da2e3acca717767f02313f2727a0bb8c3ba2ef",
+   "start_goal": "d8499791c1c3bd25b57b75411d0a55dd81408a240f39fe5cfb785ce4e6101ca2",
+   "obstacles": "f0e07fe90f05616da686a2bc5f45623b3ef35f1e03a98f063116103f42894319",
+   "patrollers": "773ebe605ae13693bb479c324f553b357f7259df0566bf074d7e879a2bc9044a",
+   "roadmap_points": "f860171ef5c55e110a25bef44b0b3d6599899e49424631c661464c98816700fe",
+   "roadmap_adj": "6f1a30ed7c54dde651eae29ad3f260cd26cdd9a066d09079ad4100d89cab2c3b"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 6,
+   "world_sha256": "03a861dd0f79ff43b006279cb2bb09d0918a0343d00a1ac9f4fa747636609114",
+   "start_goal": "b6bc7a0be6d694db5e460fcf140bd432f371caa3e9613e5eef97a8f23314fa18",
+   "obstacles": "18c7be73a91702eeb676987cd5a0f9db34b4d7eaffa8770b320f4fc97ba96362",
+   "patrollers": "9b00d81ce391a619d95f5019d08104b934f71c4f43cb46e94aba975d79ff28b0",
+   "roadmap_points": "a721262842e0ae47fca7503568a650850e12012f7882acd2311f92f57bdb1033",
+   "roadmap_adj": "253e41475d071e13ccf3a9510b1a03bcdb24dce2669026bde8d55aa27e314246"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 7,
+   "world_sha256": "e7cb0f334491dc0cc6948cbe10ba1c91785af0aa1a5e58f627bed224c6ec949f",
+   "start_goal": "b471f764541eb4c6bff7ac440d1214a10d36aaebb214ffef380ef4cc31474ddf",
+   "obstacles": "1cdd7defff7bb182de59007b52611d4f48b8cf353aab3dc21fda03bfb117994b",
+   "patrollers": "6268f2449eb7f3b2e7cc670f99d7e86b9410a042bb7a3eb47cb8dca06a27549c",
+   "roadmap_points": "0e00c29aa50abeec0bbe9cbf6fb0cbf5897e1ec87f0bf122bab638c19d5cd76e",
+   "roadmap_adj": "3a3ac9b3df6ae88891d771ecb55dbbb4a11c82d24608b9d73e1633052c6e1970"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 8,
+   "world_sha256": "5ad4cd6cd17faa4b99cd9f35f933df41598cf86e0b7c086b63e9f0f98e85ad5d",
+   "start_goal": "87dbf5fbc0501456bb603abb87e25a951250852212216868d43856ab469c7280",
+   "obstacles": "65d3c728b343c576892e4563c1e3bd874f5bb81cb87cad29df71c5902cc2a432",
+   "patrollers": "a5761fa03458aaba998171c6251da37a399ea045091e53763fc756e94bc39881",
+   "roadmap_points": "fb86505cce095db3ec984b0b6604f3cc7413d72de17307635f1d0cde94d97c39",
+   "roadmap_adj": "36bfdde86cd8ace518ab40ca5c20fa2ecbf97bf30d6304e15a8010ddefa3a7ce"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 9,
+   "world_sha256": "931576925eba216e2b3eb3736fd32a849e9403a3e501c517660ac213f087fb20",
+   "start_goal": "7c6b626846ccaa7ed982d1c46d6607bd662737cdd4889b98525d449603f43a6a",
+   "obstacles": "270895f497a5a227fcdf3ab03e32ccd7a73850571da3a54525ab9317f7245588",
+   "patrollers": "6335a73f1a25b824853acaab8d94ca750b03a40cd2707e5a3c87d957b4bec7fe",
+   "roadmap_points": "98f19dd1fd95bdc2d17e49df3567fb0ce2374e20b5faeb57eb1d6bec73051eb7",
+   "roadmap_adj": "903b20520e0fda609a1664545ee965b41d0668185bdbd09453c861740f25bd37"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 10,
+   "world_sha256": "7cb6de355596f10c4d753fb93a0c6cad260e92fd75c1db04da33bd55486f9dcd",
+   "start_goal": "b023d29e76ab876e8f0adeaf0087bd6ec0b852e3024a2a412c050d0252bbc607",
+   "obstacles": "eee5171f606eb2e4b7c31eb98462fc0144a0da158238037b10af0dd818d6e55a",
+   "patrollers": "df9c43e89b7c03a6e9efd1885eab4d7da80f22f50578840e59a5f8db124e5928",
+   "roadmap_points": "3959c7735a8b760f4c191e8d968a36031ef13ed0013149867ef849d6c25aba3c",
+   "roadmap_adj": "05ceeb8141590ca28a4db25fe6705ef8aacaa57af0cea0fb68dc8639fcbb8e06"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 11,
+   "world_sha256": "60172709e08512c2d1000d4f149b2b6cd43cffd790fd538bda3551f67d463418",
+   "start_goal": "6db705cd79a6ec10fde3c32040b40a67de7edfefca6fd100c48cbee391636334",
+   "obstacles": "f0564ff683b6f981baf363591731ee9d1fdda322919b4d07a34a64cbccc13ba2",
+   "patrollers": "9e6aeff4c9def6e15637060bbd3a98efcd79d944ab1517138dafdea6d6314fcd",
+   "roadmap_points": "552bf80b04ce69fd0b92168d94fa3aab115eb98c4f63468b9ebed4c7d5bd63a2",
+   "roadmap_adj": "bbcebc7bbeb55b7b3bddac7e81df3d2578f5df35eb747e14145dcfe535efeb66"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 12,
+   "world_sha256": "3242421cc2e11e28fecc1fe159d56003271dff925f1ee43f053671bca3d00be4",
+   "start_goal": "7d98e8c00ac00191f475dd0cfcbe7c0780b4b90ec9aa99e59453587d4021d5f8",
+   "obstacles": "b386600ecbaf72b120cbc2c56512ba0e084438f525176419b4442b1a81025375",
+   "patrollers": "7b141af4670bf37995f6c54fcb931c12af7a8902af9854af1c3846a7d2b83133",
+   "roadmap_points": "2243602e7a5db4acba2b7e81dafa26b87dd392af1c67042f64f7988731ea7c5f",
+   "roadmap_adj": "efe00cf6acbf736a2eb235d7a0383e52c546d0ce4510e32b27b0b50ff3e0bc78"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 13,
+   "world_sha256": "10215807e6168a5c321f3816ab5a98fe0b720a7fc160a4a1b612b339fabdc703",
+   "start_goal": "bbb5263308be9a747fe3c870d1fc88067c6c22bfd8a2b33ae44e367bf669c62e",
+   "obstacles": "3a62cf161946c0ab31e7995f825bd405f19a06993b8ac29833070ce753daad15",
+   "patrollers": "c1bd1a333291bdf4dbe62a5acc12ae045691b656fefb5f17fcf11ec266d678cb",
+   "roadmap_points": "f6e396938d6a31a2b9e20e2ba9cb91fb22c3de4fb0289588de017b74f12dfda2",
+   "roadmap_adj": "de1e64b9b4b7aee7451f0971333bbfdeabb570ddbca796c5270a9fcf48bda40b"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 14,
+   "world_sha256": "ebef4cdf7cda91e51fce426840fa690d5d59148fee6866ddb3da0418221f2431",
+   "start_goal": "71906a4485b548f9a3c2dbf6bf8e2973fd109b3226b61299761887cbf05d923c",
+   "obstacles": "0c3bd377bcbf4c85fa61df6e894df90f27222f7e4b70fec87f96f8251460e688",
+   "patrollers": "3d10aae64af15715f3ed3443e4017a06d47098eb27658f07688d60bbcb83c257",
+   "roadmap_points": "1ef54b1fdb903fd1f7c7af09286a7397f2da370db0f04bf5083341e30dab33e7",
+   "roadmap_adj": "a6a8e1a598277756b32b422faf54b7686a13ba61f8312d6769caef75dff4c5ab"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 15,
+   "world_sha256": "4ed31895ce52b0174fac52ce0d3b5d6d79eab4735f7f5bcc90108ad6b6622112",
+   "start_goal": "16fff6d1ceda0441c4b0cd412508d883de69b879da7e41eef642e163c7c16c17",
+   "obstacles": "01e60581700875195d9bcec9c0cd1d69d631afd075c9d0a128d10ff0f86fd6e8",
+   "patrollers": "fcb9bb161172e9bb37a476cf2891619853d14a94600391bfcff18bcb5b6e0fc2",
+   "roadmap_points": "5e053f791b4026d931d49b0ab7d2b0e3d390246528b96e41dbf5816138fc4344",
+   "roadmap_adj": "2fd6b9d460ec0854e18a39b6f8faad06c97122946ab112c59891b55151b5382c"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 16,
+   "world_sha256": "5a08ab22ec731e38e199ccb82783314b7467157a2ca3498a4ef2eea0017fee23",
+   "start_goal": "e2f652a7482040cf6cc1720128ffe24237a57ec1b3f2a35a7a8207339f4c40c3",
+   "obstacles": "0aa0672a4506d37d1e419ec95e19d1560af656f5d52a60afc8c1d0d926a66678",
+   "patrollers": "a6fbb4b15f6073e0f6c8fadb438d858139760d2a6de8ac4a1440d2b064c59d37",
+   "roadmap_points": "0eeff0564b553e714c754733400ac3ab969bb8085ab49acc0df09236f0b3a13a",
+   "roadmap_adj": "9a30c8f1a4dc8dc4fcdf7e5feb3e2bb17c85dd5da838d9a9391877937e99c8b4"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 17,
+   "world_sha256": "57ab3890e718ea2339da7b9c71fdede59dbde0e3a312c36261bbde56ac414092",
+   "start_goal": "43c3c8a2ba176a652a5253afc7fbc3fbfad985a0b557ab8d2d5c0a4a0c3a5e60",
+   "obstacles": "f6518311c9e57122edc11364a923be6d549336315c7ab00ca29d73e36cf9af51",
+   "patrollers": "aa033d96af36016157ce90cacbe5ce960fb90163f48b3865916672765256b05b",
+   "roadmap_points": "100903d578d8cf808d46ae3e009087b56564f91f4809d74da61298d1f1b1d919",
+   "roadmap_adj": "c2d1e5aba149d3c6141f8a29d6f6c8074a30a1fda75ef2433028c6c7ad1a882e"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 18,
+   "world_sha256": "c168e0d5b412a6a70a656d83cc5767edefb6e8e649f733750ff88e2bb6820097",
+   "start_goal": "554ff125271e620ba98ff18a6547d052008dd16eb4e9b7fa5a8442ddbf518ce2",
+   "obstacles": "db457d8b198a5f0227010cf27442c11694ba392fa9efeee2981253f366c928d3",
+   "patrollers": "daa144d621292a8c25aeba2926f540e5bfb4c519d2eae47716b1a3165d8ff95e",
+   "roadmap_points": "35f69a4396cec579448103fa16b2bc26aad2db42ecad3bff057a66bf6635c94e",
+   "roadmap_adj": "6599334bb3f9a78dc9ab3e10ed98a5d00e53891a0f09674ef27443ba0f129ee7"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 19,
+   "world_sha256": "faaf557f08e2ceaa4779c6dabc7dd0d5c0ead74b01ff22d226fdf5d15cceab9b",
+   "start_goal": "d390f104354a353735fca058fc2dc319d166ed207cda3784c5acb2f159e14b88",
+   "obstacles": "8282f06bae9256b82b476db5be2460fb4d0155e936739828d93c73243a41af13",
+   "patrollers": "5281e0e5d301b28ec669c8f9925acca77bd63474f33c9129341bd796185d27d4",
+   "roadmap_points": "0b5ce9ee1f68fc1654817fcee02301db55424225e1660cd0ec91e56f84b8f2b7",
+   "roadmap_adj": "a8041b77f5d13ca12239a102c05fc3bbed022af3ab3aec4850fc50d1ce5ec2b3"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 20,
+   "world_sha256": "552a13eee12db8a2d87790d32393834b2b0d0b881f053798f0fe278a1adf1cd2",
+   "start_goal": "3debf32205af5a8bc83bbdfb004ee85279458bc1261503dfa2d29174f0d360b9",
+   "obstacles": "3bb30f82a9e31cea8b90725080003751418e65c93f4987cf9417f3fea122263b",
+   "patrollers": "0d21012c3694a99a5fe38cca60bd724aa4a430495d62fda193b7097bd6925064",
+   "roadmap_points": "182a74ce01d76199ea0c4fedac1da3dc44a88c07f9bddcf18126ef242a7fa600",
+   "roadmap_adj": "dd4c891029525a05afd9e3281d03f1f89ed1510ece026c419cb806c2da36094a"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 21,
+   "world_sha256": "f89d2a037b84786850b34d30a95ea21179c1f24c111dbab96639af13af9648b7",
+   "start_goal": "42d784014934e34ad03f2d80eb357d3dff61a5897ce23d52074347e4aa44800c",
+   "obstacles": "9e3beb1a1d251852be7035e12b8701b023f2701d4f6936498bb4567beffa76f8",
+   "patrollers": "83992e28a7f89154aaa84360ecfe54548abcffc003a4a6c4ad8a6fa249010d3d",
+   "roadmap_points": "3d329588cc3e94a1e2197c458146c6008d8c59a8f47d6f59e606ee06f885663d",
+   "roadmap_adj": "64d73347c16a7da8e796e9388dddbabd1ec5580589df8b372ec57dd43a2167dd"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 22,
+   "world_sha256": "749b934c080d1dcb62d72fc270bd18310f6e6cdda3c8d2030b4745a23463e102",
+   "start_goal": "7119232d0d212282beac7e9438357c6cdd16e955edfa780525bbd6e88f809945",
+   "obstacles": "4af9ef1c9ebc056bbf0a485bd81b2beca4d0489dc39063c3c2df85fb4bc9da91",
+   "patrollers": "c4ce5d0f2e54a3a2d73129c96ddc7c558fc3fd4703bc2ed27d217015c977532f",
+   "roadmap_points": "bf81b7f7945e841c92d4f88356e4cd67bacb3598d6159f404194469fda66975d",
+   "roadmap_adj": "49c1a01717e9ee29df7e67d0b40b0493127a526acb0b64d00dff2018cbb7cf9e"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 23,
+   "world_sha256": "80d21cc84b7eab8633cf498b1213f3480eb9cf7346baee47b0d9e0afdf18d952",
+   "start_goal": "cc4e04761c2fbaeef2858d1ac299eeb25b3f0dca57d3ef86b4ccdbb55c4d9887",
+   "obstacles": "1a56c84209a9201a6c3c657b540c6d8509eedfffc129c9ffd703d9ce7d722eb4",
+   "patrollers": "5fe322af9c8ed5e38a0245d4b03d8a6d6ccbd93038bcaf98e3a78a103939146a",
+   "roadmap_points": "2b814ecf47093e147240bdbfd0a6cb42e9bbcef6388edf110e6f0d54c56ba0b2",
+   "roadmap_adj": "d6e24db2b1b37cdf24dbb70c3fdf54b61c6f30737b8f4291a197be3c1916da0b"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 24,
+   "world_sha256": "33f57a3ad9d62d62ab3c6837dbc0c2b51b617ab8f98b110a7065560fb0cda153",
+   "start_goal": "4b2b774ed30338324f25428bc79c070f40627b1fea2f21e54486f3c9c1c1648a",
+   "obstacles": "fcfcd80a5e93c8cef610b6fef640305e0d273efdcc77910c552af9ae51702af5",
+   "patrollers": "d5999e067d7c0dc4c4c77973890379ad9f3289825d6f3536d3f188ca19e64024",
+   "roadmap_points": "e8510a22d54f43010eabf2f43847959e28f3e1059493cddf92bcc294f9add604",
+   "roadmap_adj": "eb3ab2f207cb77a57785a5527b46790e9cf32c71ab00b13ee1650616eae1fff2"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 25,
+   "world_sha256": "5c9a7ad2b95bd9ee40ce71fa45feed08852e1153d6b31996e4e0a4d3c856ace8",
+   "start_goal": "ae95a9da639043fb8c42e655d6a86b8e67f4ef0b4454e71e8d12fcd8545f374c",
+   "obstacles": "16fd0a301d85233a1430d986b39e343d003dbd3845f7ba64006ea464eeca222d",
+   "patrollers": "d77e9ffe058f8c3a2561505d4d3df343481a303fb3bc3d461a8faf60e689d929",
+   "roadmap_points": "41c0feb1e011ecf65a7608829efb23654be6a1ba224d441d379e8856aa6b56e8",
+   "roadmap_adj": "b543930429df88638550d050f63e2e55f6fa95f1372b01634badfe1035ae1cb2"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 26,
+   "world_sha256": "f267ef1b602629b2e14ec259350144640dec476ab9537f1eab3fd6eb878c3eef",
+   "start_goal": "9b5b85b86bb8bc1d8b152a378c5fd4e3d5a6af6d2bf520708a319d65aef1b17e",
+   "obstacles": "931272b319ea72bc8c67f90fa6f8e01ccbb82f13a0ab9cd435f695f20ffa822d",
+   "patrollers": "36f8289d1903f9f6b16a799577a0300d65f8fb8e4e817517280020eb8e073e3f",
+   "roadmap_points": "2972801c15b42664fa5ffe87d16e578987913c8a4a4dca1e0708e24cfad0db1d",
+   "roadmap_adj": "a92eef3ffd1ebd778059d3b5f3ec2d1368d0fb54a60ee67455891fd611a3fea9"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 27,
+   "world_sha256": "86cded6aae46d9cda190a470996e5f99b21939d5bbe26922bd98a26cfd4f12d8",
+   "start_goal": "658f02ef397884a05f27940d5b87a4abd40c8aadc5befbbf6fefe727136dce64",
+   "obstacles": "f4da1ea612c813ca2a0ac01d5b2a4786fd0f5f5e7864ed93f3f0dcefd19bdc23",
+   "patrollers": "a42b54d2063ba2ce9d42d09d952ca19a2f4723685e6780ba49b13ad7fa1d8185",
+   "roadmap_points": "85bd1fdec3f9b6ba178e5ea4a06b4f60162b79e640e559e153471e1bed83e6ca",
+   "roadmap_adj": "3f1cc3b99d52b11202289d6a2381b097dbb1e4202e14234b53e5b581fa8a5991"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 28,
+   "world_sha256": "e50369b3fdc31c4cca7a11a5f525699d3e7333526a4b27552a174ee63068a5ef",
+   "start_goal": "0869a12ecdf3f7cf69499a2b73df11e5309b422cf50afe8bc1a50c5b70232015",
+   "obstacles": "678a0d3b62cea64c26f2353d15406cb660e6ac51041819aa94688de1650252be",
+   "patrollers": "ad96467c5b9ee967f78644798a5aad602d32b4a1a64700665a86dcc5f2c50190",
+   "roadmap_points": "260ecfb1786aa7792479500a924eedc0b2a8848a81267fa66de6b21c02fb9e04",
+   "roadmap_adj": "850dcb83801d61becb9fcbc9ad134f33bcfad3dadfd0ae13286940a19048bd1e"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 29,
+   "world_sha256": "c3a4de4db0dec69c657d960c617bdf9c84f4e56dc7337b33b4c1ecbc0a6be06b",
+   "start_goal": "f1b8fabd8ac7b36786506d87bc4df20707e90a0e975b6bdc89684d95b518387f",
+   "obstacles": "c05bde3d5bf9edd2929610ae62024aadb04ab1ff3b3e4b4f9566ed94d41caa49",
+   "patrollers": "76dc20dfd1b8d177a8de77365ec081faf19acaaef36e6d57d1d82ce4839d2e9f",
+   "roadmap_points": "77f16d5d256328bbaacdb0b81447a48635b71fdf564c0a47bfee0e3834aa96c9",
+   "roadmap_adj": "05dd32d8af2cf6f17ce53337b52de2b1f1b4d762e9e870810a69df7d0829e16f"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 30,
+   "world_sha256": "ce608b978f52764350a75e81160c66be0dd23d0adea7d6c9e119b14cb7604643",
+   "start_goal": "532b983973bf6329c22c298942660c8ae980acbb3bd8c11f0cf2034669992510",
+   "obstacles": "6a37934f9a1302e93d1e0b5e3ca43ea99f1f907bc11832c1dc93138d20c99a63",
+   "patrollers": "fd865c634152ec54fd17491a1fdef261b3d9f580b7c347808f68ba20d764670a",
+   "roadmap_points": "99367334a3054004d844b8c5e65702e827cc777fb9374d3364f53292a197add6",
+   "roadmap_adj": "02c282e65856b2b4f0f49a44cd6e293aacaf6235026016c09ce31da65000484c"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 31,
+   "world_sha256": "b363d1771f04b5badb6cf25d8e99dec2effac377c8fe5db9eac71d432c8e9da7",
+   "start_goal": "14bcbdf3b5f5359781265671875467dab0d1cb4305fddc6efa26ac1a36502f90",
+   "obstacles": "2b1e67abdc93592fb0f81d70ad18e343183d3380047ba892e49c9c7d20028791",
+   "patrollers": "4b54ea3f4ac0448fed87b98ae8a90da94d6d31395ef94f4993ceff89122cb8d6",
+   "roadmap_points": "8d6505e541fcf670b089037fbf30cc0ea0e64eddacc99828381ed32b0b907b62",
+   "roadmap_adj": "f6be74016e49baed715c05b7bafea082ee125ae700c12f088195e4947c881e99"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 32,
+   "world_sha256": "bdb5651efaa129a3828487b8bf7e0f3657db2389d335d16d78f4d6426dda13a2",
+   "start_goal": "891fd47daa11ecb83a4c2bdceee8dfa7d8605da04f0233e9794a6783d61f5e3a",
+   "obstacles": "1ccb14cd0dff8955f602bb96b6ffe5fca8a79c24d262cc0e2ec8e46db9525930",
+   "patrollers": "4187cc3fe82325f8dfe0b609fad3ea236229e8b4c5ae51b367bd8ee390e2777a",
+   "roadmap_points": "e829b5d44d3d059518bcd66cc00ee034b8df9375cffacb54c4ed10453ade5383",
+   "roadmap_adj": "b6407227ca48ecd333712067611861cbf305979c555a58035c8d640f0a186501"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 33,
+   "world_sha256": "9edf95ed7b0fd0e874595a85414a907dda448f0138e74bb3cd01e66a3edba66c",
+   "start_goal": "5fbe670a98433703c3a839f01618b2d27d1daa4ce818118f33635686eae10885",
+   "obstacles": "968ff75a18e2fd006aa58e5eaadbb0681f76ca52df7be3951aeb1218e87cdf26",
+   "patrollers": "189069a892b316fba91fe30bc59dac4849cf389f0f640136eb291f003814178f",
+   "roadmap_points": "bb749430f099435a1058333be8a31d8da930d6bbb0fc7e7a16a9728945aa85fd",
+   "roadmap_adj": "7a777ac3cd7cdc4e8857cc8aa28240a3fd8574e71f4a0d25391803fbb000fe2e"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 34,
+   "world_sha256": "594a34d3f152b97b4b4274ccd02cdf3b4eeb3ddccfc9ccfa7ba12156721e9bc8",
+   "start_goal": "fe98993d2e1c8900b7e43bd06e76d07979161bb78c124cd7468c2e0ab4b97a66",
+   "obstacles": "23e0decb713274eab68c4741ab5aea5dc2460d9de05e678151df288b75763a14",
+   "patrollers": "332c8df1169dd0d57f720f5c8f67286005f6ad7b04b065779c0b85f539ec1422",
+   "roadmap_points": "9c770faf95961967d9ed9f93f80da9b44145ae233f96ef2567f0e742e9185684",
+   "roadmap_adj": "581b36312ece914b6dbd0665c60c019eef52930f02892c24bd88495eb6e7ce83"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 35,
+   "world_sha256": "6485d06a5f7161d106f7a9ee2f585547a34ede31bf7ac5725aef520fc1c09809",
+   "start_goal": "10de9805f5e8fb177aa7d37c77941cd86b714f53e722b55f32d3eb189c9f3005",
+   "obstacles": "7d26ec1cd585a24fb717443e6958c9722b859d4023f407c302785d32f916fe15",
+   "patrollers": "42f6a9d62a8641027119ac8daacfc174b7ad165264d157baacc5b4495775b54a",
+   "roadmap_points": "9d56a6c00eec67e10984f07bf324c61ae54c992b3e955e032fcd1b54551e4851",
+   "roadmap_adj": "276d35e35e743bc57b9e26e1e7df77983d22c089f9466aa7a230ba5136bbe8cb"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 36,
+   "world_sha256": "72662375e544e0fb9baed3849db2403b73b7ab2c156b84b301e7f43c34382c4a",
+   "start_goal": "4ef924abd95866941b0a7204fc3a8f0f6817f5515c4eee9c043711f0bd877175",
+   "obstacles": "2ab8531aa6359feaf7594010dfa817b2bdc2a37a3c8c46cd9f977453ac11c2a0",
+   "patrollers": "2d69f273c6d5da8feb0fad31f34a5f775652156dc4b95a09ab875cb89d20e666",
+   "roadmap_points": "0b94349821193ea52be0fdffcdbb9e2d11be7e8be8055d8d97f7b50ee79e3a0f",
+   "roadmap_adj": "c0879c42db5058a70fe707be86f802b7ee81a866e7a6669448ce5902d50e2147"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 37,
+   "world_sha256": "fdb01aa14634dcf160e97a1923b488da469cfec3ee9498849df7b21051784093",
+   "start_goal": "961a2be41ddb13ff19b7897db47346167808c8852fb79709fde5f6f9083633ff",
+   "obstacles": "2e7569bea4ef473384e54ea824ed9c842056410549fa64c17f464e4a7d6163ed",
+   "patrollers": "859d47b5141892d6f73317a2337ae9919e2a9ddf36dee837d603a316bf0cfdbd",
+   "roadmap_points": "1cc7d36d742d6a75275d05e41efd836c1c6e7874b4680cb6042d17a537a9e4d2",
+   "roadmap_adj": "e20c44d494e7f4f34bfedac486f833906ccd8c08f7e556853c8f5ebb9c9bcc85"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 38,
+   "world_sha256": "1bc521c8d21c1bcf2744f05eff6f701b44cadbd40601249579d39222e9a79442",
+   "start_goal": "f027896361a056e5825546c6df5218ccf5c103b38f74ecfcf9c6289dcbe53514",
+   "obstacles": "bdb2b5d3427aa42f909f862ed220d1dba3e7657d792e93c8fc0f0cbc7f4d67ef",
+   "patrollers": "6ac1af338662b4fee259e9e5541601b5a92f8c83445cba6864754eff30dc429e",
+   "roadmap_points": "409d167e2ce86aa4e768465ba87c484905c95417420e8bf498748dee1b96bb64",
+   "roadmap_adj": "cc97a8e00f7bc90e12bc0883e1cd3cdfdc82befb8b87e89bcfb7cd977ae313a2"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 39,
+   "world_sha256": "ddd5e4a9bbf1a50fc299877bfd724724b25cc1aee7ad25fbe5bb2845e2ea8e1c",
+   "start_goal": "417db79bdf48b890bc10a5f703bfaaa1eb14d5786536230f8018b88db6d6f101",
+   "obstacles": "63af2d4ed9b02de08632f0ee4a5fd285cf05404de8a909881769836e55d813ee",
+   "patrollers": "25a7b55ad25355857f9aefc7217e8a5def126a0976e2d62e4ba3ff628eb49b09",
+   "roadmap_points": "b792f4d6674529e76a06eb818b3eda1e97ef481472d933a84631f86ddce8a94e",
+   "roadmap_adj": "7270c017c013260b3815b776209b1386ec7392a4ea3c1b8ee5b21ea430a4833c"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 40,
+   "world_sha256": "b1e3b5fae206abdb4059d878f509ea3ab51963c80d5300da557df59487914732",
+   "start_goal": "fd88f4244fc09f53c3df22ee3540f33c5cf2135c1810807abff5ee8f91d9bbd0",
+   "obstacles": "bdb0e226606b5991580ad41c3b7263a3f702f75587943272fbbb14e2b9380739",
+   "patrollers": "ec043f326247c97f94beab3cd8c5b92721cf49c333b99b11d4859d8876d4e0bf",
+   "roadmap_points": "dda4fbfb24b2519a1c0888da1c832cafe414abd0ac9ba93db9b973fb9eb417fa",
+   "roadmap_adj": "6375a7fa3055396fcbf43891d2aea81e1cf3036951d10b88d6f6f12cac6b4afa"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 41,
+   "world_sha256": "6a6f901f4c098a21ba050de38028671b847ac70b496248bf7ae9f86102fcf6bd",
+   "start_goal": "e4521b5a29e8a9e97c7a22e71ddb115baa40fe3537727291ec4186e0e3184750",
+   "obstacles": "b70aa2569aeb6f2545b6a6841dd1341a5d97b396b59a9d66aeaf0357a3074275",
+   "patrollers": "3860e891c70afe07517dd5eee0cfe84b7b3fae1924af129f85a57021a18e2c7b",
+   "roadmap_points": "9364739fa8eda2233746966636bf5714e252224160c4d3085b24182faa94d809",
+   "roadmap_adj": "2352188aa040fe74be201adb78bf2d7e193d72e7638ac795a07c220a03cb37d7"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 42,
+   "world_sha256": "6c757e2815fdbdaa6e0ad52e3f244cad737f1bb9cb58b5364e3c93cdf58879db",
+   "start_goal": "3d83d67061fa2bb9ef954a9f54b3afed9aa9dfbe79742c6b1afa0cbc1bcdd604",
+   "obstacles": "55988402614cc67363d50950ca51ee3d22b3af9fb19812d1fadd6b84111d36d4",
+   "patrollers": "d0ed1c0d083b4f59e22e99679e5779159b2fe6bfa61624299134b0d79e1c72ab",
+   "roadmap_points": "fd38d5fcbd417968ac035371f749b820faf404c91b3a867d928a7326d2c818a0",
+   "roadmap_adj": "8d4c085373e77d9570526729f833825bdd79edc85473b9c40b03426948a40566"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 43,
+   "world_sha256": "5cbc1353965e4a970e5df9412c2fe099b794202520430e1befc922fd8268057c",
+   "start_goal": "70f22dbea133daff5d1d1558d6d623b3a6cc0b18f7a962a0edcc2a86615ea46a",
+   "obstacles": "2fca824379b154cc151175f2460b2421bfb28681acb017bf3cd47a50497f9cfd",
+   "patrollers": "3cade0f663033fe46f5f925d14e302e356c66c8bb18694d7f6f05d8a4651e2fd",
+   "roadmap_points": "63bb7b1840c2a21697e69782872bf7f89290cc3e606b54ab7eff696e3b02b1aa",
+   "roadmap_adj": "38bb4f5dc46ffbd57bcc70d4a579e7de58be665d7387471e041d2c6df97bfbfd"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 44,
+   "world_sha256": "3c58df6d9f50f68c9ddbad780d0b237db086de1906d5fb6dd092fa6d88a35789",
+   "start_goal": "4fb659873b1c9cd45633e350b545a30fbc4bb32443ce428ab6392d9ac728aa59",
+   "obstacles": "a2aa080748510a3159abfd18f19f01dcf699481f2bcf4a6a3b4e3fbf5aae75fc",
+   "patrollers": "b535de09f6a8df2e0bc49eb5cc9343fa4237f21b931e0ddce15684f34c65db63",
+   "roadmap_points": "2f8b983764797f4dd01f93a8a56a9eed3806bd3df61f87e65c12ff544ba207e2",
+   "roadmap_adj": "de40399a61f1f826d6910b70f203c228bc609c66696d1b0a708a43697d02c25b"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 45,
+   "world_sha256": "ede039e99b401b6b8e98f0d9443afe84567e6eea2c891c2de42c8020e116616e",
+   "start_goal": "2b86e6802db0d0ded5048858d74e620120f5651fa49e4b20f3a7db3192f5a7a1",
+   "obstacles": "de278e47fed2a59c5a9df436f901b34c93dc2711507a8e90bc02635aa99a4c80",
+   "patrollers": "41fa2f9fccfda28d02f862efade89070c4a45f7c1f6b201222668a092ac36c6c",
+   "roadmap_points": "d0d439d4c6e10a325ff083ed983b20bdb68161ae5c6d63ad833bf1fa659d1227",
+   "roadmap_adj": "a9640ed4ef42d82f8fefee2feb0ee5cd03d313cdce17677ac624a4e58d7695f9"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 46,
+   "world_sha256": "f48302c4963c76a8606f61171f3abe279d3e1051b12f7bb102df5e93eccf775c",
+   "start_goal": "a2ba9b9228a3909135841deb7a30dc2ca8c92a17cb694a34134b9333adda6e1b",
+   "obstacles": "09defd7749162a52fbf2680de9906bd0c656f3b70f50ad2221872dd130d40c44",
+   "patrollers": "980a47178d663a7fd7990407ff118c4459519a633098921d95f22f79be739ce5",
+   "roadmap_points": "57ab9332a446a014b42ae6aad397f64de6053f4288f60a7d9f42e3035586ccfc",
+   "roadmap_adj": "573121b5001ee4c62e20689c426161baec03d8527fa23f20f26c09fc4e3c0698"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 47,
+   "world_sha256": "8283d343efd19be2ce7915e80dda8d208576d72f32a4efff8dd05289f088bc6c",
+   "start_goal": "7f1286a765a30f4249223d6537a6c0e25a4a2668e39874e25bf56cfa93f2f249",
+   "obstacles": "4cdd6d8428732f28e9c06e97a0dad0c75d14ddec39289cc920433a33f4665a5d",
+   "patrollers": "fad3352540b2b286ca1005b2edd642c35000b4d85665687843cc5c640d5f9ea5",
+   "roadmap_points": "594a630a8be0b962df92e195cec6d290d594ad99250fa0cea788080281fb458d",
+   "roadmap_adj": "7ea07996a0ed34a1683e9212fdf868e51a364d5735bff1eaa9fa81c5d3b7e725"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 48,
+   "world_sha256": "56215295bcfaf3a6ddb7058867efd1adc76c821de92e10533fb691987c90461c",
+   "start_goal": "bbec6971c4853778f34790e04fd65322cbd1cdd0d849189a6e11b66d872fe08e",
+   "obstacles": "dbddb7eb3c631128f106f430a37de8d5ca9651362e3687eaf9df9e16e6fd7c8d",
+   "patrollers": "54e5e104eaae8aaeb206ebfd47871e88ba2447e9f5b6d5671352e8f774b9274f",
+   "roadmap_points": "ad58469695547abc0b9273d631fbf0a38ce76773d7afd4c78a5b437566c8585f",
+   "roadmap_adj": "6faffce9b0dc63b664f19ada05fbfe2b87385b1f0de53683d770237864aabdab"
+  },
+  {
+   "suite": "C_dyn_maze",
+   "world_index": 49,
+   "world_sha256": "d1b03ec176ded9fcb970ee3d33a876fa49fc377f3986ee9cc3714970ac0a1fbb",
+   "start_goal": "2a0f620e7b534da80c716476dac1284499e30eb0fbe41c5a1144add924bdfd41",
+   "obstacles": "83bae89f2d778257ea68983ee76c5307c3e7f90a7d77972d982d14afb6d74350",
+   "patrollers": "e36e691fb89b17ab5c1e872a7ca2888fb77b00324b5c2a928e62b04adcb51083",
+   "roadmap_points": "92c4ab0632d864741e2d3a64621bf05431dd70d2a51336b8789e04de68c48628",
+   "roadmap_adj": "46e357f515d785fd6e515d496d96aeab440a66c0242415566fc1b3cc044f108f"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 0,
+   "world_sha256": "1f062bd02512dcb2e5b0e587a76cca05d12a74c936ce8c7fb331b61c8c4128e4",
+   "start_goal": "769a53c5e31893c1f46c49ab9d97d91b423c537ac3222d95c8c300356e38b906",
+   "obstacles": "259ea97322f46225fd7d350c50b221dd799fc5b03d8f34f96d416ce085c16099",
+   "patrollers": "647e685f328be3029e3c3cd51bc55732a7289b2d4d717d8242ecf6986c11cade",
+   "roadmap_points": "782c8912cd376f54e1247934271655733ffd1b8ddc28eecd5e12a0247afe2903",
+   "roadmap_adj": "847daf650be2a0704a688f05d5b603e702a455346d671f2cec338553aa605fe2"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 1,
+   "world_sha256": "fa9b90fd184c67e46efa8b7c708b709702c9a136890a55a4ae10d875d23f10e8",
+   "start_goal": "ad3d9ebeb8dfaea63e8e624aa6c6801909920ce5419b37db7acd9fa74116607f",
+   "obstacles": "c155c1267c1705cae2e3cad2260bc936c95c0a710a89b875c235e1dc5faaf0c2",
+   "patrollers": "de31c8e24018f117d37ff8c092e376b88886fe931327adc97d03892911be0d05",
+   "roadmap_points": "5380c0fe5ee4fe0f61cce850d520d08e088ed1f335cf8341290d6eecea41508f",
+   "roadmap_adj": "88b085c629555c9bc32add18d73a493122ef071ad282271e324c7fe90e43e51d"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 2,
+   "world_sha256": "8b1b1cc09ab40625a08d90fa14e6dfbb4a8ee828f7e5302cf397b6895d8b4970",
+   "start_goal": "459bdd637c11b64d23debf72c430158ab20fa9a0ee3b4d822080db27edd423dd",
+   "obstacles": "edd503e516ab912565dd6032f3b48b0a2149e805ea0b0823355bba09663795cd",
+   "patrollers": "cc018f5ea8607e33550f4c9e3279820dce11f7652df265a3e36da9a3bb13a409",
+   "roadmap_points": "8ae96e4cbcd266511146d750ac163e5f08ac6243fa215972c9cf3d0e208838bc",
+   "roadmap_adj": "e2d6ade07aa461e9bbd1f8336a6efc0481f6bdbbb004f69afe3ee438b57148f6"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 3,
+   "world_sha256": "e8033147113a503399b4f80ce6d004cee8f72f855f646252c6a4e1e37169e6ba",
+   "start_goal": "a494c9cdbf10f6b19e5acc4e29110e49006a37f686c345b25ae04652b643288d",
+   "obstacles": "379a1c155d380e9f4052a44961c21b908b3bf4f16a8941fb0ab03924ee4f1c72",
+   "patrollers": "c378124b9de05a00e6550c4b4022ef17974fc4443414c501f35e898585edb12b",
+   "roadmap_points": "3767e612157d3ab2fa939214db773146d5258c3d92f41fbb1175ab36cc27d020",
+   "roadmap_adj": "1d3ae419e1333f5939817e8d07a5134d71840219978f94f575193b20e3cd4c2d"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 4,
+   "world_sha256": "ca35dc76f936eed0c9e3572440093d4f58c8cbf96cf4f96da622d55cbc83958f",
+   "start_goal": "3f5e6ef51875225bf1220462d489c19b6ec8255db917e140f4f48a12fc16f811",
+   "obstacles": "70ff0ef4264c2e9e9001478279cac9cca6d2aebe279e93637ca8a1fc7d55cefd",
+   "patrollers": "d44eb14ba30ffef2e6ad282f4920ed967137589d2d393909b167e2d77a1e8fa4",
+   "roadmap_points": "407622d7115a2f2d2b967a9cd148493d4e40a672dcf467c5c5f5da6fc509cb83",
+   "roadmap_adj": "05959eab6202d91ce9393eee422f3aced30bdc29501a4e6ed2c05918108a68cf"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 5,
+   "world_sha256": "d8d4330e28101d5ff5e9fd00fdf7132b52fef1bbad9304ce7ee7fd744a0fd305",
+   "start_goal": "1fe6625165e43d048601a6d1bf60aab7eb7097fba8286142ec58c1350168cfd6",
+   "obstacles": "3c3d3e1c374fd7010f177b947de583a50002eafd518f24f957c0fc5c1ded509a",
+   "patrollers": "3d40273524041945c68abcd9d2622f0021a56cdb7273e1ef1f94e539c6076d38",
+   "roadmap_points": "9899cb7a34e7f2c06a374872a0c527938aedc5adbf247f83fc3137fbc097c635",
+   "roadmap_adj": "22818be7b7c0ba8ca1dae49c9c6200586a0ed303854e9e34c82ec163c67ffd05"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 6,
+   "world_sha256": "6bffa5f91144028f7f90abc69348f0b9bc1d9af6e2ca3eada09b51c3f6bbfe88",
+   "start_goal": "f8ea9d97a8ffa3b1174164a2ca5f35ffe586803e8e7ebca2533f258627f638b3",
+   "obstacles": "190dd7a839647f389927d8c0183612b29a2089075a0b22bf475fe8664dc85d94",
+   "patrollers": "01f032b37f85c48b038328c469bb207c5083e9f5207f2189fb4dfd6fb41f35bf",
+   "roadmap_points": "362d9b6bb86909f691c1f66cdf100b517f1d4b265998172a324ca4bb68932426",
+   "roadmap_adj": "a500d59f93f25355589799a65276bbbb068b3a02887251e3b68747c515403cfc"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 7,
+   "world_sha256": "5ea49cecc1442963b294b33974240bea799ccff8bedb0be15a21d54cdb2d92f6",
+   "start_goal": "714af9b6ca8712ee9ebc9eaf67f45673e157c5db0b93bcf35fae7ac910de7f80",
+   "obstacles": "3a581b7de607c288f01e4d1d8f30649df3d618cf166e6f564d85b2481ca3abb6",
+   "patrollers": "cf54771a9f46d696412904606c114633057e11cbda0d364dcf61fab47ffe84ac",
+   "roadmap_points": "63a26769ee17a4408eb7cbedc5da7ad676b0c185af0be5c6924abe8c032246da",
+   "roadmap_adj": "a6e605f0ea67ec1b7b6d665571cee7dbea0396b4d9d14609ddd133b6c4fe3938"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 8,
+   "world_sha256": "2db8ca2156aa354777d0ebd96f4252dca998938c9445a2f6e841681d4b490dfb",
+   "start_goal": "d8062ea432d2261b13c9cb770ffb2581e18e0e9cac5c2d5ee35b11435ef42b2a",
+   "obstacles": "4aa17a1d880c93936403394bd26973ed600669680e5cf5901f48a21a44005920",
+   "patrollers": "a11afc289a370f2022a89036dcfed0c6f5551a98ca17a0494c6e02829322d1ad",
+   "roadmap_points": "375fc8b481fdc43e865bd8c42132518e84ec29e5c0b488296ab0ada39166c0ce",
+   "roadmap_adj": "f6f521c2c95fcb265fb7502bce08393195f9a9400c73d4a4b52d2152c3008995"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 9,
+   "world_sha256": "6ed8ac4a6f1cfb1a0fc7b227f1585b180d0a6a3205af5afe6780e2b8d4f48d1e",
+   "start_goal": "955ce2c42816dee166a698263fb2c55378b416ab7447ecea6788ddd3bc53729c",
+   "obstacles": "7cc08ff7c21cd2184e1db593fb844f78c2042e7300de76e7094e02728dc3da53",
+   "patrollers": "2637404ad2bb5b5ff8b176c8f342dbdf9d5a3ea2cfcf8f5b1db46851685d5a26",
+   "roadmap_points": "a1e00e75ec856efb2cd52a23139ace27bf2855c0085d7f5808de128d3ebefb8f",
+   "roadmap_adj": "38e1058a9053ca443e603a67ab70b8d628f06dda71ca5a558fa9c86b2b10d11a"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 10,
+   "world_sha256": "c5f37828d85f56189071c7da36e87fb8a4720c0711c1b4417cd088fb70a185dd",
+   "start_goal": "ca485b3d70e9bcc6ddc38357eab8ae5c93eeb3ccca3b40ed73d76f7fdf4789fa",
+   "obstacles": "c256e59bfc6b53905735eb104f9c36a3fba461a1f0d4231af72dbadf288cefe9",
+   "patrollers": "470648085dba01184909e88f9337a56651621dafc2d54b56ae952c05b5bd466d",
+   "roadmap_points": "5ad6279d2517c84b81a194fd644cc59673d0704c1338df62353e9d6c31690044",
+   "roadmap_adj": "4f747c1d575843c9da56128594d1adf077d3f39c013e0a73c1385f5742cab7f2"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 11,
+   "world_sha256": "41d7edd21eb7acb8ee7374399cccc33fb27ae2f9f2ddf331c20aed98bee70cb9",
+   "start_goal": "5b308aa7f4a72db7a919536ee95fac69b64a39c5cc3b2ffc0cd05de9b0a87780",
+   "obstacles": "456078860e9c66257720cf892610f92ebf0352f8877add74708d989c76ce3540",
+   "patrollers": "94fd3ca6e10f433cfe37a28f68431d6f78bd249e9f10476de59d11af7d58cf49",
+   "roadmap_points": "b2ee1b077868742508f105c466e4b3ca0e05c8283ffa22db730dc557ecf1b9fe",
+   "roadmap_adj": "a3558270d0bad3cd59c159e3fc3c47a33434a40750635c3458c2ad070583f5d5"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 12,
+   "world_sha256": "1be68a8c279da1d394e8c45698cc7d1b0a958ba7b5616bfa56bb6fde735c1064",
+   "start_goal": "3c87374cc198248707a3f3def3c2147df7275ff1c6df51a9a07afe81c1d337ed",
+   "obstacles": "c8b459292fe2a0ab8ded8f5c2dd2fe1ad2b51dc9582ae6762b82b0f810ea077d",
+   "patrollers": "3755663fc6f4a56dc42458ba9b743584497d5db5c00595d00e8a262691ea3ce7",
+   "roadmap_points": "06eb63688f4fba0a1911cb10e90824bf0c1af944a64bb09d870732bb506d82bc",
+   "roadmap_adj": "10e64aa69bfe51a4a803d2dde67e3c7f093655aea4cceca694a2f1f52c059356"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 13,
+   "world_sha256": "72ba6db307babbb2199d619299b60ab90d30e8a28133d4bc0bc9ab584c28cc88",
+   "start_goal": "58699aacf05d6c48b6942ce3a35601a3de9012ef8f9d83877be355d832f0c03c",
+   "obstacles": "283f7298722c27fca14e93fae5ce178011d514af026998bf219339459d026ca5",
+   "patrollers": "8d20cebaf1d10625749b3e0bb40c0a64b19201a2eb1a8d2ddd220a8bff528335",
+   "roadmap_points": "2495f9b2d25ab61ae56f154fd2d49799f5629516b54b7b1d3e5f4682ceda4a3d",
+   "roadmap_adj": "3d217bb62a627a021a5deace4dac4f088720d3db5370381514a8e3e2142af95c"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 14,
+   "world_sha256": "1ff8bfa51896cfcaf1ce9017ec927e346e71e4cee00c919a11d3072f0033884c",
+   "start_goal": "687bfcf0f782bfe01d7dd2f530e88018c8dc955e2ff361619597693a1cba9abd",
+   "obstacles": "44013babb42a51204f9f0d56f3d7ac667c6e030d4d5703d0d65d797e1af73213",
+   "patrollers": "6a44dd3e0b7c7376c140a9f821c7b5c18e22b3dca46b9ff445ed7c95c99efb51",
+   "roadmap_points": "b2728419bbb99079ac3485840c8e7f17fd28e9b02f4d64fc77bccb3a753a5bd2",
+   "roadmap_adj": "e2806c30ef0d029fc0860a910d13d77a177c4094121d27fd640ed690eedae4e2"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 15,
+   "world_sha256": "09e79c4fc69eb28f4fe3bd29a5a523e761d7cd8673b1e1693e897155b970998f",
+   "start_goal": "88c4c4863c64dca466efa6db7c6e60e556cbe639c4e97ec612f048af02bd717a",
+   "obstacles": "99dd6680c6b5bcd83243f0b8c5137881bb1a36a5aa77d0b7eddf480b2da1b6ea",
+   "patrollers": "f115dead00b4dbcb082234062464d1c842db89dad0abe321c19bfe5cb8d7e841",
+   "roadmap_points": "bf32e7a46172db8aa53ff088fa04a05aec455657563d374bbc4ae3c3c95a69d1",
+   "roadmap_adj": "1c2cdcfd7e55f08eec79eb168ac9cc436bf1358b1d38a79df422eb3f8af39887"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 16,
+   "world_sha256": "2d81f225f2e3b8a6a09d9f48c2d87b8d2271139cf57c67e66a1e3a3554da9ee0",
+   "start_goal": "8991e8b60f4b052efd608d702cd7fafa7199affebbcf86f91538b3d0ca031a8c",
+   "obstacles": "066bc5ee1943fa8df989b7974345e9dbfcd75dea223c729c2e22e3b286f6714a",
+   "patrollers": "dc9ff182b3bc5f1ea250411354accb0d932f5be14e2b25b013e5bed02cd1a460",
+   "roadmap_points": "5459afa40515bc884c2468bd85774845a3407b6e2c7365e54b5d8cd993062cb6",
+   "roadmap_adj": "986fdf7c84d9a86e859e2b03a5f37517ca5314d3f79fc3b599b33276a574d5db"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 17,
+   "world_sha256": "e001a9dde83cddc26b3b0328bedcf3ebeff77d05ab17243c1ded9fffdc37c1d3",
+   "start_goal": "873fd9a1ea630852f28b890f5ac7c84b95e02fa12b9ae7b15a640459398686d4",
+   "obstacles": "974d84f19b3d42b626b9af3f3bc490e15056cfba14988263c9ee9356fad43292",
+   "patrollers": "882e59316fe480d33c852d539cc5c58003d4d974df70c78449208497f6a22cf4",
+   "roadmap_points": "2c133e679219b2474b87d328411a63c9c4b874ba739072e8036336da6fba25ab",
+   "roadmap_adj": "03b03bd56e565010aebfe465512ef0282256149633c91634210575bf56e7abd0"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 18,
+   "world_sha256": "b919f976d6606a7f95532d0b6795a23e6836f65de84ff55f121e09a437558595",
+   "start_goal": "eb614f9c9b6ba5ab2eabd4d0c7acee7c90c11cbc425bcad8286aea0cf1b23ccc",
+   "obstacles": "82b462aff6a59b289e459976ae2ad6c4190ca0c8598d86dfc734fed5c97bd5e9",
+   "patrollers": "a8b628cfd4f7df5dba8af2867079050c83e26ef76b3dbdcc97336d7cc9108955",
+   "roadmap_points": "1e948e49bb1c7c8727abcd1eec4ea2166ef2910840615ad855294a08b1f375fd",
+   "roadmap_adj": "8674d5641b3db7e0b3da39f63a0c141f012f7985ab9ccf1df702a83fa7d99f8f"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 19,
+   "world_sha256": "1271a16b2682e875a6483d773538d1c55cbfdaaf089e67c4c4b623ce00b392e0",
+   "start_goal": "5d672e7006f7a0775b956899dd612f2b11714a74a119076e5d51fa716d2162fd",
+   "obstacles": "9c5487317155ecb353f7e53742977456f18ce0cf3efd6b218ab43d94e8991b60",
+   "patrollers": "c3da5b2074f6ccea28e5b323e8809c4555ce2f07235fed13aee66332743ffa80",
+   "roadmap_points": "4cc2bf3d27aef2d12b0260da61fee487881fd1db2b4cc150626362dde3c5f63e",
+   "roadmap_adj": "c723877138d2f1fb6040f83a6a7dd4187839212be2ddab8cffec58d6271fa21e"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 20,
+   "world_sha256": "59f49f179a96a459ba9dc606729b992f37daf8ea67e03ef1e52f8680d12443dc",
+   "start_goal": "a431102114dab466a49d55250cffaaa1365f7f96cbc96f2ddd44954c09a5ac88",
+   "obstacles": "0b0b0caa85430396d07f56cd87dac66b2887e0d238e3e147d728f6aa649869a3",
+   "patrollers": "67c81285223d190f7d824810a2a923e9e189a9833fdcaeb21b34ccc36d296ac3",
+   "roadmap_points": "350cf132f6ca6328965dbfbbd6e5e4d284b39b1eaac8fa74dc5216aa0f8d5201",
+   "roadmap_adj": "ad2436b0577f4e28a1455dbcf4fcf2b5258cc80d17a7066f7a5589867712c12e"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 21,
+   "world_sha256": "d7146b2a7716fa7de8d8397246418774798d54079525073a1c06011d75cdc72e",
+   "start_goal": "50ec145dbe9e79268835ba00194c869ae38e2030788a4f750681fb4b90d8b082",
+   "obstacles": "a80cea9e50329465a8c45caa981d6a4e1eadc85f8180d02024508ab47f573b40",
+   "patrollers": "131964bb36f3872904eb2c7f155c09d84f8bdc2454c2b978821a2fc6679b1429",
+   "roadmap_points": "fd0d009963787c854e46f095aa4d79341178ee24562d45ccabca143625293e76",
+   "roadmap_adj": "96f4df003d2a57530a8de63ec5d2404a1f841db9fbaf46c2bbd1cc5a3454e975"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 22,
+   "world_sha256": "895a5f1d3e7f9b16aba63c3d71eca8c244d52c5d6ed9973609150f9c9a859f25",
+   "start_goal": "6bd72a21d89979d405f05531c15d1667f23d2113cc1abbb5163bf553a59130ee",
+   "obstacles": "ea2658ef61c871d82f6b73164de298ee94422a9d60762c710c1c2e14b282be72",
+   "patrollers": "53a95164969f36c52f3967a134c2366155d1e6037edd8e3dc6091d05c5f28a45",
+   "roadmap_points": "d4a09bf66bedbf41b1b5aad7b2229ecbc5790f94ec0aaf4d8dad1d35a07a5f51",
+   "roadmap_adj": "d5cc50b399a74cc22597b45489548d64fca848e6f0a37cd48af4640848171c7c"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 23,
+   "world_sha256": "2470d24f4bac6781b44e9bde3ad1a52d3b84bbb5fcb7332908e98b1ce6fd46fc",
+   "start_goal": "fc2ff800099c659ba8e3af2d02cf8abd14a8308c7e093501921abd293f572451",
+   "obstacles": "856a5743c3ed662a62fe72990a4595837579956628ded976ef72b7752dd2f241",
+   "patrollers": "d200eb138bcdc3688deeea4b14f015eaa6a6492a9cb0eaac73a7e8980db208fa",
+   "roadmap_points": "73e13f3b2972d7fcae043769578bdb453ee952864031f7e11766332ec3551879",
+   "roadmap_adj": "dc5cd970624e884d89cb7077427412c821e923d1ded024561bccacfc2fee064d"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 24,
+   "world_sha256": "94b2d58fd9eed1a0b4b36ced6b58f3883642255f598d1151bf4a09ce7768fd45",
+   "start_goal": "40a001a738dac749190d6036c20e1ec90da008a627e092006c7ffde4ba93e582",
+   "obstacles": "8acdbf0a68edd2c947b1a96190916f15c44c0581714f5c7ebe34838392224fdd",
+   "patrollers": "fe88f0bc11895d8758e00439a03938d4fd872e333d7f99381eb3e6cc9050bc0a",
+   "roadmap_points": "993d2d4ff02d934a8b0257a88cf20602b753571a099a25d9557ce08fe111f73e",
+   "roadmap_adj": "0b781fd5f3883888a79a3beeaf3ec53338de4646032125fff3b5007662b9b12f"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 25,
+   "world_sha256": "07594993f97b0d9c90d5eeb70acb2a26a694eef76a6732e6c6bff8687725c0df",
+   "start_goal": "81fd4fdd41e2616aee2321eaec47e7d75c3de30572c7e29f7b564089881e70f9",
+   "obstacles": "d4e64b2f25c73b6af3b6c3a2583c00f6586fff31598563b69434aea6a632afe5",
+   "patrollers": "f8e9f0b91331a90383a5c36f780a9dd17df61549608ed6b1395af3a9dbcfcd23",
+   "roadmap_points": "a6013b56e4fe9ef4c0c0a3fe00665eada2f8b8fe08aa8ba64f75241f579f5f71",
+   "roadmap_adj": "f7d3dc89f619abf2673a9a80d38def38202b67bff2a2548f89ebc5bdda1fc510"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 26,
+   "world_sha256": "dc1d1400285a53789740b212ea278dae80a4ed07d3e5b34a739c379e7568946d",
+   "start_goal": "2f4602dbc16eee94ab70c588e8e68f5845fbd190956e276811308dc907fcb6d6",
+   "obstacles": "23cf61b6b943fb5b7bcdd504600acbff2bcc4184ae168eafda2f48d6f95dd3c8",
+   "patrollers": "7d4d16c7c0ed3310bded2e6980c90ae22251f1630cd3f8f49ffc274ff5ccb242",
+   "roadmap_points": "89ab4ba0036958a2190ff776f3036e05aef8ea2f6d0569131e77b8e7918bc6fe",
+   "roadmap_adj": "041a9032200b16709497c29e19e4f47c8a94c24fab43b04fdf5c5de8529217fb"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 27,
+   "world_sha256": "5eccac1cd2e72ff38b7d119485b7b9854ca3b80ebb9987e3755f266bf889bfee",
+   "start_goal": "60668a4a618fc207b31979515a84ce38c012fef677f106ce481bf3b139ad1c19",
+   "obstacles": "f0aef30288d0880118ede809a4ac6808c18aa0ec84562e7b1901081b4753d682",
+   "patrollers": "2335aaf4fd525b6b16819bda94ff842aba649d06eaa5df6773ab15fc31066f54",
+   "roadmap_points": "65ee52ad28c92a0050a9eff0133e359fecefe1fd0553b9befd6800b4fbb9b203",
+   "roadmap_adj": "824a32ece66ee7b8693e80b0c4d7c9fb6ba869cb49275b4b929692d0c493398e"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 28,
+   "world_sha256": "283766edb8e8e0035cf8948446989726b72d1c391447d8745a7051e5fd2395a4",
+   "start_goal": "70b3bc13fd9690e9bb004fbfe3bace3be62b2cdf68c8c6bacd3f61f0f08820f9",
+   "obstacles": "edca67b46faa8876a02ea3c104a761ef8b022835cee19254f87421cd8d14dbb3",
+   "patrollers": "49f6653e5b44a6d84870f73d4839cf8efffac7938ec249e02fd7af4c6a5cfa36",
+   "roadmap_points": "da44e0cb8c2339806c05baaf376ffb52c5e3f80f8250466825ad24f6a8601df2",
+   "roadmap_adj": "fb51a149eee0a0d0d414f4569e55fdfb50a0c9c29e0f6f2e0ff18bfc18e61b74"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 29,
+   "world_sha256": "eaafff9d7932062a575eaf15b7b28d95c2110b418cd672d46ee49cdacc138256",
+   "start_goal": "b5c6ea49e6adcd4822a7413c9b98d1050073dc1eb6b1fc507b6c9242b2eb1d1e",
+   "obstacles": "d8efd9858d0ca3556a65d8a16f5121e19835bf03610eff8e67cb252c0be45895",
+   "patrollers": "dd1797efacf428d175c9b79eebb24010f267886b3ba41c9693f163f41a3576ce",
+   "roadmap_points": "1c5dcaee30e230b01061ccd7e22075162996b8147692f7c3f31d8fa6cbbd87f1",
+   "roadmap_adj": "d5edf16693ee73e10097b0e5d3e5a9b1ebd7371033c124c88aa4ce3b60998841"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 30,
+   "world_sha256": "e2a991ed82b81046cb1d7f5beeadd97a0ecb37c3af8e83db51abca2f4e6d3464",
+   "start_goal": "8454d5dd3dd59754b9734d36201379cbeb0479112322747c415855247113d564",
+   "obstacles": "c5052569f76cacbc6a19d420843827b2e6107eb24eb7f5d8008838abe681b81e",
+   "patrollers": "55623010dedc7d31964aa16f16d6b47484f31adb9a5ed12be4705267f8fbcf34",
+   "roadmap_points": "98a7b671d81513393e2a6350280ec4637de5b269f046234eea7db67414d83820",
+   "roadmap_adj": "ea61826c1cf5c220a98a7a9b7dc261eca804fc9ea774ce51f972ef5bddee81e1"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 31,
+   "world_sha256": "39400b9d5289c2029dc7dcd23423213ac26a9db8a007c33a6ff921870a84f0a3",
+   "start_goal": "479746d7f7fa70d1dabf70804dc1e6e7dd3a47f1d76fa9e68b24c5adb1301650",
+   "obstacles": "628877aa80f209d48a42d38e98bada0cd726a6ffb46f7afc57ee113a73a229f0",
+   "patrollers": "af560b5276a673123b61f99fb953473c9f1dccf78136a71523f3e799d282c31b",
+   "roadmap_points": "7627b199e73e9b3c65440b0e82ea01a41345655c0e88da32a511bdc974986e22",
+   "roadmap_adj": "45a2c1a3a1d089ac1dbaabb8a759c6cfaf7b8d00cc6f25d4da1a7bafd1683a23"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 32,
+   "world_sha256": "2bfb0fe73c3dd2e41c6c47a8f39448883d4e05c41c68f726541edf1ee8141afb",
+   "start_goal": "5baeee3085e1e127374950b637fbea26380d780933cca85fd14043b88e47699e",
+   "obstacles": "ce8d24874968572bfa2043b64059f8e317411d5ddeaa42bbc18d037cdc7d4359",
+   "patrollers": "a3444d4f1f598d1d8ab580980e0c4fdd373ccbe2debd7d850be88d5632d87a2f",
+   "roadmap_points": "3bb796567429a641de3a307270e7e8849432d42fd5f75834ea19e78ed5b2fdf6",
+   "roadmap_adj": "7daca14d1c13d5d7bb3bf2303e0d141ad2a7f78a7372e95275587ac0ce53ad6b"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 33,
+   "world_sha256": "8148ed4bbdd9c8949050c03c876c951f55eb1d00d68d20763491e93dac567526",
+   "start_goal": "c7e36834bcf21df35f6ca4160b017d54ce4a7090bb0ff8359c05bc7f2b4ed36b",
+   "obstacles": "7a6a722878fd6063f574d86f66fb5512ec76a763e3483e47b61e75a05cc1690f",
+   "patrollers": "f6f31f54cf85537bb57d2ab229827af17c393afeb6fe6a83853ac05b5f9f60e7",
+   "roadmap_points": "d7dd79fb4280dcf33474d49264fef52cae6c73611f922d7b687869c5f813df7a",
+   "roadmap_adj": "9131213f9170e8970ede82738b4a2eca695ecda5f23e58482f01da241940b9ce"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 34,
+   "world_sha256": "770e112095d5543ee6ad1d6d9211529f6cafa36e341c54b8cbcbdb894e3e5d77",
+   "start_goal": "f55497ab77e69625ae8b90065c6415b2cfa3446020ea60d3cf091c2e2dbbb4d3",
+   "obstacles": "c0375dd045c1324d7d578e0a60abe35544d312e1885c093848025151ddb5518d",
+   "patrollers": "0116f54b74c21ac0867db5a022f10139e0a6597636c18cf743513c0a9781ac91",
+   "roadmap_points": "d8ce2018f58329bb85326e9fc77204b7b101efd111bc89a826e3f8488db0f530",
+   "roadmap_adj": "7403e6bfe728d9c4829d23bee3fcef55b6cde14594e5458b01c5fa4299739b28"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 35,
+   "world_sha256": "71e21bf5941bd86c10bb25a2e3bb5f09eb786e91d07dbc066cb8af349edae786",
+   "start_goal": "715b78f9ed8ecec0915f61a375cdef338fb22683b8298f0a9e74062300183046",
+   "obstacles": "94678811335f4d98767a180db875379f33288ff7445381bbca9e13e527d87fe2",
+   "patrollers": "39a46cec20378c6e77979ce716d63079c02d55e9e6fd59a03ed717d6df043dd4",
+   "roadmap_points": "2f83df868f5e4ea4b2d863ae97d067855dbada9acab0286ebe11d236226ccd5a",
+   "roadmap_adj": "87abc43cb8cfb215bf091ceaa63112cc62bc674754624ac2de74b506896cf921"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 36,
+   "world_sha256": "aa00e3c95cb42616adae0f3f889642c75a8ecfe03a6e7579ce74669a980eacf9",
+   "start_goal": "5ff4cbcd4ca976087011f6e45a01ee31f4e1e358ae197b9f0b054bd7d4180341",
+   "obstacles": "97f7d66fd83616cd3c78ef522eba95e5bc6e2705013be85e48eaf9f2a468bc47",
+   "patrollers": "245b83b1a6373ad9574babf085e05a0a73cb96fde7de87d02fc3bd2318b49770",
+   "roadmap_points": "d8f0c6b48dc387f822003f04f1995c406cdff0636117472999ecc4773ecc87e9",
+   "roadmap_adj": "f18570d02b66c5f69650d4d7f3803d8e69e56ec7fe71362d58c7f83b75127749"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 37,
+   "world_sha256": "e0dc9846e7722fc08c486f0bbede86661ef79fcf25c1143dec43c6a28004b658",
+   "start_goal": "0b6ef9dbd77f9a3ebabacba72f6868ea68ee1cf3cbd2cc1c3503e1ed685ba452",
+   "obstacles": "5dbc6f80c48a1187988953a85adaaa9615b03d4e96cf52ff4c9845945d794a61",
+   "patrollers": "9028465ed4153c5385e5563d0c02f14c0c0bd5588cef798ea5c2d49a73874ce4",
+   "roadmap_points": "f4ef8309008209f5abc904275a06c8c02ca173d62f84e2b6142935d8c009a2a2",
+   "roadmap_adj": "d770e356707456f96a5d368033a58ddc6390e0aeeaf7cb97a84f9854e2cb064e"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 38,
+   "world_sha256": "4bfffcd3ca591b509c46ce2dccf77261cf5d7e416b07338aefa9557e47d3d285",
+   "start_goal": "27832bd8887a2618763d8568ae1550f0ba78e60fb52e0d80ddc37891588f0566",
+   "obstacles": "47edbabbb52897a3fd2863a5e4a3ffbf9ad45b80c3f9a0ba216b8535a87bcf7a",
+   "patrollers": "9d3ea9c0949bf18d6a272c2301412d704b0cdae2d7d0002faf8b8febe54fdfaa",
+   "roadmap_points": "b3730b540872f809cfe16a10be76344fcf0800405a8795363f885a34ef532d63",
+   "roadmap_adj": "ce8d0e2fac6f9321b0b09a0cf04015c065730ff90f27ab65aceca10727bc11cd"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 39,
+   "world_sha256": "ea1856e416d2e7efcb61148d10f40fe1080bba79ad3231f9e0b27cd09099f52e",
+   "start_goal": "e20a7a6a5d3d4fbcf6833108cbb580901b0cb3921c2f92fc67b3413c79d6c97a",
+   "obstacles": "cf6edcc13d98c5bbc2268909ac9a14586ccaa286202b4cf73e078f47b1f8ed1d",
+   "patrollers": "033708dd2dc84a513c08abacfe86c60227cda41ef2940c6a8ac6ba67e4f381b7",
+   "roadmap_points": "cda4422e93b7088116a96c658b57797a556fcbe1bd4ac80c4e7ce5ee70e8e913",
+   "roadmap_adj": "f76ea3a38ac9925411b0cb74fad953d6c7116f9447c7d23d2d3e5a1e7a546a93"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 40,
+   "world_sha256": "1cd96a674c70bb689615a31c9ae490548fbba547fcb43e06ea4867087635022b",
+   "start_goal": "d240830c711a71bb277e45c6e06e1c7c5808f4f1294df0d93753b3bcbd72a22c",
+   "obstacles": "d73cc8940cacd4443c2a6cda9c050afcd7bb7d4c798348881ae634e26f633b21",
+   "patrollers": "0ec0b4ea557b4cd4b62ef77ed30c620a2099ed9c1c5b607d84b0f29a9934c242",
+   "roadmap_points": "dd661642d9b1ff28628f162ad3671316e1f33724cb7e875bd0f0b8d5c7a43405",
+   "roadmap_adj": "c03ed92c4a6ae54a487164658b18f6d0584785bcdfc8710612541b9b8eb69cd3"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 41,
+   "world_sha256": "1107b78e2ef1079cbef90ce03d074cb7993000e2a8f8a2980c201674b232eea7",
+   "start_goal": "3d74d5de01330c095b1624de2a61dc2051cd9a2375017818c13cdb0795f96d6a",
+   "obstacles": "d1ae7b496da2a09059f064717f3e00c43513715b769fec9616556d9a6c9949c8",
+   "patrollers": "64d996ff17d4b7131956c2f76855b79783ee423b91d52270c2b3a9451e971278",
+   "roadmap_points": "ad0139e3702053dd2effcd66eb0778415c155970d274f98d9f82f9d3781fc8da",
+   "roadmap_adj": "24e3520e246860c8c05a7542a71fdbd299d237c3d4e41165b5ca3bc3bfd1eee1"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 42,
+   "world_sha256": "15b98726d6499c80e0a96ce0b23cc58096a59c452f4182564669c19dcc652372",
+   "start_goal": "4eed9342364c7ab5448a743e45ca6f55f69ab9ba7684ff868417ba7609932ab4",
+   "obstacles": "761b68f106aab9c6088d166a269a0e5be631cb0fc5e755327ca0ebba173ac7d7",
+   "patrollers": "565b181d845978942529c59a3f3e7b3a257ef47db2ed1d74a5950ecabd500036",
+   "roadmap_points": "8d4cf835bdc91fbc3169412b421fb96613e489322c6f8836cab51375253db150",
+   "roadmap_adj": "d77d66e5ad23e8b92ecbf5ae9bf1c75b716cfae6c37f8e96b7375dd4cbc4e653"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 43,
+   "world_sha256": "48476924883e20663a62102a6de642fabb6ef69d292d4f83596e1dfdc20406d1",
+   "start_goal": "f6a3b3863e958e42fb3b5b8baf25e80a024e56b13930f7a83b7dc60b9c95456d",
+   "obstacles": "a359d14bcad31afd9b6551dd0c3629b362373947e4bcd59ced7ec3f8c5fed113",
+   "patrollers": "d601b723add772de5e3e264d1bb408c440b8ec7d79088f3462efbe23f8c9e073",
+   "roadmap_points": "9a33e4dd56f159d31b5871cc7f4377fe0af932bb4e1d160507abe494095063d3",
+   "roadmap_adj": "f4ed313e16642bacf52bc99b15638077d8bc16691905e433e7e3641228e209a7"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 44,
+   "world_sha256": "c49910422dc26fa3aab2cd0676e64289b371e8438025e94611a77ca794e72850",
+   "start_goal": "b865d1360d95a6b013ac139b70c14b7db355ce99edb037a735ab79ca71180cd0",
+   "obstacles": "0a544075b2fb48666f3f3c1142e9deb229ecf24560abde40ad6e705c65141851",
+   "patrollers": "34bb49a2126b5d89e677a714d3cb92456bca2a0a8539914c2d032f70eea0acd5",
+   "roadmap_points": "89b6f973dc5e74957ef2abfbd6920670347d97927cb8c850423df5ae4b155441",
+   "roadmap_adj": "7f50b6fff10278a21231e63cdf98f9b82a43d50810f49269f9da56c855df50c5"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 45,
+   "world_sha256": "9aee3e51191d797169a13d4afcc1171e99e8b0053ea246f8d2fdc77e700215c1",
+   "start_goal": "29088a1fb08d2402902176b01f13d6c7be268784466a14de02945e8b95692fbe",
+   "obstacles": "ea71a7d03c252e28973c3068407527f49db103ab0da73233bc74c2b5e562bad7",
+   "patrollers": "985fea0324b01e161fe4ab4b5c471c677c70869db9e26ff45f5280f8a73be5c1",
+   "roadmap_points": "89c1884c9215f511ae150d1dc6f73e1bf8e16454b2d2b0f76468a39405586b81",
+   "roadmap_adj": "2db867bd9ada273f862d34f2f962bce12df5151a456466be52aca1b2ae0da7e5"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 46,
+   "world_sha256": "bff2ef820e3b079a6d7316fd5cb3194c504210303e3157a29b3217ed587ee9b3",
+   "start_goal": "c2a192e0d45e132df1e0b4aff186107e7f197d6452da89e96c7798f182a8f840",
+   "obstacles": "afd503f744bdd21ca4fc559dbedac701fb2ae397c1fa5ad0c4a05251609b4ff0",
+   "patrollers": "23c1d3d87f8e5aa6b228b54b9aafa89b0c5bd8111dc4554423bfa9866b2cca11",
+   "roadmap_points": "33112299fac8fe6511be6f2058173e3a2305ec9a3b4f1cb50af65463eae2353d",
+   "roadmap_adj": "5f5c4957b35b2131159f6cc186df5456380243503598eaf383d4c84ef8993b01"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 47,
+   "world_sha256": "8f5363488c1a576d8bf1effe6e768d5f6b373901262cbbb4a18456882f0c5a8a",
+   "start_goal": "20962bd1a89dbf706159ce1cf00fe5f7e10bdb0f35bf44e0d36750f0b7473414",
+   "obstacles": "d15eea280adf60cca83d75e7e38350f12a5e0aafb77a2b11cd50526447a19eeb",
+   "patrollers": "acee19c13ccedf6d43ee2a4d2e1bb387b143d0a608efffa28d6b99e91a153351",
+   "roadmap_points": "e2457aa88835f5dd7163f1513105b401a9e41561cf38e01a0abe491ce0fae634",
+   "roadmap_adj": "7d235766c7ca2fa5033bbeb0ddc2907de5da054f5e4de1f920d5b10837b74b23"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 48,
+   "world_sha256": "97d3f3590a41ade26a5553eb63b2adefe17dfbc4d63ef8560f518f3dcfe3f073",
+   "start_goal": "27e4bc4b18e25abbdd9d4eac26d454d6f5e0f85011249d7fa6070e0ff07cc2ab",
+   "obstacles": "25f0fb69750a400e8c3e9107e87a5264928b97c040a3c928c54fdd201d1cf645",
+   "patrollers": "8086891a5818c86cde8eb41c4cde50e03c48557c8560205b1ac8a42cedf7f997",
+   "roadmap_points": "f180925536d3855a33563f50a17144add49cbb8ee7445606de802172d6963de0",
+   "roadmap_adj": "83dd32b5912c16c2a0362bbb6340a2e5b6a6d671fd4e52abd507595d8dc3e68c"
+  },
+  {
+   "suite": "C_dyn_rooms",
+   "world_index": 49,
+   "world_sha256": "f8c18b4cc90e3f0e110920051af82b7193aefe1f98d840a9efeacd86f77e86fa",
+   "start_goal": "deff54f384ddc913f7ec9701abb46691eb86ea1a91ef14d53baf422b1bae73c8",
+   "obstacles": "f19cf09c55aa0b937c935a76518f67d506331803658c27dc622b20e9e1bf83f6",
+   "patrollers": "ff0f370c8fc4b9207ca87f5014a3a1e18c89b9a4be68683fa9ad0e2f8f9b62ca",
+   "roadmap_points": "72fed68b2f5c0094bc42e8f5c6b24aeef3bb79079d250f392053c0844043f48b",
+   "roadmap_adj": "7f583d251935df2f64996552fda434018c664d9e7447930130a90ef131a38b1b"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 0,
+   "world_sha256": "fc1afcce9d1df2940087fc14ceb7784d32c2716c3af3a70b393fd43186beee99",
+   "start_goal": "cb0d299b48fedf073f6f39e809ff110fa00dc39ab78df64df6d1f8b81ae068df",
+   "obstacles": "38b72a109f5c933a01c92499c8189a3e1b49c2695ab32fa22e4bedf747275ef2",
+   "patrollers": "76ef203cb73e118c507da500bdee6541bc36d38a83395cb42bc3bf3608ad5823",
+   "roadmap_points": "d8783e1441016c9dbbf22633a13ab0ae5085c0e32b3acfc099019b6a6c49ce83",
+   "roadmap_adj": "10b7364e5903fe4da4cb62685e0c17be222100552e7c0cf758c2c04c6bd362fe"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 1,
+   "world_sha256": "f53b83daa3c84ed798c3c432087abde191a5cf62d7f2da1420502de893f10d96",
+   "start_goal": "a15c520df4545acf49371a7a4224f2530b37e2467119e7106066d088dfd556bd",
+   "obstacles": "5e2a59993d6b9f5ba6c330f023c2fc9781a9f8c5231419b5e859238205dd3caa",
+   "patrollers": "dcbd18f3d8054350b7d76da69c10f1dcf479283c72dd0785cd7aba1c7f97ffb9",
+   "roadmap_points": "4c1471bbdaa5eaa6375bae0fd7be9384f383ed1749818b5c18c19a0a76ccc99c",
+   "roadmap_adj": "e6d8b3e502a382a947c60f4661e1dddfabe81ceb115ac66cdffb726009debfda"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 2,
+   "world_sha256": "4046ef217d1880ff4e19b86824a517cef891b5aa0c68bd386a356235311431ac",
+   "start_goal": "e61c269394a4996163ae28d9fd73404256edddd1f0a2c09352c7ff801b2e621b",
+   "obstacles": "29b8ce594a7a746fa0463d4c3f18f0c7ec1e63eee857f40ee1ac71dd71977762",
+   "patrollers": "aecfe8617ebb0ed83306d6b1f1ed081ac1e19a84869852de2532842063ca08f2",
+   "roadmap_points": "dd3f895bd74497f18a9bb5546d5f0451b46cbb964042ff5b988fa0a48b8e411a",
+   "roadmap_adj": "e57a49b888f39294d9b65c3c5ee39ec32b562405eafbb71f325a75d563877505"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 3,
+   "world_sha256": "093aaffb9a286bf8db6ff8f3addb0e11acfeba8abfbe74c8d7c88d0186e00e5a",
+   "start_goal": "3b7983fd4b2de4bb1e9b404014bd99afc36d08bb222b5d884a2eab7809fe5b84",
+   "obstacles": "fd130fc060c5541815db90e554011b091379dbcf6792201edf7a62b26ed9f61d",
+   "patrollers": "1cefef66548d17f6fe537ca487feb47ea2e79add889e2ad6f150c142f16f7853",
+   "roadmap_points": "96a6e789399a7c235d75d2ad9394c061f60dd1201f65111828763c32e4e77de1",
+   "roadmap_adj": "635833594b0b476b7639b2af8afc10c1fc4bd22b068881465f2e2447d7cd4fdd"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 4,
+   "world_sha256": "5ff688936157d07831603c096c16329e1b982163b4bbf2e402655f096ad7ecf2",
+   "start_goal": "4ee2b4d9c8822936736c959452bb0234bf9639be362489d7832a2a79ca7965ba",
+   "obstacles": "222aab89c885c9d202ba8164975078594ca1d58be937395edf3a2853ddfac34b",
+   "patrollers": "cc09c045d12fc78c7ffb28a9c138c72f2f8ccbbf7629d24342f174faeff118a9",
+   "roadmap_points": "13b9ad04a260ead0a4cc0fd5acd9cac16f6c5c6cb9c2757b0aab1eb641b1c4e9",
+   "roadmap_adj": "876f90a71bebc9182032b6ef04c75a27a53abf4adce1aa8ee48f2f54268f89dd"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 5,
+   "world_sha256": "6112b4c79125a97711a1e62bc5f54f9bd8638ab8211b280a2d89bf7cfaea13e8",
+   "start_goal": "8c00b89a42c9934603d21102f130232b7aa8125ed6bbebdedbe6afefd367693f",
+   "obstacles": "a8a3c37eb1ad3d347014b38ea31bebc6df53335cf7deaa35c21617a906d3b3d7",
+   "patrollers": "d444d625285f0e5ed77c6fac3a445e8c58ddd1db26ca235ba6fd9f93676136d1",
+   "roadmap_points": "064ca24e36600a9f1774417292d4a67e5b6b45df09a8e9b8874c740e0f926213",
+   "roadmap_adj": "20e24fc6c146f75423fc965fc70a2563610bb8b30063dc30ad9fff270bda0744"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 6,
+   "world_sha256": "d093965c21a710d3742fdf991c5be3703c1397e8b47298ecadb07d09b8d8a685",
+   "start_goal": "3999f83efd2c653845d33aec033f1fe8de90edc4dd15f30a44b65b4c0a850f7b",
+   "obstacles": "36b2ec9bb37e9147253c262f538bf87404824e0d0a6d087334584e60b283bbbf",
+   "patrollers": "aa5a70d1e9b49a78cdc55731845d2fe345132ff9b17bb987ab55acaf10482f28",
+   "roadmap_points": "cd2b9a3ff1a1ca9aacd9718f99bbc7feb0c3ecb5da5d98740b4c04a79c0eb4b8",
+   "roadmap_adj": "1a5b1788663ea33bcc3b83bf1717213c9fbe33b4c4d65ec3221ff78de946c1fe"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 7,
+   "world_sha256": "cd930d33ae21bcd34f0d5a81f4b825d6ef427dc7360061627f829094a6e0b90d",
+   "start_goal": "3daf15ca6101e5a4094c59e8853cf79278abac0e4a37c628e1c7a5c8e51ce36f",
+   "obstacles": "9be6fb7a31cabbab16a556cd996cc34825c1d54d207e43bc0b32e127bf654b50",
+   "patrollers": "9589e9d94db242e1f0e91564cddcdeccec7e79fb6d708afbffbf6d9810797a93",
+   "roadmap_points": "b1c28ec2ce90438f7481d02c60624e0f91643768d36e5c9c7f274d07260a4800",
+   "roadmap_adj": "7a4ef7d725b483daed11b2f6b5dee628481ff6342091efa52f1dec40e1779069"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 8,
+   "world_sha256": "bfda6adaf9184f021440b81f2b53fddaeaa25b25921de88660fe2f63eb41016e",
+   "start_goal": "23376f7a1ee7abb92e761e45dda1f1485a0a31924c3e614a53b7972ed5494605",
+   "obstacles": "8066ee4ef8f66d6e55cc16bb30789dc977445630855a15040bae5bf55b1ef571",
+   "patrollers": "a6a1fb725156137103b8e89f5a6116ae7c86cee9445982a02a85108f15c3cf2b",
+   "roadmap_points": "f33257cefb7adac90d85089181cfb838b5822cd95444182a57db8d1ed0205b54",
+   "roadmap_adj": "20afc2be895e42062b8d9d91d75a2da547c991554104a4462a6b5a8a8d24150c"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 9,
+   "world_sha256": "69ce791803e3b357d52cf32adb4b3326039c44befa21eb7aea59694feffefd26",
+   "start_goal": "9d60390e604212b275f3e7982653d36b431020f57424cd2ca7615259abce7ace",
+   "obstacles": "a65b9e0587a1b13ee8501b76db58d4fb208061a061b822951bcde6261f9f6b77",
+   "patrollers": "313dcf21a1c8ec267cd999ac669590158e9e1edb5810c7ade7890ea2d80e3197",
+   "roadmap_points": "5e368ed3e16b3331f471431bc9a703237618a589ae4f284c1b490d9efbf48b86",
+   "roadmap_adj": "9b43b52ab567e1e7cd84a25bf3cb8a35954259932be2df14de0e50104527599c"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 10,
+   "world_sha256": "dfbfcd23a066780a4d9168adadf9e29f025c790d55c323cd740bf9ab79f4f203",
+   "start_goal": "bcb4e1a4b8cd6f4b04459f85e78346299e39939febfb96d9a5f3592226161cfe",
+   "obstacles": "4a1752c300b23592d9f8ff1d52a352f93e879764d457ea569b7ff8eba8ebdcf0",
+   "patrollers": "e45a567748b199b9bd048c9002fd0d3a89a2904a8739d1246ca12dfef554ba3c",
+   "roadmap_points": "40861d961a350514c497e2835d2ec6f5fb049d385984e5be80a6f81c813c6516",
+   "roadmap_adj": "b0ae69dd87f868c9363ef67d35e85aa557cea9225a39b6e6875cecb62a1f7d27"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 11,
+   "world_sha256": "6d78738605faaea8e856af0c6efbfd12c0311e60677fc24492d529b8a7e5860c",
+   "start_goal": "f9f4342c0c38f51884bdec0c228390afed0a0dc58b236c5403c60a1e30953721",
+   "obstacles": "811fc06b131a97be47a8d75ad66b000c3722fe93132e2081c6575b76c86054ec",
+   "patrollers": "d1e4059f947860dbb78fac06ae5d3ca695e619ecabf7a060bbe57bd297f7a1ab",
+   "roadmap_points": "f714a247ad1c6766d9f48fb91decd3acb680de194aab4bc761dccbc2bede84f3",
+   "roadmap_adj": "ee0fd4ceb79a9e36f473b4dd038c61064e314c1a3128226065a1650d6e6f9214"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 12,
+   "world_sha256": "196db59edbeec1376867b573d3312d89aa91397642930c86ff3d71a6f48d23ef",
+   "start_goal": "db351bba5541bef12ee048f9b50f6f0778698c074e9694c333c94369e76ca6a1",
+   "obstacles": "bd6d8007e2edbe63ce6ac0be85eb731e1e84096d0df1cfaf36af4deaae8e9d92",
+   "patrollers": "1dc4845051587af0f79c5fbc8be0762a059a679a53e746b36c0c6a2e2bc6fcef",
+   "roadmap_points": "c5c905963ee7d0b3b6ead707d2f571f4815ac1b58fa6fa0e01fa5dd797279bfe",
+   "roadmap_adj": "ef1fceed8b898cb3f92f8a5830d5214b0b9570f38a40b96b397ff7f69529f0eb"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 13,
+   "world_sha256": "c4f4a50bc770cfaf15da2893c8359d82df9ccad75c54667bdb30c1c17d5c7291",
+   "start_goal": "d0e05eb0db61401f44817d35c8cc3d09d335133b1f887f4b002edb455fc1f959",
+   "obstacles": "20ac5d304bac40542757a57be4f02e1da62d216bad036da9ead477f667286e2a",
+   "patrollers": "6c950c41235c524e91536806714e15e7d77d4bd29f039a7e53a98838a848e287",
+   "roadmap_points": "440c17c6f22c50e075c02c9e3b1d6e0c63ae7d516d423c96100efb07b50dd764",
+   "roadmap_adj": "6be326e42e1db1c388886e3ffcc4c06c5ae1cf1588f558996cbbb57231a0e58a"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 14,
+   "world_sha256": "bbcc08c1084e2d4aca619762f2133247e7918528545708dd6d79d31261e16259",
+   "start_goal": "e46e6385b2dde4c3d7091d3758990f005e9b3cb89f796acef92f6e071970b27c",
+   "obstacles": "49e82313389b61c3e063e258bbcaf1bca2c14c23e099124a02aa1526cabed56d",
+   "patrollers": "4ab328f8b4f809009c355fc963e3a0b6e47a9baaca097591b27733297ea102b3",
+   "roadmap_points": "25844a716a9fd15cbcffdfb02811a8bd4539143e16b6d3713359e91d6514be34",
+   "roadmap_adj": "6db9e5a590da373b821d68383ced4e4a96a26499c36d916273268cfdd016243b"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 15,
+   "world_sha256": "4b679efb41afa3da13e02d2a41c784452e42f7debfa75ebe33f62ccad87a3b6b",
+   "start_goal": "7c29a98438781238797a0863f4e58b085608db687a633649620ac6099f46a32c",
+   "obstacles": "88c6a090e05d093e130bea64a25ed092c301b19f01b393fe52f469929fbda1b3",
+   "patrollers": "a6d215bb180b7195fc4a7705e74f527d093a813f5f8f3728b9637450723293f4",
+   "roadmap_points": "cdb8005426628e1dde8881c4ee6a10e6c0b896e09dc5e5fcec42d1f6deda48c0",
+   "roadmap_adj": "0235b41cf002138d4ae5892f6aaa11f9b6bfa611bfe2fb86502eb906d79e1c5c"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 16,
+   "world_sha256": "e301980ead063e9919c1ef5ac5fc623f82ecfe1eac133b242ec3202984ddf356",
+   "start_goal": "e761e7433fd757addae7f15dead7c5908efcf55126661d4c295ff6f1b43c36b2",
+   "obstacles": "ddc759ed9f00961fd0a3275d0800945a6ba52e81be4a3744f91b3eed84f85f2b",
+   "patrollers": "045fc6390e98c091d1cd2ef0e460c920087a3fe00d2b0001831b9729e7db7d85",
+   "roadmap_points": "f323d73c6bca63c99f476bc881d01dcd341d88cdcb53a237e8219469448ad896",
+   "roadmap_adj": "83a80e27434a7657385e524c84a11675cf53934e2ec7d5f0668d12cddbbcdf9c"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 17,
+   "world_sha256": "9ee62277d5dc49fe6f1f4863eeb11b250629a43641ae23dd068d099e66391ca0",
+   "start_goal": "eeb9efd7466be5d646897938380bc5bbdc436917ede03b84daeb84bf51dfa80a",
+   "obstacles": "b94b043f00cede053ee1159ad213332cb8c2c3fdf738d18f3b33ae15fa17e711",
+   "patrollers": "64bca35758057399a0953e68be28c7ed7cf376d50542522d0243d4bcbf5816b8",
+   "roadmap_points": "f1a64803911289675c14cc7edbc027ba3a5fa52daf3bc418936644e78cb9bd9c",
+   "roadmap_adj": "fbb0524610a34be6d71af57f686b63b6bc686bb4cd8627e280bf35e10092f96d"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 18,
+   "world_sha256": "8f3d0237a10797b63cb66b2fd90e5010a395bbdf92f62e26aa680dda42bbccd9",
+   "start_goal": "102588515016cf1132e7f81b70b94e7202b70245d6c78bc58b32f29b259e79b6",
+   "obstacles": "3a35601fff7d3aebe6cb3beaf0cd158bb020dc5cec92381a7560351f9525b688",
+   "patrollers": "a883f2d4fbce810a03b5d0ee1043006c0afc416caecfae55da2e18827affbc4d",
+   "roadmap_points": "51bee64045996ed10f00113a8c9803d5fe9fa77b715f05c4328bb25f45085bcd",
+   "roadmap_adj": "4683cfc0e38be38bf89ff6efc9c3363a30e2afadebc84553c1344332e49bd631"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 19,
+   "world_sha256": "b6a61ddee984d99660af4b3130a3a7201b1f1f832eb1bdd630a43e9a46e3dc8c",
+   "start_goal": "90eb68cf17b7689318110a4dd1e91241aa1535662c40674e0b735e8f1a268de8",
+   "obstacles": "8f53de2cd120048a97d9baa1302972e1ea12cededbe2b48902dfcc3e3bcd3d9c",
+   "patrollers": "2a08d6f2fca8be76fcc4287960cb40abf95d3adb373acc02aceb6a8ca4dcec9a",
+   "roadmap_points": "aa67c794b917eb27df30422d45b49d43789bf7d115a4119851de7df10d41b4aa",
+   "roadmap_adj": "678aee5a7ef411532786b946e024d5c14e6e70b5e0f6d0e159da95998f9985c5"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 20,
+   "world_sha256": "db40a7e6c8dcaa0517d2d50ad9bdbae96d6a4fe0f10ce5258b24990ee56118f7",
+   "start_goal": "4b524e9a724776c50499a2cfdd66f1be85fb2dbf12948d61e76dea10d569c65b",
+   "obstacles": "0b76336247918abd924214571e54920ce527bc28212a7e01dd1aead67874be87",
+   "patrollers": "436029f563c6a8d7f92e27ff6baec45a3ab5fa127a88c12844cd8e1729d5d7d5",
+   "roadmap_points": "d327862c3f90c5b956aafe6e9911772452706ed0bacd14300fc8956683845062",
+   "roadmap_adj": "e47f40b2b39dc119f03e8794409750fad3adaa19328a5e4e1a0e724333c9b40f"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 21,
+   "world_sha256": "9ccc8eced7fc38c96c6672f638d4fe7291593a9d77445d3ac01158d5726e4ee1",
+   "start_goal": "84fb5459c2077c348c0696282f11ba10462bde9e272f37ac17d0d52138ddf3f8",
+   "obstacles": "42a830cbf753765f0f8d16bb341d79b8566cf3b2938ff0d37fd5ccce8fe89118",
+   "patrollers": "7a3857b7c52e1bd254452628817dc9760c033520730f23a1dd0c67b7409be8da",
+   "roadmap_points": "bc2589c09f1365268d1d172a46dbce4ba1ccd9c74bceea9f72b3461c67190e06",
+   "roadmap_adj": "6a40848dc85fe8b79ee57f744940d52e9c559cc11297f144a00a5a6833202de9"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 22,
+   "world_sha256": "51f51a682199f2fd3ff327408cc40b2d829f480c5d0ab11ef3e97e73c668045a",
+   "start_goal": "3db7697e3e5ba2175fe9012369b68cabbf7b42bffdadf1b3f308290e4b1e2864",
+   "obstacles": "67d25f3b471a62e99f2d9ef6befa72211ad5bb64afadf955e56b4da0b84861d7",
+   "patrollers": "ca1e336c156eeae6a4b66c81837f0c66a273c9af2faa34c53a667d93acbd90e8",
+   "roadmap_points": "d5c267d7d90e2cea5bf3aee91e49c86ac057bb36158dc479ec97eca6605b1b55",
+   "roadmap_adj": "46397f8b2fcba90a7e00eeb8a09cfd8e0ce08bd08f081450668a8cafff47fd6f"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 23,
+   "world_sha256": "1c3ad008771712eacf1933510f7d72699739f9825a00e7d2df60f6322662bb89",
+   "start_goal": "c778c4ecad03ac72e078bc9a6c690f6a27f5c1c58267432af9873266bb342cdc",
+   "obstacles": "90a24fe6ab5e33199577e2e822f65cfdf35109c4af724e71ea3fad998970a4e8",
+   "patrollers": "7255f621b972caa4a97a3696809030a1a46e27dab9c80aeece7048e29aaf0eea",
+   "roadmap_points": "c49635425cb6bb2b806ba7fb4365ecd9720d33488804d38e6f45dbe014a61433",
+   "roadmap_adj": "37c682fc1e24fdc56917e017ce6ba04cb96bcf1f90cd8765aea0143d0ca12cd6"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 24,
+   "world_sha256": "3b9c1a50957470a4b080eff1520583e73967ee21a99d405f52b7c39823fc9f66",
+   "start_goal": "4bb4a0ecb8f1c717697d6a0b6dcbfb666dfd9cea79d91fc38ca25ff000672baf",
+   "obstacles": "5e3a27d272b70c34aa32f45ad80308cff7e5449af863629b63470a65ce358de5",
+   "patrollers": "1c2cf9722c94d0eff7b6069ee5e39495506fd130fd47bf66093ce51dfe785fa7",
+   "roadmap_points": "3cfd036f9d90ce1eaecfded4ec37cc0f2682a9a0f9638f1bf8f045c1a0ef7464",
+   "roadmap_adj": "95bb31576bd56eb0ff7031be23a50ad0e30d6daacfdd82a27e363e618d42cc8f"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 25,
+   "world_sha256": "91b0c9ff627af6cda61cf397b2a54ba07e326543e9f53ca48df65d665e3a8968",
+   "start_goal": "f849856cdfc980a633a07c39c7d937cc23c93a1db3020c5daf89700c00d3e557",
+   "obstacles": "e2ab4cb2e6fbd537e7b28cb728357e3a3344125747276773499d557aeb55e9cf",
+   "patrollers": "285fe6079f627a2010a7d48c05b6a3c80724b66d131e88cdfe99424a893aaa89",
+   "roadmap_points": "2bbb9ae3ef24987c6c805ced57e68325ca16f5fc237526779310b0d701521538",
+   "roadmap_adj": "fdd92b7b15b9b7236dec2a5c811b83b719175ee88f33a62be2991ef6d35b3710"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 26,
+   "world_sha256": "b38b6064c99ede9a03faab9cbfa7f6f0a9c04536abe89da18bd0575d75b00bfc",
+   "start_goal": "882d659513740da20c5de63576d0ae2321147221e96631d502f73f35e806418b",
+   "obstacles": "030fc1ceab790fd691ff617767cfd855997bbefa2180cc91aedf7a1d7ac71f78",
+   "patrollers": "51670eabdf98867c5bb63c9ea19f9e517101e77bc77b48aea051d6a857081eea",
+   "roadmap_points": "c942172ff6c1e30042d13a2921a6c3baba07f7bb0ed870dcb4a1705e26ddd042",
+   "roadmap_adj": "dab00623f3c438d768b2464d7598390e302121539c321e7f66bf42955d15876d"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 27,
+   "world_sha256": "5b2d9fcef967222062c6e598621c7f23c42ae1d02127502d83a37a98c243e8b4",
+   "start_goal": "412dbdc65a0582611ea8935a8bd2e12d1598b45982d36a39b8641fb847a2373a",
+   "obstacles": "56f92260167054d0b210739dc72a589f6444c365032f8843b5f0d927b688c92d",
+   "patrollers": "bc4c0723a61d808e9c949bdb5abbdb6ee090ebd7272f20c037b0f5019835f585",
+   "roadmap_points": "beeb2c9a1a160393bc0fc316ac26a21f4e8fb8d286ad5cc4082e78acb9edcdb6",
+   "roadmap_adj": "08c42c18314b31e83dbbcf5ec65f59184f4372bcb946483643d43e258b7c9a63"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 28,
+   "world_sha256": "06be44193505a85d6dde70f52c33a17bf4eafebeb78a27db9f6cf78446b3da0a",
+   "start_goal": "3d1c535863461e4f202b3c1aee531cded2e67bd32dca540f768ec5cf13f14ed4",
+   "obstacles": "3bd247394e711fac6294f1ec77c55e31e84d82b5b18cb2788014b36a9a17f4b5",
+   "patrollers": "35c147958c3017933b1420b3cb762112edade10c13cee22068f5dfd7040ac0a5",
+   "roadmap_points": "b39ffce82f422695799212fe269b4551131391bce79a67f911bce60e86b80f9c",
+   "roadmap_adj": "cb2ffab0e64ba1d1402a213b42a1c74afaeb4621c1df43359f86e6a518908f0e"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 29,
+   "world_sha256": "89a1d61a2d1fa81bde252baed8de59aaf953aa2113f1463bd750d8eecf693130",
+   "start_goal": "3b66a8a3542e74da71dc566d838e29790cddf093fb62c6eca0f50bf37d247467",
+   "obstacles": "495911ca9e25773120e8e9579ffff805bbe3235f3dfa12e2f80fedb37d588975",
+   "patrollers": "94ee5a6986ff52b40a0e7dadaf5266a8f5d0cbb08f93fa5e8afc357ada2e8697",
+   "roadmap_points": "6bfd22a23609da3954279dd0ae6e57b26d4210bf8d180082c145d337047e10e7",
+   "roadmap_adj": "d2096f2b12a3a1742bdb6e242ea837c9ac66193e1d025bb765cf8ffb99cf8d0d"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 30,
+   "world_sha256": "a013148f30c307cc7da8c3d326bb3ba92ac0e841026ecd888082c75830418242",
+   "start_goal": "98222544cc34f4483d7af0f94cb0cfd457c191a2993c5b1b9e9ec869ebafbf63",
+   "obstacles": "fbc2d8442353ad4216e9d0f7f34190d69f58946af514a76ecb43edfcbb5cf4c7",
+   "patrollers": "4de78160aaaf2b9773f529d6909a4d168519d96c6bc73d88dce70062034ecfa3",
+   "roadmap_points": "714c64c46dd3f39bf9149b7ee9623b7f619f075bac7e9b1e2f33aae7bb0bed43",
+   "roadmap_adj": "a272d9c845a2660ad471cea521f01929719dcb3ca1f2ac00ddb533b01293efda"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 31,
+   "world_sha256": "f44434fc0f5a55ed317901939a4de5e86141474bc3078a6f99a57cf7df85af01",
+   "start_goal": "47c67cce4c08ff9c76fc48ebf6f83b949872207f2f76a15a99a9d33752f4e35f",
+   "obstacles": "1f8a3a0f44926366040d8eb1be3b5a4b4851495c8d7d8d5db219d12c0120285e",
+   "patrollers": "4fce58bb58965e583d9ef326901a2b5d2b65bbd0db3b5217d6e90758afaff376",
+   "roadmap_points": "0a098f274cff79f4505cc0ace267e1a3a7d8809c9a0b6aa3bc6774e2e873b390",
+   "roadmap_adj": "26a04872b1ebbc7e0fcebb440d11562baa01c6bd810b0ec89e116ff3746eba7d"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 32,
+   "world_sha256": "f6f5fead997dbc9c71fbd698dd00350779858a1869f7d32bc98afccbdb39099e",
+   "start_goal": "338e6bc2b7486690d38ad10b55a6b56cdda5b42c610b28873fb602fc77dc0d46",
+   "obstacles": "60ba9782cced551780671eeb3d02d721dbff96abf7c1913f58ad42e6c30e22f3",
+   "patrollers": "35dbfbc97a6211ea8f3c9623c48909569f6cf09ff89502e19d6c46acddad46a8",
+   "roadmap_points": "d2b75452aaaeb03b129070dfd70bc07647121c669034992107e4c632684e1645",
+   "roadmap_adj": "32993831ae48186884322ef03a4155dc23e39bf4bd0ac192ae721bcbc3f1b2cd"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 33,
+   "world_sha256": "16f52bc9bc65bcbcb125a025660b0939dd362b81b24f4ac53220a58ad8744803",
+   "start_goal": "d1946fcc067f389ebac02a296a2e40fcaa800027a1a094797dd7d8dbfb14f9a7",
+   "obstacles": "74367a1eb8ed4dab0afb7fd5f813606f2abbdea36b3429b0959a0de8c9cc58a2",
+   "patrollers": "48e9b6213d2b8ae2ab5f29570e26f63fc19e3bbc36964c31894ba848d8822fcf",
+   "roadmap_points": "d8b555769557d2f6f11bb025f28a2ebcdd71da1b12a4089448e270a8dd90eb8e",
+   "roadmap_adj": "8be800608b8e36aa85c972c099a0e1e7fdb76048bf33a79faacbfaafbb3af572"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 34,
+   "world_sha256": "6839912bd3400dc7b8088516ebaec22879ebbfe1461e462d19f7e062c7a045d3",
+   "start_goal": "f713df2b09f3d6cb00b514b5f976871b292a1d8858b4fdc587034c9ecc4ba037",
+   "obstacles": "325e470ed20b55fdbf214b12895bb89752418f3ccd379597a5b648ef3e6a8ef3",
+   "patrollers": "2da5f1e698dd4b2bec06cf190d26831cac5ff8b3b333442d2843b6f839a45205",
+   "roadmap_points": "f354ff499efbb797f41a1c9850d0a2bc2936bb348bc2b323dcb1b4e39ab3fdf5",
+   "roadmap_adj": "da0da86c87bab314e150465412af5b079cc679e7a3fab23ece18f4bf434043ab"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 35,
+   "world_sha256": "2f172330661f64abef8134d92a80a6dd58d7c658559dbc0d9e7b27c4f90b61a5",
+   "start_goal": "a75b7d41265c65e29667664bf5365c4cd29e4241e1f22175245ae35276ca2d88",
+   "obstacles": "62140adebd47f1fa5e47a9dce680eb38ee2facd782b1a157a910408ea5ccd622",
+   "patrollers": "67c86c946f32e416cfa00ab562df04c779c941fc858ecc1dad1faada19a2fc15",
+   "roadmap_points": "d3fc8fb12df4cc8cea0ea9a7bb3ab743ee10ece06f1ed5d89c9fd04c4b261517",
+   "roadmap_adj": "cc48bba2f0f99c8fa74c6e8fa2046c04d51faed22814e57d5b42d9fcd852c95d"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 36,
+   "world_sha256": "00f6d5c949d358b20b26cf877b9b1bb8a400037739e8224de04204bc9308b048",
+   "start_goal": "621cda3b52d5b308f7cdfb8eafb84d0338507c47ccbd2bfcc924116e26856c3e",
+   "obstacles": "20826fdae8fd593ebb24670fb23c634fc79206c4041410782532990bc29b6326",
+   "patrollers": "64fcac95c2155590c3e04efcd978aa13c309b2a7ec5ac8ed5da63df90736fa4d",
+   "roadmap_points": "77da5d7a56d324213f6f2847776116ef1338430456d09aca69c7c00cb9db3626",
+   "roadmap_adj": "bcb15c2d828c656f24769a28ee09e4f31ebf14c35efea5ed1b97ab56536d9c0a"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 37,
+   "world_sha256": "0372ecfcd361788feb6d12e3d0949c7a29b3905f274e60f96f1dc4e8fc8c5d76",
+   "start_goal": "98b0e8034c5d5d12a7771789b689c06c4e9f9a5f2b4169c3fc556a5a34f0376b",
+   "obstacles": "3ef9f64e00431927f9b84947e1fb3cd95612329c61a617b52dd36dbc9e0ef538",
+   "patrollers": "ac72fa905d6dcfe5ad524c19ce6e932d57f579dbf5ad3e70860c6c12fdc6bce9",
+   "roadmap_points": "31d9089edce5d1c4d3968c77f00b2276bcddffeba1bb2d8428721d471a4add2f",
+   "roadmap_adj": "47ea4428493d2079d1030d2d65b2d32aac0e969d6f0b5f1b5fb08a3284c00941"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 38,
+   "world_sha256": "3d809e98d6c900d3eca8315e382a34db51ef57964af9dec3c2fdcdf98e83873f",
+   "start_goal": "ed1521f9c41e4d9b05c3cfd8ae9d73a9dae94bb5181b58d613e7ba495bd062e9",
+   "obstacles": "65d989cf7d68a885a15a6a292191d1f2f7bebe5c145c7827f1f267555845fe86",
+   "patrollers": "442a012718feb992bae42acc027c1da5365cdacc7dd7fab0da362c9ef9fc2c37",
+   "roadmap_points": "fef1662b54fa576d89cadda89c767a0f36ff923b43262329ca0cea99342fb341",
+   "roadmap_adj": "41a34ff92c6ea17eb9655575151e1048674b8c4e9a1f2ba8f0847e8a58a0967b"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 39,
+   "world_sha256": "a9965afb21dc8c8c551b46ffada40c95b51ab59829b8ef1b06cc6302b02d2ddd",
+   "start_goal": "77bf316f623c225bfe24331ab31936f8384cceda70e44a8139ed4d679053853c",
+   "obstacles": "9892470dfed98a82f86bc0e47bf7feccab1bf973b9fd895ae1e09fdc5f0eb575",
+   "patrollers": "9d970d79336bf4a225a4ec409d0b679c8fb8d0b1507663200d3f011bf9d80bc9",
+   "roadmap_points": "08d3ff7e9a10322df391801791cdfcfc6e0b60141940f463bac98b769db0ea5f",
+   "roadmap_adj": "c1dcf5f9e7dc5220f7c614746f251f8c41313b986c8655e655961195a8eba14a"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 40,
+   "world_sha256": "68deb3a7126d357cf0273bb85ae469649951520c5432194d22b09fd1d4f7028c",
+   "start_goal": "e8aabcf9e44d9d28326de8eeb921a0d82d6486f68cd5d8295e5b26ed115212f2",
+   "obstacles": "b2270fa3ba4791d173c8d2a06a254a7ab2523415dd5c390f6b794c4b48497b24",
+   "patrollers": "1de810f1bf05b02731dfc84279d823b9ff4c812af1d51c7152637e18f1c58088",
+   "roadmap_points": "473d3aee4b16e2edbd707e4dd7a5fc34bbf29b49975c77468dc14728c0acf274",
+   "roadmap_adj": "4540d84c36b12f78b37390a2a674d85b03fe397b8996379332428e50858e7a9f"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 41,
+   "world_sha256": "348df53777465b4ede7119c696ec3f1bb82d0528ecb835f19e08f5adb2493f31",
+   "start_goal": "ea288b451895c67704fd513c99662c9c2d16d022247a38134f7ddc085753c383",
+   "obstacles": "83d2049e3fab07d1e4ed02e7c460c86a9e36a7638715d782f8d60f55812df2e7",
+   "patrollers": "b9fd3958cdf528ad7ec2dca16e545bb5b04e1cd962d8870cd106f424b4cb064f",
+   "roadmap_points": "8931bfbbf0f27a9ffc2f4c03fd60ffdb110722d364b4cb27db70bb060ca45b4f",
+   "roadmap_adj": "ac6ced9e7532887ed3641d2c3e8d0a9028d8c825d471e7aaa8f55e99a437ad4c"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 42,
+   "world_sha256": "7de4b69b2f24264aac8b5fcb406fd18de4f85e6754fb17b000e74bd635b5fd7a",
+   "start_goal": "8e8c60617ba0712ff549d5bce294b8219699424ed2a3ebee333ba10704307cff",
+   "obstacles": "89d1a4db58f7405c506192647ef28c65efa72fad801146c5224a347ea43b3178",
+   "patrollers": "cc0a19127dda8fb2e1310f0cb64b3d345c0217820020768048ae63729cb7e904",
+   "roadmap_points": "c7d5d6b8527bd765907019aaf8ff65a5e2e254d31aa87c07bef9dbda3567820f",
+   "roadmap_adj": "235dde41aa07d97960d70b354ba1a9a0405ad5102fcc6f7d748d5c799bbc3191"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 43,
+   "world_sha256": "8d76d53228327952c102fe3eea93d74907cb146e6068282eee473e07ef6f22b8",
+   "start_goal": "e5bbd0bb593655f895987bd480543b3aa1718aafc6b26f80d7021c9fb6aeece7",
+   "obstacles": "1a339049de3d7504b68f610eeffbdc8a245b78921b9f9f191a345975d51c0267",
+   "patrollers": "158dc39eea42794b1ae8f2f2523e786c3828a2ab263e5c32d09f5ac7dd95f304",
+   "roadmap_points": "1c926c2790bd297b7f17028348982ac2ae6e59ec228ae5aff02f945b6b12380d",
+   "roadmap_adj": "7a2119cf2b634abc9e4ffdb9c77828a1f6a81b9620a8250904a9a442b7f2ec34"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 44,
+   "world_sha256": "7a78d54c6123dff5d71858eb68e48daf8b39fe55d9db758e6949172342a5d393",
+   "start_goal": "3d19437eecafb44eb751cc49acb088f6a26841e500b7d9ad927b712e372ed5af",
+   "obstacles": "1807c43b829eb63cc8084d0784b561ede395b437c32f64a99fcab9667f488202",
+   "patrollers": "00a0e3db11f1db3c0d956ebc57f35a3e57c0e9fba3b7517aec2a89fde324b505",
+   "roadmap_points": "8d54de99f9facfc5083e1f9060addb6ddc5a0647a70cb9445a528f0c18d4fcda",
+   "roadmap_adj": "54ca2a9802f09c3ea0ef1487d41996fdcd0971b6349737d37d9fb47fc8c7d472"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 45,
+   "world_sha256": "dcdc202dfd8424c6111cb853b925da8f6f0a0725ffbad6b4a8cde5806c22127e",
+   "start_goal": "6d2798127eba82b674edc41ce7b4108555fffbb6c60c6d431a30b6acf6fda34d",
+   "obstacles": "0bdc26108c7cef7aed75bd327dfac52ca3b024a6c7a03fe9e04411b65fb8777c",
+   "patrollers": "033a4d34c4973304e914b659a10248cf10bdad090cae749e2c350a5841697c3c",
+   "roadmap_points": "8580539889ac27e798b597aa66f9f2f0765095f30801d32b6b6e0137c1e803d3",
+   "roadmap_adj": "7910064b7bad5220b81ae4a274d9654b0b0fb7c2bd084b377e890f654450fbc3"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 46,
+   "world_sha256": "6de1dd2cb0a420fbea7e9a7fb92ab6540b400bd04938b29a09ffd35dff1e2909",
+   "start_goal": "1bb734b624ace88244509f2177bad7f5737bba4deb3195d065e576748bb08a0f",
+   "obstacles": "2a5da9df46c95b31584be9552df6fdf29a22915f8be1e99f223b51e0b1e65692",
+   "patrollers": "020f21d16cb52abf5f0720992917c43e6783a96ed29bc4a6c3519964d83fe3c8",
+   "roadmap_points": "e0a8e847f5e5381ae00434018a14fbc7fae0751bb1e757be8442dae71022acde",
+   "roadmap_adj": "d7fd36c0e582a984af837eccebc028ea96e4ac8911559b141ed252461f73f28b"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 47,
+   "world_sha256": "e156a4099e7ecf0ffb5d08f2952a0479e6ac827bbe52459fafe20c638e1b29af",
+   "start_goal": "6947c26f41e6deed370273461adf2d09bbe62b1aafcd692a5f09e86fa48f61b9",
+   "obstacles": "a050c6f85d4795680b0ae0e1091884977b8359fa9edf192225b6f6f6adbab725",
+   "patrollers": "b4d112ca6d599ea75a02625a8b208e5dba66b7f52319f41f09db359b7c765715",
+   "roadmap_points": "4febe804432526ff51179b760d016a4b082d7b93133aa19e59fbedd4f78cd250",
+   "roadmap_adj": "476cd6058e4824ecec36862f8721725ec2d2c80099248c75893469609c35e816"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 48,
+   "world_sha256": "3dbb7ad48921836977b726cadc3f7242b6e31ba77169e4167b35b0409f0cd197",
+   "start_goal": "73f021607097805049814d5bd6139c00e45fd7f35eab03c397dc0b1f806ee89c",
+   "obstacles": "e32884bd280f53e3174ca8354e061bd01034a1e4ad5c25e1c37e0e96d49ce7e6",
+   "patrollers": "2ca1ea557baeb9ee696eb0244042c9af434b3bafbe1e56699df8de8ef6b5e7ce",
+   "roadmap_points": "e23d8721d3e7e4fb9f642ac3e9cfe6901b07bd443680a53a8c920024a63c10e1",
+   "roadmap_adj": "7fd871fd1ed65f9cb591b0f9665ea4a39e19cdc4650f04aef51dd7a8e9ef9ec6"
+  },
+  {
+   "suite": "C_dyn_spiral",
+   "world_index": 49,
+   "world_sha256": "de99b14f867a4b636078a06570c92c198fd0271acb492ea81be4319184b9eb19",
+   "start_goal": "b4f90d1c7a8a710f2a4bd7da5a69ec4ad0e81b77cf29e29cec681a238f229156",
+   "obstacles": "17d49536526e8d8c4231f27baa0631fdd3abba8ee3c1621dce3c935456607613",
+   "patrollers": "748271d4994750ef1a0d0ba68511adaf6f0ce03f33518fd35a866ee64be721ce",
+   "roadmap_points": "cbe2cab14db210440eb494d77d457528206703bf300b508280a78230aa2d7814",
+   "roadmap_adj": "aa919a713c0436c0f18621b20827728372af5ebf429ce10d031326e55b5235f8"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 0,
+   "world_sha256": "407cb40ad2f369cf71718287aeb1f7f178535562b18263ec22e44ec9348cf430",
+   "start_goal": "4f3966ba435da2cae27ec436cb199bcb422e26aa36e1f68dbd324ff6e0593877",
+   "obstacles": "cf7e9a2a52b328a81d47f6a704274a1426d8f6cef996ecfc3660406345734c57",
+   "patrollers": "cc16a20ef272e123fd1f4d8fdb7a095ff3c19c2d468ee996b223ac70c9e6eef4",
+   "roadmap_points": "d560bae1bca4db9126a3434ce88da645ce009e1cff1aaee93b8955f00290b895",
+   "roadmap_adj": "9a8a26881e3264f3cda6d00fef2ba6ca7ec53de80bb412ccf831124ea0c207a4"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 1,
+   "world_sha256": "4f5bdf9b5bc150e47d79c14ecd573ff76522e42ea31732f0807fddb8f1154fda",
+   "start_goal": "1b67a69c89a4a3588c661305c81ce3b812423c3aeff5fb89b27415016878aeea",
+   "obstacles": "e98948bd20c506d370548c5a20909663cca7ecb4ffb3c435ecda483af59e04ba",
+   "patrollers": "2b0ea496216aa276e5cb080441ee8451c47c329670df4781cda0003d0355c40a",
+   "roadmap_points": "57d095ea75f978a0f7f18d01eb5d6f258429bafbfa1c3c5722eb654d0a225290",
+   "roadmap_adj": "97a918ebaa1aa93229b9e79a3519122bd76630b3d3ad7232a599997378efab7a"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 2,
+   "world_sha256": "134fecf43ce85cad88adc61eb548832f87770940fb3ca8de7df3d54d7ce62ba0",
+   "start_goal": "7914b6afe9df37d5c789fa7b106ac9de8bcad7cb65155160de66e4cd32aed690",
+   "obstacles": "a3430f2d896ac9833f8f6ba8805788fb21600298f07296175ba7268aa774cb39",
+   "patrollers": "c59c1c4eaf1a7b207b3318f46e482d32de6b6b97ca088c5d13a15f82f0524e8c",
+   "roadmap_points": "6a6400542c1763cab5e1dd2794a74a97e4d198523607fbfc329ce41a2005c840",
+   "roadmap_adj": "6be3daebbe02004ce0f3ca599acfbc8239ad70be34026d91fb92602f74005847"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 3,
+   "world_sha256": "c90fbf1b86b669a2937a17c7b8eb15a82cdbbb4ed22ae4606d183fa5420b6a67",
+   "start_goal": "ca9d7c3b6cd85e619f45297f7ad53db5667465fc0f5c607d7acafe3fe7c62282",
+   "obstacles": "af31a42ae234224a49d7a89a6f8ad0a65b4c0db4712d60694b95feeb0c8e73d7",
+   "patrollers": "70b1c3171a6eee0da9ec50e2b6b292d6fdee16b743f42863c5f985d0a8c82782",
+   "roadmap_points": "601888312484e888ac449ddf4a09ca13f818bb0b19727875234004f5e0cf1d10",
+   "roadmap_adj": "66df812108e4afd2b0c55ed3522d0efc32bba7ec30c0ae661661a5f1d55ad850"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 4,
+   "world_sha256": "60fc2308906e5c87ef9213d3fab2a1f9c868696f616479ec35191a1ffd43de20",
+   "start_goal": "eb2bec6ff40e34e3565340888236877a6f5702809d4a6facce00f565bda59a28",
+   "obstacles": "6fdd989555cfb0b45ce1fcdbcbefa91929b812b7de80510455604a3a42a29577",
+   "patrollers": "a05007b42b34fae08bcb4d473835d8e4183ff632469c70f5017967ae984f3bb6",
+   "roadmap_points": "3fbe26ecf9b4012e460263490c5bcc18626206b9f05f442a1c73674a19ae615e",
+   "roadmap_adj": "1133f9d998f02497f87847db07b9ab2a63e00ee8da31b41cded175ed7c8d247d"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 5,
+   "world_sha256": "1ef915b7004e2317ce5ee9c51f7673b44dcbeed2d2bb436611c5500d11b6dfa4",
+   "start_goal": "05629f25cd3e609dafe054d4aa0536c4bc89849fe1377b152c2cb6a0d7e566a6",
+   "obstacles": "8937d271d96457f2ba1e798ecd974e96ec4d4701872395550d98d4b8f12bd2b2",
+   "patrollers": "c8149183d6228ce3b0b1fa4b30bcd0950b94e37df99153cb4452ecfb7c110633",
+   "roadmap_points": "af3b7afe78c22c3d4489fedfcc5b664dc53463cbb7c4cce8d94e544ed53e7bce",
+   "roadmap_adj": "053df9945c0fe0fd621df4c4f4d25e0c1fd376f51b60990f68b47ec86a1b696c"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 6,
+   "world_sha256": "9299e4eeaef79516a4d6d9a7cf736bf0ef07b027f084869bfa0fd4aee17c530b",
+   "start_goal": "2f7c997d0fa7066667866e0da7c0c718f5f55f1bafdd5d22cb37f3fde464c2d5",
+   "obstacles": "0150b5d814df37e515bbf6e4f6b2fbd874e40c85d5bd6541f9d65d0a85538e41",
+   "patrollers": "6ab32701dddad1c9a4d917a375c2b3d479ecaaa78cb45c3e2a08099e5965b52f",
+   "roadmap_points": "08fda21042a4d92df170d23fbb84d57ff80e0ee43a9146554a0c80dca7929455",
+   "roadmap_adj": "913a26417b4601a070b1308fa896ddac27a08a32608f6f02d947e07e700a590a"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 7,
+   "world_sha256": "3d34f8031ad31eb0c340e7a2d9d870a92011b426e62337f4c77eee831beb389a",
+   "start_goal": "ffc00c174a6b7c83bbe62565c467e81be2c367e617d32eba108f66870cb96541",
+   "obstacles": "114d039ce42b9bf3373c3e5aeed5683e0d2ec86b1e590674df56be7633076924",
+   "patrollers": "83c183e53627f551ad9b2925277fd99e0ec92d7c6dd0f51c441056d1e7ad889b",
+   "roadmap_points": "d661f43dc53d69729bc6934a2ff2f8004e35cdae6cf01f8f08c08b6fdfb6891f",
+   "roadmap_adj": "62b491195cedb76ad602aa773240e0768e642aeec1881dd5f6a6534a60067c4c"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 8,
+   "world_sha256": "0464065b0922281cc8e94f50151f77084f9e6508d18fca84342382bc401a3148",
+   "start_goal": "d955f243a351901c657c8913f796651fcea0fc82722db7f3e54c293787483b91",
+   "obstacles": "e7f969d92c352cbcd053d1d6028444c709d5cc05ddcde250756d570bff6205ce",
+   "patrollers": "0ab4792e14d2dff95415b0eb4ce626c331418926176ff116c1acca044b9dc7a9",
+   "roadmap_points": "4f5e1e3963388fcb0c24d6183b17b2217d56b07a7d28e4f9f3706364f0866480",
+   "roadmap_adj": "fd586077ca47011e1eb339637f8c5d7a176cb3accff13d632912475ff9777d09"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 9,
+   "world_sha256": "ea0ba93fb9ee702abf5d8e0913ac642fe41e5d1334baacc61fddf57c916d7ee5",
+   "start_goal": "ac736f79f3f0db34c6097765873301354df9f936ac81a9d4fda8b16e20995712",
+   "obstacles": "1ac79aa2d159e7592e604b287b38c92c1e104c878bbe20cedd154eee3b2fd201",
+   "patrollers": "fd3738a7634916eabc1b2210ab365fcea8ff1baf4638fae80526b579276b02cf",
+   "roadmap_points": "dad535a4c3c43f12ea292c0545b0e8e8c12e281c7ffd08d911a81ca454b4557d",
+   "roadmap_adj": "c5581f7ce37a478f2af3f741850a4bed37dc1363f4b7c4911fe901a712fa9d83"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 10,
+   "world_sha256": "88e48cb4a23621628b4d5f14dac22542d252bdc50930e53fbc3d2a58d49ece21",
+   "start_goal": "0423a2ddce85d38cc69145c93d29a3dd7eab77db9881a375fbd4ef2100e18e69",
+   "obstacles": "8ad7b320095dbcf53f0f47795d4cdd728972efe3a897bebcc39c0d8b3a69cd66",
+   "patrollers": "c6eb963ca9046ed537eb9e0473c61cc1f883d93e711c87090b5297140a46e6c7",
+   "roadmap_points": "c603ee6931e87fdae5d029dcfdf7571772fd13126aab2d8370bc7fa6c7911430",
+   "roadmap_adj": "957e710b101ac75a1f7f43559c6670a07163b560fc79aad49619cbe85f2ebf72"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 11,
+   "world_sha256": "627d741ce28e08ae6038d95e78fe40fc678b56f44433a6aab71e522d7a434322",
+   "start_goal": "67ace77ad93d47c53899d353ec86e1f5e8a62fe8c3437e53e5f9a5d1aac5db6e",
+   "obstacles": "3f6fef921633f1b2380136cb2ddc5e92d9eab1649d4e33635e11c25bbbfe0460",
+   "patrollers": "664c57f23d8e732b58adbba52bd8ac634abe39b6495e6f17e92c30569a2803ea",
+   "roadmap_points": "5926e7fb3734e1a2b709028ac6a271763d97755ad551301e93b235d8e7860d6a",
+   "roadmap_adj": "ccd7f1af69600bdd5bbf12801a748bbcd0ee8a412b654536b0ec52d23da02e63"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 12,
+   "world_sha256": "c9a901b5831b01591243fce1facd81ddae8354980bf6b7e7f437df92abc466b5",
+   "start_goal": "16bfe1807abbb47cba96e99cc5bc013b4cb43b0b9d7d845c8c2da39ac85efbc7",
+   "obstacles": "cdef160c93f001a4a173406c163c3f7621a4e32b3e16416229503b2a0d38fc2f",
+   "patrollers": "935e212cd09555a2dcd84eccc36297a8e67425b7be943c8825c8879bedb609f7",
+   "roadmap_points": "8eb3dda18b324a38639aa83e1f034e0ce9b4938760fdaeab620da88f93a06920",
+   "roadmap_adj": "636a42157496ece36ecaa2b3ca660e1de8d71d69f94ba64ee49e60a04f957410"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 13,
+   "world_sha256": "1a5425b02f5c6b7f0d9c6b7d132996d656b0c87bc384219bf8a20290eb51c91a",
+   "start_goal": "750c7eab511c329cb8faf14bbdd5b23a93a93577ff77f260054f7c7a91a09f02",
+   "obstacles": "4a4cb77b3433d20d403f46b5e9cbe2ef6129f69188e9c13add8aded39fa7795e",
+   "patrollers": "7b74a8b1ae35e2ec34c2c80c3b4d159315da72862d12475db0e66a0ba099d13a",
+   "roadmap_points": "cafecae4d517d09d2ebbd8fff5cb589dc46532bb636ed3d7f05063a494baa327",
+   "roadmap_adj": "f399a147f2f71b8888db9a0bf6fe5cf8b5e570fb218b9b60804a4d965320e528"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 14,
+   "world_sha256": "db8602c722e863327b2ff9fce335a03842579f15f1823ac4111fe11986a417e2",
+   "start_goal": "0963a706827f2e504550eb4df89143f5bb0e6d82f12b5026aba515032b94e783",
+   "obstacles": "bdc214f03b241d26b395cbb49d9ca76464ae3a9469978961503771c1bf6a41ad",
+   "patrollers": "53179788d1d72f8d80519f975114af2d7d4f9fd2dcf4907739c8ff54f5e01d31",
+   "roadmap_points": "cc6dc70da0458888519a55082e5b343ebdf9a74b598107b9aa3a4222e92c3b9a",
+   "roadmap_adj": "fb9f207920120508dff5686208f06491d1fa5d1b916868e7e6a330d7be494583"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 15,
+   "world_sha256": "5d718f551f9668843bfbe266bbd29bd30f83007791e5f491f6fe96ca40bd52d0",
+   "start_goal": "95a824830fa8b64a6c1418e0b68589dcbc1fa728a0a8dce08f9f5e3b8fc89fe3",
+   "obstacles": "f40242ed183fb22978bda207ad14ca395e298a4c95e8d9b0369b3306b5b031ba",
+   "patrollers": "48bd1f95b8df642782535e30b3a3c53b085d5a3118c668e37555aca2f9869588",
+   "roadmap_points": "ad33b4653a384ba09db4c5bc887248a8c7a8451812539d8396e3de7a587157a9",
+   "roadmap_adj": "7f1445857ba3f1e31210a0b59eab01dde03361be5c903fd3c6af7d2ab1e06844"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 16,
+   "world_sha256": "ec963c5f3addaaaa828ec12f778e30a8f89a0ef15edb5acdc24a971ee9223ea6",
+   "start_goal": "68e75c51377faa1b1d9a15eae038b396c3181cb4a175e61fd76a88f670e687c8",
+   "obstacles": "f70ee0aa05cce0d748688cc029bd2697497f87d6b88bc49c45720695017f231a",
+   "patrollers": "f053aaeca731632d3174cbb8720e02b6f29282e997e0cd526a57f185538447cb",
+   "roadmap_points": "3cb400e6a5687443850b4b3d3cd3394a5926a101309f69fb3e7fe41edd20d584",
+   "roadmap_adj": "3db17188370812c4dc7d6a6fbf14684bbae0fad684c3ef9cb93bd95e81b29c8b"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 17,
+   "world_sha256": "0575466f79df567c1df7e7327aa17b774f5ba260e9c2c84bd38f1208559ffe87",
+   "start_goal": "11bb554bf02bdb56bf080550a701cadfba8fee80bb20d2329fb4130cecd96edf",
+   "obstacles": "a2a79ac0bbff43dd019ea32d6cb5994119e22a899c10dc31d3ecf0c543b7ae78",
+   "patrollers": "bb5f49123a07c9536dff15284b74a3bec1edd386e8684eed690e5e88437fa104",
+   "roadmap_points": "6b1dbb3bf9854736abe35cb9e4d31587dcee7541709a80fcccba60269de7815a",
+   "roadmap_adj": "0b5d674a6f2f3e8f4d0aa48afbcb78f711bc73570b0e4e9316eb7789397fbef5"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 18,
+   "world_sha256": "018a82f3277ca61df2436917ae718a46089dd07f161817ef6b683a2e95a95130",
+   "start_goal": "f11166d8acf9a70f64fcbb6f306dbbdb3cf9239c2f4bcc4cb893bc65ce91912f",
+   "obstacles": "87faae6180b9640eb91d6293d4919452ed8173a4c165a48cfe8cc77806f9c478",
+   "patrollers": "0bba48c7f34c9f4e60c1004a30a388a1fa71745780430e6995bb673fca6ec707",
+   "roadmap_points": "8a14909f19e0ec7f697fe4707d7b150d23b23f2fb14dce2a6f2af283d1a914cd",
+   "roadmap_adj": "1ec8f1c65c585b151160c529203d1a86d7b76b31fd5be13ee8e10ea518e8b461"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 19,
+   "world_sha256": "1836f329d74e23a0302b83ee1947119074f6f032402828513b3b3d188bd75f5e",
+   "start_goal": "e80a5172c306c6d649e7580dfbd0f39d857e5eaf59ae9545cd6fec7c9f77e004",
+   "obstacles": "f12ef74b98a9d1dff6c2485f4431a3e20dde305fec7b6d9543f4bc83c98122ac",
+   "patrollers": "1df503f3ac54d0148a76efb5c12aaf80024d7794328abd3c4b06c101e16da363",
+   "roadmap_points": "760166a29a3b9a3708ec0619f74c9d3fea4225c7174603dbc0262e600079c65a",
+   "roadmap_adj": "83c7218b394571df79f929d81000da64279fc0fda7a6aaa57372404b8c677821"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 20,
+   "world_sha256": "40ab544825347f29b651da3fb33580626c1f538f5c18c55a1bb89dc8ed4911d4",
+   "start_goal": "b7586cf7fd6fab50211510002f7fc2d2cc79669521452a8596f0135bf32d9f3d",
+   "obstacles": "dd41b4941d6f463a7c3eb9af3ca9f2c839dd247d6e54b481e5efc28222a9a57e",
+   "patrollers": "956ad44b60b3a133452a0ea2bf2405c48ca5b9d0de28db3b7daad62b37401fc8",
+   "roadmap_points": "1e7f24dccea5215399b3ba3444fbab9825c26e696f728d94bfe342341559b281",
+   "roadmap_adj": "f17bf430579a7d820c8428c7aa76757a2a6be2dca1ce3e19b1bd2f09e66132c1"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 21,
+   "world_sha256": "f5b5a34926febd322b8379b9ddb17fac6321071f9ae3c7acc905ab6c6d25ea60",
+   "start_goal": "2d19ac9dc59153fff82fe7d564214e8d0803f6ca1a19fbd614074ea6dbd56fbb",
+   "obstacles": "efba1d1f6a0480d8d0aee2ea614ba91a81fb431c2ea59ecac14c92b23fab69c3",
+   "patrollers": "dd486f634b6e26a37a629a2548ddcfad2bd2eda3b4fdd1744a09c7b24fb87414",
+   "roadmap_points": "be544bb6ecd7df815e11384d05877f98443eb98f3ffa0cee5621ba2f1844ac94",
+   "roadmap_adj": "7a92c1b96338eff294f2c0eac4feec73b8b2711b5297979036a6c75dc0064909"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 22,
+   "world_sha256": "10b1b73f2c0f1594114cb623b66e9f7cbec96fe38b04b2013900582bc63b3332",
+   "start_goal": "f52440a3de34654f5de3d175fb98194d4d6d85e5831999fe29a9093eccde701c",
+   "obstacles": "face449187d4bc78c5376ea65b4c1b4496172582c053a5b10e2acadd41a797df",
+   "patrollers": "caa571413eddb02eab4c436dcf65ecdd7ed658d1c0f0a56e83a93cb2d22b799a",
+   "roadmap_points": "55070704a5a339660197149aa40cc8e16d3f8f09275b92719035490de9474f5a",
+   "roadmap_adj": "822eeefb51f60c86fa3c4310ceabdccab36416a253dc147073f4a3555862fdbb"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 23,
+   "world_sha256": "02ba7fbf1834c00fe52c64b899bd86f51a4d74ce8c5e4696a3a8c1bc6101ce4f",
+   "start_goal": "6c04b04f40b56ab908d88f4817d83d5ecb92f6f0c6323fdd160e0c0930d3273a",
+   "obstacles": "1da54b075f539471469f16c9b11b6b98754f2d49fb50d4ee24bfa746dca0faee",
+   "patrollers": "4709a62390bc1909cfe47694fd87f2278dbcd232e4d0c76ea9b3753a4882905b",
+   "roadmap_points": "9d361b9fbb484570cf439a0d0fd0b7474d31548d01e6163f2fbc22ba6620b796",
+   "roadmap_adj": "c85c2d9801481544df021c613c9ff50bfa3647e5ffdbd5926386c45b45372d9a"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 24,
+   "world_sha256": "88db37698c18bdc3e984cd2493ed985e42e07d83cea70c0b7a727ff192d71cd7",
+   "start_goal": "ded2a87d28da7f4729018a79cb5004cea1b33488013df62afd37371647e9ad4d",
+   "obstacles": "ff52951c321c31f0521381f0993bf110972b1680a3c243179e4aa8395db0cc6e",
+   "patrollers": "102ee587acf62b02351e165554521b3028e7bd9a1686a7b9202d8a6ebbd9d7b4",
+   "roadmap_points": "32e796efe984c31c3dfb53ec494fcccdb83e6150ccc4c8994948a2a5bd004a87",
+   "roadmap_adj": "b961bd570ab1a9ee15a39f805ee60703b3d1492b0015cf3c77cc1f411ad90086"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 25,
+   "world_sha256": "2730abb71b32c8a064c1d4c1f520bf4dc02a0cff7f085824c13ed038e2446f9b",
+   "start_goal": "2ab79f42fb701a1c55ee0baa2a90315a0eb81ec34fb23290fbe6ebec995bd7c7",
+   "obstacles": "887ed998995024314c7beb439be9a6568693653f1fc04b118134117d3b34a3ac",
+   "patrollers": "caeda0c491e3bb3d9658cdd05a4905de2b4e052932df13829eaa17bb3b749d24",
+   "roadmap_points": "27f6a4c2217affa4b2b49f1895c784ee4779b33de0e9bd5197ae5dadbf05b7f1",
+   "roadmap_adj": "2f65d5356520728ac8014f63b3058c68f0c2a6fea873c8a5805eac30b371828f"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 26,
+   "world_sha256": "5015d6b25399a82fa5aa1d7717c53e799fe306e708699ddb349218cad9475287",
+   "start_goal": "1c52a863556a3c9609f9434fa932b62b808f6d2236b553463fa62b0a244e5c60",
+   "obstacles": "934927239568ecc53ae1703604eb2e164b8623657646e954e335120aefffc93c",
+   "patrollers": "8fe2710381da942ad1575a0e5113b45422a0a08398c33ab021eb158b5b7e43aa",
+   "roadmap_points": "a0103d5a7d50851bbdd6b45da139015f5fef8be7059388d0b3da43a5ec878ec9",
+   "roadmap_adj": "0d33515fa4eddc0058b0918968817d66dac7ebe39650223ec770490bb33977ee"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 27,
+   "world_sha256": "46b81fac0a85a5a255aacc35c9616ee0e1133bfb1ade3d0a1e35e8b953f3c971",
+   "start_goal": "7d339cc135a747f4ebbf152fe3b6f35d05f4eedf3e92db3f1d0c1051eeb55df2",
+   "obstacles": "572951139e8b8fb26e6bc4427901586050c83d645560066097ddaa30262e64aa",
+   "patrollers": "a3f85043bd7b4aef090298b3e3c82bb1d5e6899a765dba2940cbce08d32fc51d",
+   "roadmap_points": "948e8aba2ce8ce8ee68d9da7b049b07d8067766cc3230eb304d9f758f704b91e",
+   "roadmap_adj": "35143ee96b1ef666d6205f7400ec66f75f34c82ae59d629cc964709b5a5543f9"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 28,
+   "world_sha256": "453f02e6aa49f367dc0c8ce6d94e5476ce38e32e1f739c572e33035a0763d40c",
+   "start_goal": "9ad907c47fa94c3788ca435f77c94b84727f555db376d88c7c648ae2f5900981",
+   "obstacles": "e25a3d15d8f7dd6b74180cf0b02dc39edd8b9a8e908553bfbcd387132c9f7bc9",
+   "patrollers": "df5e4bc6cb109c2176bb22fcd59941b05fc348195a092a029cf4e758bb6b2e69",
+   "roadmap_points": "7eb059d4cce553b4c55e70b1b789965e46af6f24357b4d1437bd6cfb7720ad46",
+   "roadmap_adj": "0028815ac2f94424ac358912d2bbe82a31aa7e2be3b1c3c5eaa4633b96d5d508"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 29,
+   "world_sha256": "9bebf1f0bac28d49a1f0465b9fe29418dc3d728eddcf8018bb36035ac7c38f8a",
+   "start_goal": "2e81dd6b9a0dd95be4466bf13e76ca84eb0972e47c3b05bde84b848b7b7e32d3",
+   "obstacles": "ee3c3f920f699c1fd899ff218dfe04b9d23a765419ed2b39d6ae2c6efbfd5285",
+   "patrollers": "20da1d27cc5465c2126e63a878554bb18367073239e43e4e13c1a14acbe67358",
+   "roadmap_points": "60faab18268fa2d9bfe7e6b292685a3ba420a6155fc05687bda7bf3803404513",
+   "roadmap_adj": "89c10bfc6d1aabd4e3174ff6c2255917920336cb4e8c1154fa6f4fd0bf76f20f"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 30,
+   "world_sha256": "1978f68d18096fde489a7cd620c7a736803b5bee322c96d1511f7f5612b58826",
+   "start_goal": "7813445109f5d4301907d7ff41ee14fa33b99348b54b550bbfca8aa01eb17860",
+   "obstacles": "3c67a812298d9e93cfb7207d6b8011501b73e83f550bef0564e24769a9cc9939",
+   "patrollers": "c68a53f95fdcc7686b9d6dd79d3e9846338b3e98624fac6f1aa280c50206c2c9",
+   "roadmap_points": "aeb58f0171c0f0a1ac41a9befb465ee7d96dc0741bc063fe2940a5759f9fc398",
+   "roadmap_adj": "a1e165a82324d52c6d3f077d39fc340934a71a68012f6cf7ed6df930f00bcb4e"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 31,
+   "world_sha256": "f276c1b9646a993885ed46027badc5ea5d2a406286765dbd8a4568176d353eb7",
+   "start_goal": "c15db8c660c47cfd943291ec28b78c539b0e7880ca3180d26547cab4460e4f88",
+   "obstacles": "53a6bccc7313097bc2d8b7a7373656defc270f4766f4a2f856a13ae81bb731ea",
+   "patrollers": "fc1061c032d86563ec5604b0018077d0bf24068ad16cb2bf2fdd866337348fb1",
+   "roadmap_points": "b90f7feab2b881e66fcfc1d4f2f3216261092f0410e195ed57189f0a23d76e7b",
+   "roadmap_adj": "4e191f56166cc4189e5561f70b7df13d6b57c657c86e549cb2498ff49bbff4e6"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 32,
+   "world_sha256": "3fef2b09c2c70ae1aa8a57e7d39d82e8170e66ccf24eb7681f2905c4bd0a0e7a",
+   "start_goal": "29e50f59bdef49040ea8a1b1b6f7ec1baf31d0b640aebcfd338760f98528a35a",
+   "obstacles": "dde30a5b89f063ed4fe8d9e649cdcc21be5aa4ab7f40db301a47b9d4eacbb2ea",
+   "patrollers": "e0c3ba836151d674934dba95e458dfda1799b4f50163fa13d50ae7c719d3b5ef",
+   "roadmap_points": "27047af74ff677bb477170da5902e3b4f127ed3eb03cf927229a92d05f4bf92d",
+   "roadmap_adj": "d6c4b4e54a2447d609f741744557a1cadc38d665e6f572c35d15882e522a672c"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 33,
+   "world_sha256": "7f53573a06d15c3d4fbde2994beaf50c8808f31b5b5f87fa7d022b059e49cea0",
+   "start_goal": "98dca6770e93470e347059f66cfcc18eb30837ae64d606c0ab256ee1533127ec",
+   "obstacles": "7bb87632c3266b9c91e3533ed1db653a6af4fd2228fe80e85c29868aeb9d41ea",
+   "patrollers": "9c64b1d708270105f034639911f04510a2ccad0920115ddbd8609fcf191948e3",
+   "roadmap_points": "cd5f51d6905a31426ec99d3b15c571dafe071ea08f8ef2e7d25c6f087bbd0d79",
+   "roadmap_adj": "be4f8e5be522c3740014f3a37265e07c7d0efcf37a5a66760519a8950851ba9b"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 34,
+   "world_sha256": "63002ecc9996bcd15ad5613e8dd6da6918e1d8019b8fd51e8d05457b11b6a4c9",
+   "start_goal": "0473f202fac7a02c56d13fbda32a5ff573c323e0fbd4c26c354bd83231a06fcc",
+   "obstacles": "75fcf8a4fed41fa8f84bf387a962f7896f22a4ed3ab53f39304e28bc22a17901",
+   "patrollers": "ef902428be8ecf2d8e2054e1910a7af013de42e5675ca8c95193b635479f2d73",
+   "roadmap_points": "68a27ff9055c96ec880de1ceb4576a3b9fd9ed2ab35079ffc4582284fecb74ed",
+   "roadmap_adj": "efbdf317543fc0f1860c1620e21a2e20d0993de0d6a00c4638d3d84d7b8ff9b8"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 35,
+   "world_sha256": "836aeceee8d431d39958940baed82613ea45a9b8287019ab1e71d1f4d460d8df",
+   "start_goal": "f1ac0dd996d1adb4280db5e953013e23ae972c50447fb6b6cd66d7c5cd6ab218",
+   "obstacles": "807955d0f97a84a233c1d6989da2d983d030f6eb20d0c65e9615a1654a91bdca",
+   "patrollers": "30bfd55d53b0bc166081ae7dd786abd53206b398dd63aa35c6cf6c3631608782",
+   "roadmap_points": "92b83bf0df6bc6a1ce13fcd160fc80b50d62da9d616c4c349453e2f231af24c3",
+   "roadmap_adj": "d3daa7bd739fcae76ff816987cd6d7365bd20d77f76d63d7b282c9a0a5ec4f96"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 36,
+   "world_sha256": "9a9542874f339bc244f9163ba853e07b283f9dd28132f4f8ac790f772593bf3b",
+   "start_goal": "d4835dede1b3b63e8bfbddfaed461a558cfd91f411aefcd8fa66d47078318df2",
+   "obstacles": "2fc75772e1257777e74db0fb3342c845eddfbe177222c9bd5ef8f7c345c3b29a",
+   "patrollers": "7a963b65f717a2272fa75128d7e6663b266d1883b8781d8d4cfa270697975071",
+   "roadmap_points": "b37d63a041689f19b4e47088e3c47326549e84b2768c423d89b53875048b35e2",
+   "roadmap_adj": "d9482665cd40363a45f821509d580c3f310c8492cb8851126a1e30918739208f"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 37,
+   "world_sha256": "debfb6cc7ef1485ec43cb6ba01c72904a7219be079cab30a93cb34cb4b19f837",
+   "start_goal": "4c476588cf02268e8f1cee47cfa935b25a13745ec04a3cbf9650f435157849e3",
+   "obstacles": "9e28e348c6547221ffe9ba7c31cadcaded02e6b66928f34f91a762beace1eacc",
+   "patrollers": "6e72854dcb293769a7bdd5e316994637efdcaea47ea0203d1090e4f37878984e",
+   "roadmap_points": "671b34e05fb01809e55e7290bd652c34c564c83db0e218186e8b3fa480e27b99",
+   "roadmap_adj": "16b1581febd12d30bc0f3a1980e98957be53d6e40aa5e4d60488f8cc0640f444"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 38,
+   "world_sha256": "876b4e679cb865450b72880ee0f111c86c0cf05ab95a04d50d34b505e2b475d4",
+   "start_goal": "800cc9a1ca9e9afd75ad7a5b699121ded2365151a49579278a1ea300b9491b58",
+   "obstacles": "fc213614e8b2f8d4429f1785973947f70dcebe7218f81e2a430c1c9feb5a8c08",
+   "patrollers": "0ab4fbca20d96f0ebfe1d1607b60af89c423e2a5ecdae65413bdaf282f55ac61",
+   "roadmap_points": "1d3daa1221f76d1767b8912cde87152dea0a2100b9af53e7c7049392e741427c",
+   "roadmap_adj": "3c4e029fd7d078e7b72a961bbb16d43d7d9f4108ac345d8f57ac6506cd99b7e8"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 39,
+   "world_sha256": "11c9a11333ca7302b7d8a8f7069933330af989f27f17910d4eb994bb20f3aa78",
+   "start_goal": "f86e1a09afd38423d960f75a6d826372984ff8152d31a939b3d483b59e37d3e5",
+   "obstacles": "921c4a2401675516ab051632a757603e99b639ddfd547261ac167ee603d26fa9",
+   "patrollers": "02ab9cc70624e55785f0641fee2a598fcf42d05c7246773b213d04245ba2072d",
+   "roadmap_points": "7c496157e9087a64aede5bc6d38c96bcf12f03040c78cdf3e9ecbab0ce565207",
+   "roadmap_adj": "c45c00751a4133e7c8245bab43d8270a015e0e0dcc4d1cc42c5107b230900e98"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 40,
+   "world_sha256": "ef980d8d97df63d4b1a4b1fc1792df02900de3b93882773439378a9406ed8e44",
+   "start_goal": "f3012daf6f6032b16d05f13d3d511881451295afa78d9ec661d606e9622f7185",
+   "obstacles": "e784c6a10600aa29772dab1e0077226845ac8aaf2afaecc827ce11bb34ef2d5f",
+   "patrollers": "a09d74de21148a76ad1593bddeacccdef803b6ef482609e25708380c0f0e4789",
+   "roadmap_points": "daf52a07565a98c7a936185861df291050dc87d23cf940b8ff1c90a48102a236",
+   "roadmap_adj": "f0325fe1026bfdce6abab4a5fee8be2653a9a1a1ba5a770b56df000d181d8d98"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 41,
+   "world_sha256": "a0f1eff9727fc38d9cffe2b6ab9637c633ef1c319df226e5d4536dccf88bb789",
+   "start_goal": "0fdbf56a2715903f88c54a6506d6a35abb78569d504645133315b5a3aca769ec",
+   "obstacles": "54edcb166aeb2d2acb7251963ae5a2c4ce588c4e7964a8919982d7ed8d9f4f57",
+   "patrollers": "c831f542596296f65bb397d906fb331e809ba3ff533df1f343f6b3e15d904a32",
+   "roadmap_points": "861346c0fd369a9d5edb6a08b0176ea72adfaa42e5317374d2dfd6707fee828c",
+   "roadmap_adj": "de720871c5a2cf2bf4c2fd3dcf2cd4639387431a0ee68ff7c2db652865fe7530"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 42,
+   "world_sha256": "b8556eca9eca00e08f8c191e23dcb01048c7afec1c20d86cd2c8fe961a54512f",
+   "start_goal": "5e14c785e6af232420e57aa5a99d28b07cd5eeee4ab6ad60270b412c0d39786c",
+   "obstacles": "3b580c644392cc89f6be10944997d8a3c6373cf7bdb9033bbf540b01e340c01e",
+   "patrollers": "39fc226514917f24cf4fb202dbf6bdee63456afc46729ca61b8f20a08987b086",
+   "roadmap_points": "cd4e107b86360cc3a7160d6fd4abc454f475c0a088e013b1a5ed77077bd4cbd7",
+   "roadmap_adj": "bc80d8c10f73c2ea5dd704bf37877dc9c6f6800553a1f1b481c0b5b55862d227"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 43,
+   "world_sha256": "fd60ab7db2c0a84f47b7e009ecaa981ce9cc999f29f2cd881111fb58539d519b",
+   "start_goal": "7ddf273c2047a43c01f96b15e20fd1937d7576102d9e4b534e0e53d92e26bcb3",
+   "obstacles": "25ca2bf57a97c9a4a5b7fb88b757ad212b02e2a98f10ee9e01526af2b258faa1",
+   "patrollers": "52c9912e3e59126317cf00e72da47a9b25465f49bab722505ebee55f33df4316",
+   "roadmap_points": "01332c8b6507e299535dbf07b57bc02082fb72cf24042f3bf8756b9dbe68edfd",
+   "roadmap_adj": "f38baf495374774e6d0fc7ba44b047560feccd675d46e3a597e13ac0b3303f6c"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 44,
+   "world_sha256": "33d4fac5a0c6d15ee1f3cad4691c4a6de0787a7855f5973b0a6dd98c5f8050e7",
+   "start_goal": "de5989fa425d9890bf4615495068bd8b321206ca48fc96b653a98c0b4e1fe8f0",
+   "obstacles": "ca140251ed079ddc98004d09da8eb603cff7de3a98b3f0ff169fd0ec480d7099",
+   "patrollers": "ee80f8161498ff7f4635aed0d09a4556c079234e0a4b0b87917f9152361f7c4e",
+   "roadmap_points": "fed0336938a6be141fa5451df6b7eb34128d91528c8fc84e64fe2fdce617690f",
+   "roadmap_adj": "d9a632157121ecbb2a41d76503c49166c987a52718539f36459037fc7a4a40c0"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 45,
+   "world_sha256": "34b6b28479ec463210d1b594c81149aa29f0dec9a3450f0e9794585c7db06ba5",
+   "start_goal": "7aebd7c2206bc8f6ca5d34d25ca4fb87180fa7eaf3864823b2c90db391965816",
+   "obstacles": "ed9f769db982c3736b04a2f96f207bcfcd2b94859055e437cda05cfa1d664ae1",
+   "patrollers": "a920764dec81c46886e16c9f3a041acc25ee510e882eeaa944ea87aa332e585e",
+   "roadmap_points": "79962a509c802a413bf33e3e9e187d31a24c006ff0fcca6cf551223abfb6cafe",
+   "roadmap_adj": "71c88f3d9081c0799518341290ea640a0fa2ce16cc8f14ac1f2002f6cbf99e26"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 46,
+   "world_sha256": "42c366a65c22439ddb2a6d7720dfeb4809bb5c039856fa48d9a9ea699bef7519",
+   "start_goal": "31d14635e7f96e20604beb7daf3e05acc635a24010c256182becd8cdd6c67590",
+   "obstacles": "e7746f97cedb014f541d25651e542e268f5b008acd4b3fa004f6181d981fc477",
+   "patrollers": "7e5561b856f8c4a2e7280a61c801670e4195f644d734456861f4e24cfbd95281",
+   "roadmap_points": "6b104eefeaae9b877e9c4d3177620fda90d38e17e1aedab588cac7ae5959596c",
+   "roadmap_adj": "f3fff8b1031e052656f57bac6bfed45ff415c45297a84fed7151ce6abb18b2c3"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 47,
+   "world_sha256": "7912215e2c19f8fb46fc6a21608b2cc710f2b58145c5ef698f8ffaf9f73a800c",
+   "start_goal": "3928c434319a1086000d0428f584a535232a8e4028da848fb356a13a539bf1ae",
+   "obstacles": "4ecb746df4b8d15488f6ea1a2a4fe6e29efb1663ef1939eccedb6bb09b931607",
+   "patrollers": "f16949de4881181f54bfb675b8f22e58af6f623f1eb856936c16d2398e988600",
+   "roadmap_points": "3b29914001c72eb71bef21f46e793826eeb23e0a10cb28312d626b3b878e05a8",
+   "roadmap_adj": "2aa91e0fe6e0da2667b5a9f807801f11adab359503b2e280256dc3caccdaf1df"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 48,
+   "world_sha256": "8cdeac96d78db2c61582cc63bc741b34b228ae7e09ec3381ce4d3fd074129cce",
+   "start_goal": "191c023f972ada203e50ca6e1df480d3e62c4cce4015c46b55b713a6ddffaf55",
+   "obstacles": "4bdc14254fb33ff762d3785f79a1fdba4c983ccf6c7a697ec18b2dc434ce8ec3",
+   "patrollers": "7112079777fa3f04a853391f375b9ea7cb47607703284fe5cbe33c7de6cb98ea",
+   "roadmap_points": "9fff1e4f0e2c249ff53002895d2d802d7001b6b8bcf43ffb4eabe609b2cd1736",
+   "roadmap_adj": "9671eb626ddd326963a44e9fa796f91ff38f08ee79daa3c898772ea258ab2af1"
+  },
+  {
+   "suite": "C_dyn_maze_dense",
+   "world_index": 49,
+   "world_sha256": "7c1fcdbfb1125d559f562e047f3aab5ed6b71ce7a3acb2fade1ae44d25d176a0",
+   "start_goal": "dc2c1f74cbb6df29da9de4154d4b5597f52fd605c074fb64ee2057cbdc084d32",
+   "obstacles": "849511b87a0fe96df0c685e975359318be699e2bea5e7127c9b1e0c12baba3ef",
+   "patrollers": "3500098d9a040ddf9f6ac2730430b0c2189db90a03785bdb93ab13a75cd5fe25",
+   "roadmap_points": "951704e717d0a9fa2c0f0305f61f9ae40c02da4d77f272294365fb45bb0550b2",
+   "roadmap_adj": "a0a95c69da6277450a3b79ec88aff4726d26a0faf74c000c6f19aaf1fb5e6bb0"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 0,
+   "world_sha256": "33589dfe7858b2653c909b618fdf3bfd4552a7f148b108ebeeabd09469e29d39",
+   "start_goal": "b7a9ae463c41f59ddfef0de69bf800f03906561f5cead61b804136516ebb2e52",
+   "obstacles": "7c8ad5be18be17ce048fe6e596947f41f27331725693cff7b34ce83e9de48a0d",
+   "patrollers": "f0cd87d36b4238afd10e43503e768ce42c06618732a44667a7044b71401e2909",
+   "roadmap_points": "8744c110a6eb66c1d91a7e928278e7a733f4ceaaa2d3b98990ab7b6e1d8a4bfa",
+   "roadmap_adj": "cf96016b047146037a649a70ec7e7a5133c97a7c25cf8f8935241375ed707171"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 1,
+   "world_sha256": "4582aed6c62b7c14072e0b915e0e1ba20e7e8797a25d28203ed99ef5d88158cd",
+   "start_goal": "fa40cc9d168d1cf584b063d3e531843f2fc2c1c9ca2caa1bd6234b0730af0b97",
+   "obstacles": "40af3682c7fb7940f48ee4073c5008c43e59a9d047196fdf5fb86070490f41bd",
+   "patrollers": "0710a99d86d2023fca5bf363f3604ef4044a86442328d13ab26b8ae13c3c15b6",
+   "roadmap_points": "3fb620bf3766bbd7702eddb30e178deb497526ece13ccf324a45c12545ab7ddd",
+   "roadmap_adj": "359308fcae75ecf80128609060d3aa8a404398466607024e16084c50a08a5c2c"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 2,
+   "world_sha256": "b9538495969b7121f4ab882e512aff372e153a569e6ca9c33604eca4e375f0be",
+   "start_goal": "bd0ee24a1b3420e237d7199f37d3c4478160d12bdcac70a8962958af3da25875",
+   "obstacles": "9830cf4ef6fcaab20585b917d4b1aaf7e62e95b2acf59344ccd0a39ad3b2bfd5",
+   "patrollers": "9efdb8a9211db31e616d32e9a0594158c6ff60d173a118f5590739cb4aa26829",
+   "roadmap_points": "5cd9be7d5c3a23bc97f3751cc12aa1f7b850265f68e6cb977a1f2e701f20b4ef",
+   "roadmap_adj": "42c427f98ca37805435b5aa4a8269fb208d1a3248968a83bac055476fd3164c2"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 3,
+   "world_sha256": "5b99596da15fbe4562bcdc59942d62531b6fc1c02996e3bfd23ed1d31e14df36",
+   "start_goal": "4a7e6118a08992e80926c2bb869e198273166fccc25834b72ad9ab1dcbd1f2c9",
+   "obstacles": "b9192a918d7e6b69f044182919d3e994569cdf820a4906de1a8b999756b9be25",
+   "patrollers": "116a283941add538ecd86b166b753f2b093300a4342fda5b2b79439dcc50c36a",
+   "roadmap_points": "98b50428bcef2da269e7140e1102dc184e7571906cbe253c4bd68105d35fa8e6",
+   "roadmap_adj": "19f3133fdf00b7b3a117fb21c64016a885af0db4616d9123d5b88e8644f90603"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 4,
+   "world_sha256": "6550dc0ded848856510b4950392cb4d45aaa39c22b0938992a079198bdffe4a0",
+   "start_goal": "1824a1416bcb364d32e07f5f6a7882c2fee50d8d6a972de04336a3855038554a",
+   "obstacles": "527dc0f2891b46ac3b268dc2c491f3f3b5c75f8a1051aef6f3e656c2e9ebd0e7",
+   "patrollers": "f8fe76302242df177b57ae5b5b83b27d98ecb4da76af902252793952522a04f8",
+   "roadmap_points": "67c6f2f5da44955b3ad12868cfb7584a74f1f447d71021ccf09ce0f7b8fbf190",
+   "roadmap_adj": "7e1b58fb9cde1a18b7ef6f59a0acfd8c199a076a43d3ae04029c2a1f1ab97a08"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 5,
+   "world_sha256": "c0608f9b207365e72dfd9d5cb16a8d826a4701d6411097d78efa026f1b4842fc",
+   "start_goal": "afed852b221d081792fbb9c0c47283c6c73bddc73f6622bad963bb4e76c2ec30",
+   "obstacles": "2fc3393f05481fc6cf8f7812076be7afcce0b07ee136d1e02738a610a221f647",
+   "patrollers": "91e4705b4315da90282ddeb7c82da4d6fde71b74400e0c3b423f60395ca99054",
+   "roadmap_points": "681952c6b6d1621c47e22fc01de7ed707679103c0abac822969793939654b51c",
+   "roadmap_adj": "5071cf02dbe90bff9a34d11ab9735c2d47ce631be6a77ed5399f61f8e284938a"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 6,
+   "world_sha256": "7e0d067611b90aa2954a5aeba008e6e128efe70fc32e971d0e07cccdf0d5b45e",
+   "start_goal": "66b59085adfa6c897d10222893a32961093ad48002174c38df8fe58eb8474bde",
+   "obstacles": "6d61fa6a80e0842f299a88606e1bed3cba478494dc861c2708b6afd399237e0f",
+   "patrollers": "7059d907f6baeca396224ff649d14e4eb45e4f59feaa8437d9bde0f8ba81b987",
+   "roadmap_points": "aeddfc1af82877104b0d89807696785901ba78571dc0d4022e00e830d91f0bc2",
+   "roadmap_adj": "e787879760b0bf858342f79313583afb8189e2421d19dabb251884013065c6e5"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 7,
+   "world_sha256": "0151117c46c3384d8e2b9a767721080d7c4b90aa3eaa99cf10af0b41a14fee72",
+   "start_goal": "4baf5799e92c139c87660e4e271c4ba063597b0456b402420d403df5a2f014d9",
+   "obstacles": "ca052e0320cd3d6ee683a48ef7395aa16c6a44ee560071d59b4d5c005d70bdd6",
+   "patrollers": "0c6d739123403c3c37742d6a6712b3f656bc573be712591086904d9dc5829b26",
+   "roadmap_points": "65b1603a2df5a0262b755f1ce5df26501f16c822607634064f9ab69f62398418",
+   "roadmap_adj": "f356a65abf9a9fb016821e77b62af166f6859db2244556f14522e701672b2c20"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 8,
+   "world_sha256": "808811422721ae6a792ae4145620760288cc94fa6bee0e42fe2271dc79f1d9e9",
+   "start_goal": "3510acd16c272a28a422e65009103d6d22cc6fe70fdbe238a5d218f7df47ac8c",
+   "obstacles": "13b8a46f33d65e546be59b8dde8183be949443a1bf60967883634d650b98df02",
+   "patrollers": "10998837eab1beecf43be62df001861b25a94d1ce8feeead2be2a8292ddead8e",
+   "roadmap_points": "b0bf8ed00f4ebdeb5b73e349b597dc601edbee467eb4745bafffa339fb6e7be1",
+   "roadmap_adj": "f7a3937a7593b291875e377058e5880e00ac70be31816b8041bc9c83bfeaed93"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 9,
+   "world_sha256": "f7f99f2075342d9d2c74dbf6d9869ed1f0415b88b3feabfc32c7517db7cd9706",
+   "start_goal": "842d1904e16064e93e29dbbdd14fccbb35b79480dcf6931bf7dedca125729dfb",
+   "obstacles": "95b69c41420ba5cfc97c4fd409a44057858b1e168f09559672de25929033c80c",
+   "patrollers": "b09b04c95fdba0917c25a05bb1397ad499ef4a56735a6b0419021b1577034188",
+   "roadmap_points": "e9d70e4324e4fe9a9ad56983f8bad372bc3bda191a04cb3375f0d2a7fce1f46c",
+   "roadmap_adj": "69c774bcafd820e2e12f8e60cb227c280eca924d5993690c110fc3bc7715dd8d"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 10,
+   "world_sha256": "dd2662cbdf099d3eeedf2491074717bce4e39abbb004b7c3fe799c135778c7a9",
+   "start_goal": "d2df75d7b8889f8a3786d7e9d06b3de2bd154e9e1bf25e881481109d841c5cef",
+   "obstacles": "c743d4c98cd4b706bc6c342946a5b707748835cdc19c2cb4455007a4dc4c740e",
+   "patrollers": "8f85e0bcaa04dd8e4def4669ca0409581ab54767942b5d45789292254c245b8f",
+   "roadmap_points": "197f0acf128fe0049e3fb9b310cff3adf0664af244545f4e86609a7b363f9a66",
+   "roadmap_adj": "756d3bcd57271a3db1501dc3dce59dbad66f93e8770d80bae639a1a53271d98e"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 11,
+   "world_sha256": "134fba4e2e4534b636a65b4a1f9e70275a5cbe1198047e15fcce4565e8087195",
+   "start_goal": "f5cd89294a6baf632e3e9b6f07b08b9d59341af9a232310dbcc2a493d3573657",
+   "obstacles": "31178e2bd387ec5691da6f1951637f06f96e366eb7069ec11047f5df7e8790e6",
+   "patrollers": "058c6fa8eb8fe1d52313031987658349eafe08d5e72ffa8386134114d2154aa9",
+   "roadmap_points": "e5b75ec26ed2534a5ee0d59b4235bd5a6fbd1fbf4b87b4717546a03eae4dc7c4",
+   "roadmap_adj": "3c52521e9edd57c91696997b6a70c3e33ef59792b685d945c9651f5b630c9ed8"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 12,
+   "world_sha256": "e88fb3cfd01a1c9eca936f6c475b0e7b930ee9c77d0e399e100a9a03fcce6ce3",
+   "start_goal": "c9f418a627cc456876a9492f330814c1c37e307f589852786a4a1f77c93bc6fd",
+   "obstacles": "8fcca84c93d31137f2ff2d35363376db57936ed30aa78505be57f528cee9e8b5",
+   "patrollers": "c0271652fbb9cea955b9d7ed20da09ea173dc5f8bc099e3a3c057abe8c43cbc1",
+   "roadmap_points": "894bc2d477087cdebbe06ca813d193b26c768314ed8d060b898afbca1afd27ab",
+   "roadmap_adj": "2db0b4fa381ef246c1180c9a69046da194da44d3dba9eeb26c1071f9e84f0a90"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 13,
+   "world_sha256": "68b3c1362a9bba94bf118267b10e2b9a07dd4ddf075b65dd4638124dc16ef509",
+   "start_goal": "9bd4158c4a652d9d033ab1918bf98bc003629e87cb26186cfa0e78c45b68ba72",
+   "obstacles": "861c6a8ec46f2ac69701a0c2afbd98db2d6803b3fa005ec0edcd6ddd9eab4b8b",
+   "patrollers": "54920707e4204e96a69a02c20f8cb6ad39d702fdd2cce1e70f1ac2b4280788eb",
+   "roadmap_points": "3a3a7075483a89a40fb873c9051b295725320566fd7c51bdf148f60708b65a73",
+   "roadmap_adj": "f22526375aeb2e48c363ff3b26790b3a84e3602470433e26bff2704c7692684e"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 14,
+   "world_sha256": "5046172f38ccde60ffbfb03feb490cbb5a06be034bf1ed72c14ea97c8ffd7591",
+   "start_goal": "46c6df7934d6a74f60099b0689ce4319cd78a84ae764afaa730c3cc05e8d92e9",
+   "obstacles": "60d46b7e7c1bfb5823e9978738ad56653bd2cd59b02bbd646aaa7622e472f994",
+   "patrollers": "6cd2904373c13a0d6a8551e4dd2d8a9780e0d36a036cc2e93b1b99bc5ddb0b34",
+   "roadmap_points": "480929b44ab3b0aebc995300c2e4deab01d8ceb530b247e4d1e0715453e44007",
+   "roadmap_adj": "a24bc8ec4f0b3e75fa32927b116ba4e2289912b22e4dc48e3cccbb3a1d3ad2b0"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 15,
+   "world_sha256": "159e8497de15df9e5e1202779eefc203b4dd1199e543080378c2cd38eebcc347",
+   "start_goal": "9268cc1cd51c73e5213c96b1a4d7188ac54f34e29f85f182ced5a71caeb66249",
+   "obstacles": "b58786ee445c77d6119cb75a9125cb3952883057c32bc4c426b2d8270af4d24b",
+   "patrollers": "866fa9c549c6ec7802103c644c24b27dbeea7ab138b19b01b4239cd557f080b4",
+   "roadmap_points": "3e4424bf7441e445d029a726ea78c55ab58a42389c6e227b1823d9ee72524d5f",
+   "roadmap_adj": "b5e11b98918be36a7642b551f35c3838b8521ab1cb09e37d581dbc31502a1a24"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 16,
+   "world_sha256": "fd39148579d4fc604f19e7ccaff11ef4b30017ac2c94e577491c1085333b6bac",
+   "start_goal": "c6d98a9f50dc85f6b5ad8fac8ca797ba0d0b553c07738339c8f78bdb8d0f37d1",
+   "obstacles": "067398f311ea352b4b2035d3059500f939981a2e4fe6b859b5789cf7b14fbb4a",
+   "patrollers": "f657bc2b57dd7f7d1e85e1dc9f6f017577a65c453b83b5dcf4836c15e12d34b4",
+   "roadmap_points": "f982713e692d1b7c3234fc4e7df90470392b9f8f320bc45e2acef7390c9522f3",
+   "roadmap_adj": "50f06cac5150da1d2ce2bdceb413464e33c2c4827ba9f18446d983df88a4da07"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 17,
+   "world_sha256": "90bd743fa78e95d93d7cf41ffbda220c121af70f6e18bffb851a1d18ad1648bb",
+   "start_goal": "fd14257df72fa41325b37591ec79027729a36437625a7c843334ad5ffcc2c77a",
+   "obstacles": "d075cdb36aafe6c35185899be6ce7d2c3a147052a43a03ec57de9912ef8e7fd8",
+   "patrollers": "0dbda7bed518d8e6f38a49cd4b352ba6603adda01de101b63d543c570d4273fd",
+   "roadmap_points": "65aae9ae06414297832e8e4c9880830514f9e206636ae9192d5ea82f70f46e1b",
+   "roadmap_adj": "21136efff34a4afd6d56febf44ea322c1e31fa62ca5305203fd3ca22af6df2f9"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 18,
+   "world_sha256": "ff1d30520034a294b7befb1ede48ef27c4cbe279f72eedbb40cbb7e791e01d58",
+   "start_goal": "452fa38f27607f99c8ecc0ad09a1248c563840909803b856693638fca23c0872",
+   "obstacles": "aff131c1abb4a44358d4e082bd8073ffa6fe57b9b55cb53c8ecfeea8564a9522",
+   "patrollers": "4713aef28ff6de2277e58a94d1f0a1c6fa2cba6bb881168aa2d04cf0f418777c",
+   "roadmap_points": "ed61c01a526b0685dbd986f64507432d9d95f8dc9e94bd0f2d1ee13cfb17663a",
+   "roadmap_adj": "6ab7e0ca5d34eb4d49e18fc62be03ef11a6123de2a80fe32548c9be572493395"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 19,
+   "world_sha256": "b08d6022f4ca5715885b68b717ad302482a6b6225a6e7ad63533320e21dea775",
+   "start_goal": "0096c960db4a3e553c9fb1fb4a3cd716424409e9ceec14635ff088c45c4d7d7d",
+   "obstacles": "0dccb8a1113aedf7ccc5cfb17c96e4d221b63c09bcea82bb45be218ddf52888f",
+   "patrollers": "1f397453215262da1b2fbf7ea10dc2c556c10a3a15b1c8630c67a8894fafb2f0",
+   "roadmap_points": "166e54abe88826af50be198a6804d39c06e2852a88018682797f6c0893ecea29",
+   "roadmap_adj": "f45ffae72e1d77a6bf957058dae519a26330990d7ee200d9f76b6fadaa20916e"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 20,
+   "world_sha256": "0d51a4fc50d2f0bb9fed6733361f02d97e2bbbfbd6b972d7c590a6fda9c08143",
+   "start_goal": "42f35c02fdc79ffc3d07c77f702aab4c946349690fcae7fb7e7183ce310e7275",
+   "obstacles": "9f03310a621815496cc1e1f6edf0e337f0f3026a422a82e955df6e14cb12e1b5",
+   "patrollers": "c4d49e8f8ef8eab26af3324192a45fc5cd4d608ddbab55af030902e4879e342c",
+   "roadmap_points": "38772b712a78fe826ffeb18e2fb6c2adcdf01833075151bdcdf4b59adb8b3a09",
+   "roadmap_adj": "3b1f3336e883bb7cc150a22907dc2a58f14778398be672110b2701c4299046bb"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 21,
+   "world_sha256": "943766e77e97611b68ef6148069e18f86381451918788f58a8cb4233a0eb0e13",
+   "start_goal": "63a8fdfc03e4b36a23469aa89d26f920153cf366e0539e70cd9635e3d3ff46a3",
+   "obstacles": "661b3860ce8c641638dfe76bfe2321df49eb0c4a7e3661e0991f70e4577e9f1f",
+   "patrollers": "ded0b47eb0f20e917dd0ef0d04fc91e9bd5daa70b3574a4f8738b64ea3548b96",
+   "roadmap_points": "cd619399fc2a08f89be4c788d7dd906f5285d09402d6672fd7ca6043c0531739",
+   "roadmap_adj": "5ed7ce0e7199fe82edeb7429acadcdbd45cf1c0214ea6eed84016ea49c060ac2"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 22,
+   "world_sha256": "b7e99fad74831afbc5ec072bae49517556159dc4d7c3707cba7ee16e1e274db9",
+   "start_goal": "41e509329772e12589755e06840ec72aa73a95e5b89945abbbb07033f6818a41",
+   "obstacles": "98287416014fe1643c26fa78ed8d5cab6b10c5b1bad37a7e4e4cb84e03ed7efe",
+   "patrollers": "76639b1e5be4213c372099436a9dc9811bfb6e7a615b59f12b214dff8676c80a",
+   "roadmap_points": "1e73b92e9d6bd1a56dc33199af83ed6470d2e72ed297791cca40bcc646b64b56",
+   "roadmap_adj": "e6490861f201b77b322a6cbe9de9d0e2bd6de0ec2080d9b885513b2d3c220fe1"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 23,
+   "world_sha256": "8418d18961b17eceb0410ca864d058e6f49ae4bfd2fbe6ddfa68649313cc7db0",
+   "start_goal": "ed4476b207d0442e243eee53f542731b874b469c1f8b83cbe7234575d9fdebac",
+   "obstacles": "4c8b5bb0c51562ee7e13e26863d128a0e96af7ec1e17b7d16a0ef7ea87bcc655",
+   "patrollers": "409ff80b6846c5cf8292d1303e2a3ecb592eb0825c4b9b384237b567bd2041df",
+   "roadmap_points": "6434a5b6b73c19237345732b58f95d9b96b8217c8b99f1b39ceeac4d6d6b2b3d",
+   "roadmap_adj": "8acd40ebf7eefbfa11a6f3af9c92617a7b61a4d0423c9d4cde28d9e0b9768f12"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 24,
+   "world_sha256": "f42c453821eeebedac1e0286b25e9007eeeb67cb50764aa720a95f55e18b7314",
+   "start_goal": "1a356f167f2bfe4e198f97df701aaf83a8d4bc2f9786b6be87da90a9ee89056e",
+   "obstacles": "67bd377756fbbf5ccf24d26856826a6b7c58c6101bfe6b41c7d08fa3fa057ed1",
+   "patrollers": "639216c9fc05964378b429e678ec1432bd18fb7f68ab6bb5cef2b63a6be3d0ec",
+   "roadmap_points": "53ded2e306d4b049fb47d4fb35f69a3cb11b27cd36a6b148c0920e30ab14269e",
+   "roadmap_adj": "4873a5a1e8913890f0b7708247be30c82a5c6502352f22735e46820598265f65"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 25,
+   "world_sha256": "39325f75f2328a23cc0858cf6b4b42cb94e4546eef50b2c4edc20e76963e0da8",
+   "start_goal": "484d5178d33252cc91365fac54c3c7658bc360d61f06cf9e75b5bea17b697705",
+   "obstacles": "b569e0cbd586eea990f04e1803df3309b9b7749845be75494b6f11615529995e",
+   "patrollers": "53576714d03a460d2bcf69efb2e4f6277988b8b25ea4ad29eb9fb94a558a3ba3",
+   "roadmap_points": "65aceb31a26c46e858e8ca639debcd4d3af593c4c93e41595c66c1a7c05480da",
+   "roadmap_adj": "1f5e26277dc0b51bbd92280c2aafd967256a2f0fcaedd5ee81abbb3dfaae89bf"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 26,
+   "world_sha256": "7683db5062992f2efb64f240bac3ce47beda129fd0593b57cd8de55eb89373a9",
+   "start_goal": "22e26c95754cfdaa65957237fe388b83f5d1c4fe8eb8f0b8e3f3ff25ae87b337",
+   "obstacles": "9e37e6f29d071543b26007fa860232911af29e06858b4352ef40fc2ad2cf8739",
+   "patrollers": "871d689ac534f3a068a848d38ecff38eb0cb77028663967a670e21db32c506ce",
+   "roadmap_points": "276afaff3ada9fe5183d30ec8f6bb948ebd1e3f822a0738365ec909d83844b6f",
+   "roadmap_adj": "17c2835a9a776017d3baa7f002955b23d093cb4381d3f6a7fd6cfbd9fbb2fe63"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 27,
+   "world_sha256": "41cea83a38fc6475553c4fe9040dc9114c7cf851d5bbfe83dda54475686e6b86",
+   "start_goal": "e0bd2ddbe3072c5812bb0e9d0869ac678e410ab73dd7aa081f93b6f5bea20015",
+   "obstacles": "92ad376c95209e102fcfe27ee65d6d92f4e6f88c96450d98b4310119410019f5",
+   "patrollers": "f08ac332318c4fb8199debefdc6066a0aedb70d74465e26a39027029a71302d2",
+   "roadmap_points": "7a6de03892ea9be14d024c91229038bf06eb603977a84c484ff6bdb496bb1d3b",
+   "roadmap_adj": "8b52a99fadf77fda0b18038a7106e88a8708f280490c4f495a0d475f115793d5"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 28,
+   "world_sha256": "f79386bff2cb80dd245b858801f1c50748f5da04936fda463e3fba4ae3c7e718",
+   "start_goal": "82fff578538fcec9e246dc8536be1abb66fe4122211addf631a3e794d31f691e",
+   "obstacles": "dd192e27124bfc175a34915f51a63b992e48bd352037b705b2d07f54d61d8815",
+   "patrollers": "2b576fdef43a38b674231d690a20dd32ab85342ded28494db41b03d68e9dc36e",
+   "roadmap_points": "fe344042f18323b30bda0f07037b3dd3f54cf3d944854e30b59898ed652807a3",
+   "roadmap_adj": "7c08c9e6315ad3be27a8f3efd4311f0d065fcdb71c6951f1141eaa76362421bb"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 29,
+   "world_sha256": "6e50b54f14a7afde3de7df7facf435785c3cb5189638fa504934261336a3553a",
+   "start_goal": "47aafdcf20dbcb1af44e812c7894ac749e07f865334eca94f186dc4d3e1afd18",
+   "obstacles": "f58f7e18b52715c8cd60ad6031f3b24f8fe49546ad2f60034aaa415cf3eaae6a",
+   "patrollers": "7a6b60c07bda9172b80539a2b47b20ef9e021d06f8234e9440efa1f36f9ee7bb",
+   "roadmap_points": "ae1811b5d34b78924a0b6860070c5b3fdff68529f5237fc16f1cec8fe49f162d",
+   "roadmap_adj": "cfa1ff789c3c1028b274686462006277ce1d30154efdf79f7d98e1f03345a642"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 30,
+   "world_sha256": "084913991f0791d5304b2295bbd39bba4dc550a1ed0981d6d4d4118b33e92b90",
+   "start_goal": "24e57c5f8887de8e54b74fefa7916f4183297571a3f6bf1f1aee537ca2e6d6ab",
+   "obstacles": "87d1a0315a70aaf98faec51b92b2d19207c640826843933ddedf3a5d2756148c",
+   "patrollers": "fff91de05045073be85b316f5567d9b37d87068f448cf9d2fe381b5e845ca747",
+   "roadmap_points": "8517fd436b5416a48d392c2b3b94644aedd86e78b59e4a46fd66ae484960a0cb",
+   "roadmap_adj": "17964c4b79ccc465ed9c9952d954608cbf0fe2d10c6da59b7e0bb9d7eb4c6c22"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 31,
+   "world_sha256": "a124b5fc7eeaf468042538c1b853239af6f42699744583aa3aee94d064012cfe",
+   "start_goal": "19b6b531487d8151c8cf0a14b71c1650a8b4805639a92cf9528a416b6766c1f4",
+   "obstacles": "2b35d3c3a114097e3ba306ee8c8df01329ef036cf0f21c2b2f24d87d7caf5b7e",
+   "patrollers": "237eb13c4daa459740456498671a9a741a275e44a91689f9b9817055d74e08d6",
+   "roadmap_points": "31c9cd1b34de5048a33a567452e865e98c55ed6d7fcae7c5d5bb0564389a9c45",
+   "roadmap_adj": "9449cf1ac7030abd1ab465a55b8f5e80ff7357c4f1b04a5bba268754260d6e8c"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 32,
+   "world_sha256": "cedff8780ee07263219c2f27ce75d7ad8db42c2e759279dd6048ce8105d3b3e7",
+   "start_goal": "96847738320b34ca3507e8d984bdfc325d264de3e08473262bb6685f82348037",
+   "obstacles": "a275865807ca326ee8c019f1bde881c1be2cadc989a8bd36836bd2aad191405f",
+   "patrollers": "cda1f771f7e8fecb43d3d223becd062fc4349a2c5b15166897495477e9c6a985",
+   "roadmap_points": "78e4bea74d0c2f2facbe5aa4b973ae292e99e7be51fe7116e331b1df3f490f69",
+   "roadmap_adj": "58f5939999dfa437993403363c37d85fc2e58ecd01c6daecff25c11ebf2aae36"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 33,
+   "world_sha256": "455fff1f8a383d3e4b1f66a93cb298e7f9893794a639ec94eb7b1aaa34fe17ac",
+   "start_goal": "c821e34a8cf796f08eb5647b045ccf5b58cc4350bf0b8b01d6be28f95d077bfd",
+   "obstacles": "86004b21dc0dea78a0d57f89dc65861f11b7c6c1cbdc90675dd47f0e797da342",
+   "patrollers": "20dd77b4ff2ab6f22e06b1538ca888db17e2b57b7c6431df05711025ccdc497a",
+   "roadmap_points": "4d2e3dc293780204d7552f65c228f89424925c9599ac62870a73c879245354f9",
+   "roadmap_adj": "066706baa88d914088306877315dadf53d3c84fbd4e3a10e8852cac14f96d25a"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 34,
+   "world_sha256": "cd14f61f0f61e4ead9d9fbf6e3a084fca5ee0a21acb28f7a351c9df2f0b927be",
+   "start_goal": "6437451c688a176b137d78b90b33abbeb9c5438d6d0ed1d271b58fbae48d42b0",
+   "obstacles": "02c8d991427ad3f523307af1a5d1515a0dd86e0619919129e6a7d7c5db930899",
+   "patrollers": "b0b9fab504bb2deb2231d741dd8732fb754506b9195ef6e85504c56b690b3139",
+   "roadmap_points": "ce320c4d58dfad22c40ec83fbeb0002c6e5c10bba0d58c3a57e5c06906831a24",
+   "roadmap_adj": "c5ac8573f48b17a1fcc2147ab92d7bd9f01093f3621275d33e637bcc63fc4265"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 35,
+   "world_sha256": "c61d3393b1977801d750db02708a000176bf7bba9f853f3c009faa32ca83d146",
+   "start_goal": "fbaae122a7c6c9df69eaebf9729e4abb034bac71b84ed0c191cb6c0368aacfcf",
+   "obstacles": "9c8c4b73772ccac2673bd520f4cbfa4a0ec10571bf7298ec8bd3f7959a729934",
+   "patrollers": "750832591ada90bce2f05ebc824e66fbb9ded8397134405d2c91ca862ced12ea",
+   "roadmap_points": "642f8398944a61dffae67f87772a8397957d8d392d1d80018e1563cb251ef218",
+   "roadmap_adj": "5dab3bf8bed972c75583c42a291e59338491b0d0e6081400faa937a9a800ed17"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 36,
+   "world_sha256": "830fe0a38c4a9202de28dceb6d2e28622d97b0168ee5caaa8ac6ea2af98fb9de",
+   "start_goal": "819bcfba058ab5d374dff42c71b76fb4b78840cb417b17b9d5ec4513c1442f49",
+   "obstacles": "06c914b7544d6b71ca26cb867f5814fb395832e4c2a664c836918efa345338c1",
+   "patrollers": "ae3109be0d6605c633d9453dc9dbfc9c02ef5594fd379cb19f864964507c2574",
+   "roadmap_points": "de0c27fc68854cdf5de38f51555156347a3a43679a6f926d21363ac59cb09675",
+   "roadmap_adj": "10e2df46ad10093e251dd2f37c2449ddd645d6bb27d092d648e982a39deab7ab"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 37,
+   "world_sha256": "cc5cc98f08b7c9650b83d78dc60865f74b2f0874f904d8d217bc645075af1a8a",
+   "start_goal": "0576dd176e9a60f3b427d7e49251304b7380ebec1274dd40df8338b642b07611",
+   "obstacles": "a4e5e72f2099660a2c92dccf3b7f373d74175d8d75bbd5b9051e3eacb23eb733",
+   "patrollers": "8733d418f74d8fa35fbc7e17f016161ef98116cf1fc525ce0672c9d524ca3fb8",
+   "roadmap_points": "5fad1a40d397fa39d42053981812020395b3d49b6533e336289f0b180484501a",
+   "roadmap_adj": "08b395dafc23845771cee1789b6c0f487319e7a7bd2ccebf89aac62bd51c3e07"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 38,
+   "world_sha256": "f09aac9a2bf6b910cfe45e445664473be4a15b7b15d5ae842e55821361bf2d6b",
+   "start_goal": "d4b3c9388e93989d2ac4bb1defad328f0e993efbe72771a544e75f4b5136776e",
+   "obstacles": "c309eeadc050552db58531222e0a47e46fe5697bca011e4c2033f43e1a800586",
+   "patrollers": "2f41b91327c039a383f708e74224563c2b0383a74046da81ccb4a4dbe4c4834e",
+   "roadmap_points": "48cdf50adb1b9c77ee700226fa5f83d0c0447749456220b49175c8ca1cc73492",
+   "roadmap_adj": "ff51e04703ded052866ecff0beeabc7d4add19c61e3a64c6fd5733f570a1eb9d"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 39,
+   "world_sha256": "7ff0b96b098d151ea216f2d33da16bc3d1cef10801232f99e1169d9e74368a00",
+   "start_goal": "8304b556a849b23c409551eb4421f4214749d12c1ae665dbbd1e02c36a40ca4e",
+   "obstacles": "86b2ab3f3c8bd570752fe0a9bd4f45922a41d85bd7f25422d4caf9fcdaceb0f0",
+   "patrollers": "205d61758d98932372b0b8b9d0db4e28a6caf8b8e462d85dcd8014b692fc90dd",
+   "roadmap_points": "ff7a6a9f4c96a7a2fee022fbb299177354fdcd94a2521512435b1c74486faf2e",
+   "roadmap_adj": "83461192d4ff3428f1701082bbcce2e9d0d84c7ef44cc5dcc52cd97b0d9c0367"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 40,
+   "world_sha256": "3124b3417c3dc763ec885e7b0b3fdfc1b91ef9f8125e5d5ccff72f9f02d28b73",
+   "start_goal": "711f393f85c223e90344efe0b58dc55cc2e7bca0dabf8517488b5df70ff973ab",
+   "obstacles": "05bf6f712cb217443aba9f59e3b1ebd0140f0ab493354d95957e67d7b5fa48f4",
+   "patrollers": "5a556325029e4a2fd4dcf3ec9dbc93e26c14adba954a70b5e1e22fce5d5d0882",
+   "roadmap_points": "036bf7a22bc62a0e0e9a7606fdc3931c627eeada582bdc65db036df5a5d0fdb8",
+   "roadmap_adj": "d37201d09cbc6f580475c4d8dc64b008b677b3d43b0c746ed26de317c0871d48"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 41,
+   "world_sha256": "b1965e2c8c065f900a6ef0e04c82061602395ca2e02ac8cca5d43b4610eea513",
+   "start_goal": "b3d8c170c7e323b97494f3dfac8b8551db408b758db2a9e2cd6d521d8e67e4b2",
+   "obstacles": "cc3175284cc34e6d7d78061b778273f2176fd28dd39b99d9677d0303b0427c78",
+   "patrollers": "fc4fa2ad7666176527d1fb5b7df9264f96f300093d414786c92a3c0ff7d595c9",
+   "roadmap_points": "9fbe0e6d852d8ff9e56ce7fcd2188222a66898bbc12d33698d864a20c063e053",
+   "roadmap_adj": "c569c68651630abaed291da0be914a9e0ee36e2db6a37f7f54b5bf53c79c5aea"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 42,
+   "world_sha256": "bd552df82bf73fe3b67bbb92895aa7e9ec4cf3ab4de4c2ab7018e440fcab8e02",
+   "start_goal": "cbdcedc65a8e3b0201a2d1997e5c04038c90cd670a305c65c743ca00564f51ad",
+   "obstacles": "982e829cde0335f50506398a09263745d621a2e84ef1f33f990d017e1b8390d7",
+   "patrollers": "8f8c5bffd634bbf32447bb509562b4c03cf5192484eb0c6c93f97db814a2f10a",
+   "roadmap_points": "58946e84de2ff04bb268e6d26aeb7b37da93c602f0fffa31c21867ca201695f8",
+   "roadmap_adj": "550ee80225b37cb8c7a3d8318f6febacfeabb73d72e06e56b0429e32b70afa57"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 43,
+   "world_sha256": "76d80f27944992a086dbd29293a1b1999b3026898af3310f06185d57bd4482de",
+   "start_goal": "227039fbb8a91cbf4ff0d95da16e6ef30d2f9628f5eb336e1c7c9fdb02831f6a",
+   "obstacles": "5b8eaa217f49bed586d60076db044c77b9b9f47ef2a41185b3219cec5a32c5b3",
+   "patrollers": "c6d17c4103c7219dea08e5550cb46eaf3164f75658217650c75e18921d8306b8",
+   "roadmap_points": "dccc50a97f16852eb4dc4cf4ee36996841ce6b3195dcc649263ab7598489cc0c",
+   "roadmap_adj": "d1659c5b1798f483f9a248fda0a863a1a31afe3a808358b39f15bbc4c0a45278"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 44,
+   "world_sha256": "0858709758b6d8dd1e03fd8f3d56e5efc43f8fbf3f8fe2805583f32b88bc5c12",
+   "start_goal": "c56630fce752177b57afde109c6d5e4540cefba9b6366f9e0ea7e223ddc28075",
+   "obstacles": "d8644627a91988a5d1808098e1449bfa477aa02258f09c38b3e2d949e3274b05",
+   "patrollers": "d85278c05442cec49f6f2c62957c6834b918c72906fc694374a4afc9ce44cda9",
+   "roadmap_points": "32757a1dd9e11b7dc461846e38e93da855cd7a3ae919059b723bfdb810b88417",
+   "roadmap_adj": "330cf18864aab4d9054d8fe30a4a282dbda85ff43a1523d59f5549614c26e924"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 45,
+   "world_sha256": "46c20b6f72b90ce7bdebff9d4a12e9674d5c9aee1aaab43729e34aa22178109a",
+   "start_goal": "eb27856bac72f3ad128a69a2af4c69955dafbb57e09dceab4a56839935b49464",
+   "obstacles": "18952ed0e870f869c0bee615044b9b454499021bc86164992dbaecea3ffd9b48",
+   "patrollers": "205ec6363c7c4c9067ed325a27be5018b1be434020be3b2dd5b9ab113ea5ccf3",
+   "roadmap_points": "237ff8e055dd81a6a97d5ac6792b5a6c1799a8a0b3b65a558fa484064dd40c3d",
+   "roadmap_adj": "e0e93ba019da6e85776bdfe0c0f9717baf4739e70bcad55692c5a3f497587d7d"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 46,
+   "world_sha256": "c0f89e74b98d8430923f41fcb451f3cf7c05bb9687e6e2273ff0f721bd33e197",
+   "start_goal": "c15bc02677c3d405732a77e622241a64a4cfa28ed4f3f7e20f3c1dd3501e0ae4",
+   "obstacles": "be1b7fe7834efb24f07d76b9155db46c506c6033fcf2fa345ed92a9f9d6ff0a6",
+   "patrollers": "c346e80028501890761851bba140c01667d7974c7728ced6b48e14f2e979c857",
+   "roadmap_points": "260f73c386966066ecae92638f1e6507ef9cabf56b43fe173202b2efda236a48",
+   "roadmap_adj": "bdfd09f29cd02b6c3314326fe9b4fa17da50e7705893bd8a7bbb3f76a8152e0f"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 47,
+   "world_sha256": "70c0ec945e30031a32154bcae38efa994501b71c7cb3ed2b59cfb6f9f7051564",
+   "start_goal": "cc4e8d3f8ccd9c3175064d7eece4a123f920a13b6e2d790c22a23176c5616ec2",
+   "obstacles": "8aad137cd5af07b9ed15239930a955cc912a2747fde545bcb1cf6197bab10fa2",
+   "patrollers": "41c4ecf48d2f9a04dde6638f8327e5d9b4b82b2471c40cec24b9c1ba41dfa7c0",
+   "roadmap_points": "f9f7a101203e33cbd8ebf6ec13d62f46525c5ccc610362379a80b187e9a191b4",
+   "roadmap_adj": "e8b14a32b3d3c7da15d91d3b5f87466481f62bd455c75519d8874f4ff0ee1371"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 48,
+   "world_sha256": "02ae6f9b8fac2d84dace8e565c89f31e1a414160a70a2801175c0d83a739bcb6",
+   "start_goal": "3ce3bfe77ec75b56f73e9c43d2488d4f4e8c62d6943395a16685278ed1c77e3d",
+   "obstacles": "c96be4c1bbe1242c4a01793e5791f98ffb9e87c2aedbc820b8515846ee34a603",
+   "patrollers": "9e0b6116fa2650dd16cecf1bde449a27be39545a63bfbda4c0c965ff04a28dbd",
+   "roadmap_points": "e0c1a8a72911b6226de447a4405f7e7bbe22b63793fc7be5653abb28d0f24a55",
+   "roadmap_adj": "9933d42004876e1bfcc73839126ed3b5506910c3e5e4c76ff0363d15adfdb27e"
+  },
+  {
+   "suite": "C_dyn_crossing",
+   "world_index": 49,
+   "world_sha256": "e017c280347b16bf29474dcb9e885262fecc444e8e84362a09eccf785fb5d8e2",
+   "start_goal": "484b9884a37b4573b4f8f12d5790807125f25814ecfbd33d76ea688adc66853c",
+   "obstacles": "5db80541eb2439e3f6124f52835e2ac8dc7c610268b1ad2df5b48127d9b77fbd",
+   "patrollers": "dcc8e68d5dd8eec41a8fcac90b4a4e27add26ede5a40c655a82a9704a15729c9",
+   "roadmap_points": "4ab50668fdc7edb9c907074ee514445d4f7d903c8523d0fd3cc1b57e18824110",
+   "roadmap_adj": "727d21422efcebb2fdeb17d5c3e78f7e3996123323d40c831bc3d70c608c63b2"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 0,
+   "world_sha256": "090871f5a391f19464feb929930ed07333830b4db96a37eef464ea0699de1a0c",
+   "start_goal": "d718a9f20ac10ff6117a83b83667b2cebb95feee60987b8499af8be2bd80559a",
+   "obstacles": "7dd8a7334954e02bf35d28984a314195db45c9fdfed46463c21127575d764aac",
+   "patrollers": "fde68f652a20a44de659442363828c7e659493f30c2a0f17786b9c539b29dfc6",
+   "roadmap_points": "0035d6022638413b33be82ca10061a80e43a2f02c36f3d8fbee68468c99e9449",
+   "roadmap_adj": "fe6f8c154c56a9b07b7c136077062ef48635c993f74d3023592f1ca1440dc80c"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 1,
+   "world_sha256": "dce83e6fe2d43c7951017618db353c62183263370df773e72df839280c4ac643",
+   "start_goal": "f35c5044dc533dc0c26b882ed8e27e3ea9d83fbd015f6860389915a905941e6b",
+   "obstacles": "6c1f0c0e3c5c6075c6ff26c3fcbea6acb95758c39454f78a392af23e68398e41",
+   "patrollers": "317ce42e917f4762e2b9b792c6632147d01557d8d83ecc8e83764d0b4c778f47",
+   "roadmap_points": "80a8a89b01fc6c8a68947717e3ad852842ba2ea15593dbc3ed30b75460854802",
+   "roadmap_adj": "31ff07722f9bc04bee85b2901fa2aa98f295804f97fc167f4623856003ee6d4f"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 2,
+   "world_sha256": "af33ef9a1113e6f0094d256746cfe2d899c1399676ea6cb396c7fb7c720d6380",
+   "start_goal": "43fef82f0a272f07b05e4217b934bfd3c47036697de69f6e964a2b03a1b243b2",
+   "obstacles": "f367fca101df3673cad3191b5b23a905f3b92dcbebbee5bc134d322541604077",
+   "patrollers": "619ee058396202329411758e4209d5ef6197247c1a9b3c12f038a037530d8618",
+   "roadmap_points": "442ad43dd4d41454905a01ceaf3a878d7a442d7b1de287a1b68dd3a4a3d76368",
+   "roadmap_adj": "2ac3c9c595117bab3af8733a1cc5a4a5e2b30e29816d8bde0dc0bd1f538c36c3"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 3,
+   "world_sha256": "3c2acf4bc6ee4055105ab67939d293f8f3ab47da14654d2f63b3b13bc0a5132b",
+   "start_goal": "4a35373363def21e7e9a53b84847f1cfaa5a51c79fc9b70cc8e470cc3bbe4dfe",
+   "obstacles": "6aaaa7b3ee398b4b2e0d989e4621036d8ed1d28bf8244bc8728fc7c6e8acc9ed",
+   "patrollers": "03d342d2f55bc193ea89f676f7569350cd2a210be9b8e2a2caad2ecc91818871",
+   "roadmap_points": "6e0c18f5363919aa3bc8561623e37d167b95f7e3725434e4076c272f3380b1c1",
+   "roadmap_adj": "89fbbcc16858868ce3363f6a58c42d37b181ea5fc78780e5defcf49247bd0fec"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 4,
+   "world_sha256": "207e3a917710c01b6615935099d321aeeabd8f964e73ef546965e33e9614e844",
+   "start_goal": "5a0204cc48be54b0017df7aa8020606871a60b4eb830e0172facf121b1d64aad",
+   "obstacles": "af45e68b4f6b6153420ee5669bdddb9f589f253ab64565e826be1cc54687d730",
+   "patrollers": "5eb260ea41810cbf916040eda87a48c41eebccb8b6d324fc639d79dd03102166",
+   "roadmap_points": "5ddc7341ef8d226985dd7190fada3564fe59301bda68bc7fa48895f95fbf7db1",
+   "roadmap_adj": "9b00918fdb1ad350ae94cfb58948e2a9441ae2efd17a6f11ef406577079252e1"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 5,
+   "world_sha256": "6b2949737494bf2eb0aad8336427a86a20b858f794ed9916bd7c6dce19ad39e6",
+   "start_goal": "f9b5996b2aa940c0ae055459d057ac1fa6b8ed8b9e104a2e3c157610772151ee",
+   "obstacles": "fe13d3eb18476e67ad11540677fcda224f5dfedc66054ec31f5bca45759d46ba",
+   "patrollers": "61bdf7da79ad2be1238bdc4404768802cbe064a7a7753a8d2bc454dd53a7e17c",
+   "roadmap_points": "e176a3ff405c5b803a57ad3ea790669028e2c0df8b02fa4d9afcc3b9d6b2406b",
+   "roadmap_adj": "97b27620607bf047b52b64ec6c285d75006313746f1d4412c8ed0040c7f65610"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 6,
+   "world_sha256": "613c2fa41fbaae8528c5965d089584b40bf7452205c4736bc9a0436a57f75659",
+   "start_goal": "abeaea3e6428ff954c37672db851dfb783560f06ebff7f9ef8b4e71914ded8ea",
+   "obstacles": "d9268046b1080bb0c0768ec59c737c2eef35c77299d39db25f8ab10d490ab82a",
+   "patrollers": "a9614637741fe0fce69520297c2aa98a5f23c59509e38e11845419f2ee0bef79",
+   "roadmap_points": "4459b13c9ce7744ac0e317fd120bb4bba73e16453d29c2e2d1def525f15a4315",
+   "roadmap_adj": "1888d0b85444d80c8fc494b4865254c291d1e62d406d376ba6fa289c4929fe18"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 7,
+   "world_sha256": "34d738569f5c1f23511687c82b2578a80294a1fb9c38402ce79b0809f72fc19a",
+   "start_goal": "96c049beaeb0d2b67dc720d733de3fbba8516c87d36f4c4c77f7b71460edec6d",
+   "obstacles": "fe963ab28bda197113321252695a29fec856c4782c3325805a161d68d8042146",
+   "patrollers": "18c73ea065886bfa00fdd5b9baf2aca2ec2eb772817a68b37ede367b580a94e0",
+   "roadmap_points": "fa472dbd1a23842b02f0db26ed79687b56c4feaa8093ccc0ef7079e0621a941c",
+   "roadmap_adj": "3440a94b2872c7bde66cde9f229ee187d3fec5c386eb12641e705b102ed65e7f"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 8,
+   "world_sha256": "85891e209499dd6efb59f5ecdf5d83c73a2f7b403c5181f9f7a5cbeb69009f01",
+   "start_goal": "8bb85612e0751231938211ca0c0a399d4374a7d9fc7dc304368458257d9e2dc9",
+   "obstacles": "2579a983d175cb09eb0a17a7a3cd45c1662bad81b37f30cd9c19da9cca2837e9",
+   "patrollers": "627ed18697a6ab5019dba59860e5e202e36caafff4280513abf98aef62cfd560",
+   "roadmap_points": "adaf8bac08a923126ec8e40ca7cf318312b095993b5fc507db1a58c381e56c7d",
+   "roadmap_adj": "a31f51c0b34540372f6dec31cdf57bd1be303e495e99f0b037dac1533e46ea9c"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 9,
+   "world_sha256": "57ccaea025a3aaa4718475e7fe3712b1556480ea376e7731e30db2fd981ef1d6",
+   "start_goal": "47450581396af6a0aa18db30610e355d08fcddd416a2409e47ed353c6be7b120",
+   "obstacles": "32a0e72c68b8e1a8a37a8abf18f62f83e3a211728d41414bb8acc3621cba9207",
+   "patrollers": "1f889bacc6cc605653e0d73c828ba865459a54f4fdb04ee04528cda9bb2eddff",
+   "roadmap_points": "9e8c4c26acb551898fd05f825f0d067cdb44d4726de8955cc9985af67ec72b26",
+   "roadmap_adj": "ff5a3c715b897aa89affb6fdd4c722650ced397dcaf02decc91705e689f7ac40"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 10,
+   "world_sha256": "65adb9231e8f0abc3fa2b34b5ac8d21d951a374119f877ee34046659d19403a2",
+   "start_goal": "fe392beeaeb32e0b2463e0a069d366a9296d8b4c6d77eda8163e3951b6790373",
+   "obstacles": "d23ee16147d6ab9a4fe56e8f7d8019f10d815d81f84c3d4e9d6b7082cac3bb80",
+   "patrollers": "29c5e69b43e4bcb3107cceb66702d6de635f586f39cf64d5c992f4e12595b1b0",
+   "roadmap_points": "dd6846d427a4d3f2295f5c2a9108e48c758e9ea7e1cdf5f13a6ee703533b2f72",
+   "roadmap_adj": "3e1779b370dba00382f370a733a6df0b9c2ad06c62509a70e9c7a1be7cef31b3"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 11,
+   "world_sha256": "e3bdb818ef1348bb7cfb1623c3690400edccdd568939b4516bbc37ef95d96320",
+   "start_goal": "8eee257aba13c36bee6fe18b7805bd2f9f0d7dcad610a46251581a83067bc954",
+   "obstacles": "2d1c38e614c1ae284d2b341b36ac85180202f068be1acb2b7736e02a2ac419bb",
+   "patrollers": "6f9a915cb9290b8e66726089a0fcfe2e68233d3424e18854fda74421f5f4b797",
+   "roadmap_points": "9618473bc7ecf0597c0ec1eed5f4f287c123bdd7a00764e41fd809f785da7f33",
+   "roadmap_adj": "93daf8bee92949be455c7529f01c5a65d74c57eb720c0fd14d78c0d2711e563f"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 12,
+   "world_sha256": "f99fb243add0e0d142c25fa08838f3972b65b98d4eb9293d7be602d33a94b80d",
+   "start_goal": "5db7cf55bc762f0c99656c4fa00db86ab2b607ba916fc194a284c0075ded7add",
+   "obstacles": "fed2b1d389db23f03280c3024ca5fe0997d24b5e24242152c17d8a032424b690",
+   "patrollers": "04a5b543208b94f5b2d04b4220b0f7d5633d337bf850bc16904e5736458c38b1",
+   "roadmap_points": "d8c453d82312b17319717b4119f7e31a29a67277c93f43fc14a29072f6d77bd2",
+   "roadmap_adj": "057a4c487d9c3393079900bb0de61b289bbb055e25eee0aa1a73b3c396a114b4"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 13,
+   "world_sha256": "b07a57a966e1d3e56bb00c3055736aa0200d1301106057de5c55c05649136c67",
+   "start_goal": "b133218967a63c74854409c4f88f750c3abe550a0643e2402f51570feb6b4e66",
+   "obstacles": "42a3404d821382eed65b4d6bd8ae49c16aa434d441c45182e406e54a63adb894",
+   "patrollers": "97ace3cda50681f95299ef5713918504df9f51c63b576e3f173f0947489a652b",
+   "roadmap_points": "3a59b6e86c145023af0217741bd49ccd67376dc96ad15c2b95686e7fa7bd7e31",
+   "roadmap_adj": "907e3c5f958d48acf18b3c6788f66d58a59b8f08fb98f5000089bd99e88a59df"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 14,
+   "world_sha256": "bba0812c342db6f6105be04b356740a1e9221fb169ebab7232491a3df2f2a9b2",
+   "start_goal": "635d3f8aed7c4d06c41c7d1e1e6440c94f4ba7563c52ab179f1761dae3d9c76f",
+   "obstacles": "63126b130761e798521b719928d1f83abedb7db24334ca0c79042e837e0380fd",
+   "patrollers": "295e14db860c4a1e69ab3059ffee4db38aa4ef67080ad1c16f7a428fdbad3b01",
+   "roadmap_points": "4b7cf237201463a527fbca8997087ef6a555b59357bd697f61d9bbb6634cd672",
+   "roadmap_adj": "969da48820d4e99eb33ed2a4b1dff4cf6bd440990bb62bdde71458f0a05483ec"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 15,
+   "world_sha256": "a921517554190475c7b4b3f72a238f412e365d068387ea807d1cc9aa3bbdd055",
+   "start_goal": "7443825935ac24d4c39f4ecee87cd4de648ae0a476747ce06a10abd3dca1eb33",
+   "obstacles": "824b5b5fb076a5a143f3277d7b8401c30d8b6157bcf7717daff560b0a92b3dcd",
+   "patrollers": "bf254ca731615bb8762e6d88983e6988ca7b85cf206b2a4bcb39e2fe449962d1",
+   "roadmap_points": "aaf340ac6ee76053ad1ab77bb2f506b67647316c4e96dde5067639ac4fd17166",
+   "roadmap_adj": "802477c420577a92f133c714bf165a04cc7434041fe59f6b82db922a11bde9ce"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 16,
+   "world_sha256": "d9466832b76c2b4a5e7cc9e1b17d6593e837c36cca2458d6990e1cfc461eb244",
+   "start_goal": "ae7eb4bdd3fccba319e55b30e439404082d40a6302aafc9ec395ee6610b1f58b",
+   "obstacles": "1846e4a3f7b64fe75fc233dff50fe4104acac10afc7fa5b5068ce5a796c5e8ee",
+   "patrollers": "1eca7b542b2a1764988ef11f6ee5dc09e3f1fd47f1c50964219319c58e04cebf",
+   "roadmap_points": "29e2553b0d253ffc1e662d7746fc67ee11682d44578809265abbd8a34343acc4",
+   "roadmap_adj": "fa3bfb678346fff8e7c38f47e59fec4805b79f69de6e7ac1326f75e277e4adb4"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 17,
+   "world_sha256": "55d770e34a6a9c033a89e2976cff26402057873f2b0048bf793836e7fecf4208",
+   "start_goal": "48449eaeee51595b44f9f6c606d7a3fccbf533b92506f2e6ce89a61b48be1209",
+   "obstacles": "a8bbdbdabccc819c4ab8ffc1240e340b96315a79f5895e4ffda0a73289eab350",
+   "patrollers": "8bce9c8b3575af6decdaa3b813109e4c0caaa14186d202f7682adee8ce7c28c1",
+   "roadmap_points": "11d8320cba94273e667f47ae4762e6987fedeb51d2648227da07b95d2f80c125",
+   "roadmap_adj": "070fe3ee5d7d2a74555ee9177395e3e5beadb8f97beb5e46f469ef07a0d0dc37"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 18,
+   "world_sha256": "5ad144402f19296daaf45e31eb1cb8f2c97c2fba9756230205a9bb92a4aa07d7",
+   "start_goal": "c12815172d8965283679bfd796a2e8eb38cb2cde8bf9c0c50a7e3e62eb797e19",
+   "obstacles": "21f35745038d6e4de2248fe6f731060a2df8e7969619db2ccf2b43eb08cf001e",
+   "patrollers": "51b4aea3b2f64f009aea98aecbc714abc7c374a8dd1262e8c6f8d1c5987ac642",
+   "roadmap_points": "52e137513a39e15f4064130ca53b33e4f963a8038e1d89bd3bc75b07ab05890b",
+   "roadmap_adj": "999887085a8ab78b4a9dae96719d428f85d33a38d630f298a6fa23d1ce3bf064"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 19,
+   "world_sha256": "86942244ec9e9d7df005691708cd443664a23e5b9b257701035485cfd088a7bd",
+   "start_goal": "1a229c59bd18f83af4288398449cefa02d3fb0f97b39fd4a3ce87c9772f33933",
+   "obstacles": "06a748fa8d49d2e22b4d944bcbe062756c27590dbb339abe099a861f1902c120",
+   "patrollers": "9f0bae9ece492c9cecf7e538921dc302e70b18edd1c0fd4c6e8ff4e52d634814",
+   "roadmap_points": "bb5aa7dca53e3beba1563eee1b4a164244642dbcc59af5689f42c9f475dd237e",
+   "roadmap_adj": "9b4858ba6d4052533bbfd19035904c87379d5deaeb821b53e345cf9c1d71365b"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 20,
+   "world_sha256": "ed98ab5d8b5de2510d53580885c611a17e8981df01effcc56eec78dc1c9bd05a",
+   "start_goal": "3c103997ec09687e7fbcde313a9e8a8bc7eff84232ba89c9770cd0dfd91a9ec9",
+   "obstacles": "7d9eca7b2958fb064481c96c9a9f92ae9b090970753dc6d184d95970fb7c6317",
+   "patrollers": "afae53798f7ffe07aac34b992c526e2e3822c39293ec9cdcd18373391d2cee66",
+   "roadmap_points": "29fe6e6b58a8db8fd71849a35bd249b955ad8f4f192ebe6bb25d2f2b929cb2f2",
+   "roadmap_adj": "addf98bc8f74cae30d6be22ffde7dc1fb6d47f35c18cbad9028554fdbd2008f2"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 21,
+   "world_sha256": "a4ae60fbf836d8cac86c32e04d36199c9514b83381462af5230e147a2e67eb53",
+   "start_goal": "eea1a447df550001e6cbe04a301722638abb515989e3b3828f4f600234382efb",
+   "obstacles": "44f8bb2e5c12c75860daa6c11f0afdfd4d9b62842e82f8ffe699570c7f380cff",
+   "patrollers": "cb830083ec998e96a11512c7569c8dacca3c3cab00f122609519025f392515dc",
+   "roadmap_points": "31d756a60817014c88fccbf135b14dac564eaba7c5f5e2af91eacf6c32a7ab83",
+   "roadmap_adj": "eee2e4b6e1d42f067d676799eb8a7dc04f9a085eb102d399dd28c7c000bd29f2"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 22,
+   "world_sha256": "b668e96e55f97e81b699d38e2e022b6e437148406c447ae5da9bb3fabcf4d9ef",
+   "start_goal": "8748b7ea76393b046c7220816993cf0d440f63bab0e1ce0d5958e4159ce6b50b",
+   "obstacles": "b99d3577a91114883479fb6566d2fd126545a873f58ec2c1dc27f853e06af1bc",
+   "patrollers": "4d3c91dd92ce589c36bcda0098dd2afa21ba6bb00e27bd0f0a125d122fd2a9d7",
+   "roadmap_points": "fb1c26135107ff798091f53bb2efb4dc6337a1f87833501eb8b858339bda641e",
+   "roadmap_adj": "f3c4e42192f83a2765ee011a70d1619eb59ab27135fee2c299e13cffc38e03dc"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 23,
+   "world_sha256": "cbaccd074ebf97b23b87575b595c0bdeb1751bce8a5bacdfb522c7707480c541",
+   "start_goal": "276891e0354a3434007470ca4a9cd34cd289343bb592adac672cf014bf3d03b5",
+   "obstacles": "753dab95af82f983707ca507a027f35922a07d42b1a77d4056c8dd23e5151501",
+   "patrollers": "e87274dce0d47594118f11ecadf4d8ff07333dde0fa8877b1d4e044707d64ed5",
+   "roadmap_points": "5dd84866d202ca85a17a702d260d979ac81f897eb9275ee39f30d94cc5ffd130",
+   "roadmap_adj": "3202e9c3bfc4fa2aa91d3c54819726e22cfb6f85898342091c29d016dd82c299"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 24,
+   "world_sha256": "43e286f4659162d497d1ec5c19861616c0ae310be300d3ddc5252096bde26fdd",
+   "start_goal": "c9dade772208e94f7c2fd6a07f09170bbdda8a6acf3da24c8d2bfdf3dd43d899",
+   "obstacles": "210f06849f25309d227c59c0dce429a4a2d485a02f4901ef1a1f8f35f85e93df",
+   "patrollers": "d77726926b8a60f94cbd8bf1028dbbb8b39823910bb02bc8143332b578b76f67",
+   "roadmap_points": "865edaa17341e623b1e27536ed00a31eb8ed4775713b405a82c3b5a91d6ca2bc",
+   "roadmap_adj": "19bce9cd4e4dae9a3ddcc789c3deb7d053354d278150a668c299a3d4f35d1e2a"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 25,
+   "world_sha256": "0bb799431420732ceefa44f8496f3ee8e49511abfdf280019f06400d21bed2c3",
+   "start_goal": "47dcb7905a529f7e98d4459d5f4497e017b983fcba3eb6c9e531bc543eb86d71",
+   "obstacles": "2aebdd6fcac2cf9bb6e7dfffc0a838878f6f4e2942861f2564f057d869c596de",
+   "patrollers": "dbc142b826bc2be3d39ac2396a91cbfbec2fc8dce55f84723a67469cbe3a4b27",
+   "roadmap_points": "05ca1277f15960520d14182ff5e58520604a421b465cd925c37cbee69e1261c2",
+   "roadmap_adj": "ff0ce55c7d19832a2e79d87dcae3e78c793088fc16ad82f74dd62aac3caee31a"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 26,
+   "world_sha256": "28a847eb0c64bbc6811e29f468cc6bad0bdc686d02fea2dc4f92b5ad82d5273e",
+   "start_goal": "3f42a3bfa3ea780e2234acbe00b5f6e87daa8c2fdd110e2aa2eb0f3bb806d705",
+   "obstacles": "601a8ff9886924275891d8fef63e6eac36eabfd001a6187871cc7551460acc72",
+   "patrollers": "0bfa4cd9e43099e0c70b7b7618f891afaf6fa0b5787d122527b60d2cadcff270",
+   "roadmap_points": "593916bc58a0392a3af72a2bcc77cd88fd65ccd0804f7d286964f5d571882522",
+   "roadmap_adj": "1ff694936424ebfbc74795e05ab89832bc6ec26a63ac11293441b63a977e86e5"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 27,
+   "world_sha256": "c1c020701d27a50413f347a69d699ef450ecf9f9b8510f829ed3deffbe27ae04",
+   "start_goal": "6d3e9ec759d8916f6f619701e84458f2a866d1108c88f94dc1776dfd8ce645c7",
+   "obstacles": "e8f861344a96a47554382d0d76ff1bd7964f4cf54bc0c9ad589e07ef3714f422",
+   "patrollers": "8f3f4fcedf70e49c762ae2bd4cb666fc2bda4bbc52fd7ad00f18ba18a025bc9f",
+   "roadmap_points": "29f09e3eadc2377fe9a3e6af58ae83d9c37add620fdb14c9b06138fcdc6c7356",
+   "roadmap_adj": "98b7e09cd2294ae812948a18d4a31c1d776479fb673f7b75a94825526f42a306"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 28,
+   "world_sha256": "88ff11d4e08f24e913272052c3242b20a615a8591475dd45315f22ddbc498dbf",
+   "start_goal": "f82d2395a6a86f92e6ead81d3187e25eebcc062781a3c5c13977c4f7cf070a88",
+   "obstacles": "36b2a8a4ec96e16539e1e995cd6ffcc9a7d476872880c8b845b313cb6fea1b4e",
+   "patrollers": "8d302f30eff249abec0af1d3f93d966c12be7e3a0c5fa7592ad8646471c5e1c7",
+   "roadmap_points": "57a4824dc2b670d7c2fbdbd1d61339edb397edaa7c3d096b8b6109ed6be85a9c",
+   "roadmap_adj": "fe159685d17e594f609f07982f678b0b738603c1a5f6972518a4dab54a85fc01"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 29,
+   "world_sha256": "f1715107c1d944460ed5810a0ff5a87a861e999fc215dca26c901afc26f713bf",
+   "start_goal": "f8cd691ec444ee4273e63820421ec6b1dad56ddd337323f88957cc6912fbb329",
+   "obstacles": "f2fafad1557a61e2ef2bda73f04c018791d389ebec7fa367d91e4b7058b1554c",
+   "patrollers": "ec9fac9351b0df8588e4fa8289a90f17b25ace98f34dddef73f7a1f97d860954",
+   "roadmap_points": "bfea2ef61f8ebf1167202d0a68086285d8b1834c7ff90cd02082f0b79c037b8f",
+   "roadmap_adj": "e46e7381d78a277f28a2d301735f66fe58832bf493ea2c41fd98a67e1032df8c"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 30,
+   "world_sha256": "7c78bfceff843e02cc3094f8f8af3438c227a2dd9f131d807a9ca576855d7237",
+   "start_goal": "a71b1a19bf0f70af3e14a1d07c702a840ad5dfdfaf35c1bab0b4ee38d681a148",
+   "obstacles": "88aeb9acabd4360bc436f574d80dad6c5b47bf651d631731f110169b848036fd",
+   "patrollers": "2340abd478090a8c79df49d5cce4d340c161e505a3c24e0824865e4aeb942885",
+   "roadmap_points": "00bb492d308738f3433281bf626e439ae31d3439ed5e4661118c1d0d6bb515d8",
+   "roadmap_adj": "69cb04616f3fb0eb6fa8f95fbf8af3ec06dae087577da59974abdfcb416329ec"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 31,
+   "world_sha256": "9dc9b4fa3b05ea162c232ddf36573eae5d49e47a0af1a9c32fc10d441faf5ff7",
+   "start_goal": "946391f464828656da69a3f6b98a494d33bfa00dff17a06d8b26c0b78ecef10f",
+   "obstacles": "ecb22ae2bf1fa52027e628fd78312c54dba8c38ae8181d92184ec00e96911f82",
+   "patrollers": "77fbbe35a7bb3b6928414c55cb9cba1d420a17a16f2e84f70df71853f57b8724",
+   "roadmap_points": "ad0fe4c66d11f64bd4285e79065673fdc672e255f28a5fa14ac065e16a59a282",
+   "roadmap_adj": "98dcc8186ddc9d5808ea5553b19d4693b25f8030c1c699fd5bc197b4a4c37c1c"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 32,
+   "world_sha256": "ac7263206e2ffca538a627acfc757beb3b22fc6e5ce847d4244c8d024209fdc8",
+   "start_goal": "f709779d82d815d6a602705e01c759527ef7eff51f8eb5f6cc94a10eae10c1c9",
+   "obstacles": "aa565d7dfac1c8a5280414931fee1a741e2c995ad0c311c330995270bbfc954d",
+   "patrollers": "eff01a2dd003182e567ca09dc5364e1c26d423d078fce5d9ee7c014505d52c9d",
+   "roadmap_points": "f78cacdb0be7085b7bf758977a71be07b5ee2bd8e0251f35f0fc6bf5e76c250c",
+   "roadmap_adj": "0bb1b0863c9afbeff72f0d039a8cd5374698ef5f91637317b82bbfddf63d51ce"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 33,
+   "world_sha256": "d07f5261a7515070063eefb5f9c904184b8cae0040a8c32049ec28cbe74a4e10",
+   "start_goal": "a0a690daf625826156c4c1a6e2d82bf1427e3cc9997f4d3b7f905855447a85d3",
+   "obstacles": "476d7d8ec2ee55329e30f9a02c5d8624ef9872239a1e240b686423ca10dd8c49",
+   "patrollers": "07f92fc65c31fe2369739c8ecc72b8640932eba3c8c3f290153c98aca943fe3d",
+   "roadmap_points": "d599f903bfbc38be6ed68b06cdf0df40a4282787feb3be001289d9cfb8d96a42",
+   "roadmap_adj": "fbdd982f5c4d5b01ecdd46c589a99ed1f8a22537ca795e1601f83417bac6a511"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 34,
+   "world_sha256": "847139c7c7cc8853a784dad90cc838af4be2bb45ee85a155bbb4d7d0ff7f1b2b",
+   "start_goal": "beee82eaf49de15d95fde4ff913e92b65c0f12b4bc2f7b38620cd825eb44aa12",
+   "obstacles": "75119f80a2592d1cfc5b355e13c243372c2c656dca1128ca04751e62b2050f26",
+   "patrollers": "28dfee5697e5bea44972ea01d99fbd228c6e92dd4a99e7ff6b9561aa8e0912c0",
+   "roadmap_points": "b94bd8b0f29e60a0100ae2a4c0b01c76037ebd7fd0878653a7919a5994d75326",
+   "roadmap_adj": "aeb51607d3e67df03f5ea3b8da26792d6862ac9c30c70ff30cced692722dddb3"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 35,
+   "world_sha256": "f52f2b189f8201ab3751024f5a5935b5b89c6e2401e2961c14548a30bd3dbd8b",
+   "start_goal": "d15f3d13d8ce5f7c0a9b4415c9c37e6fb7ccfa6b50b6012c0977a58793ef54fc",
+   "obstacles": "a4a43d000a6443e5cf8dd24d58555fdc630181e9f3d25f933303bddc96695ecd",
+   "patrollers": "c558ea71e0918c44f91ef02762c20db795cdd64f7d0a71a40cf114997bb6f3e8",
+   "roadmap_points": "f599da9abcda03adfefc8b1cb7df1509f0c6ac27d6d76f67503fc658a26842cf",
+   "roadmap_adj": "2f5fd811b76d4feca494c017be4bf91298ec8495832eb25ce8443381afd80ae0"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 36,
+   "world_sha256": "6f358b14c1ce32c13c6cb17f246c62530a9fd73bc3e40f365befec41c76964bf",
+   "start_goal": "95f19631887e32bb92a34ab4ea3502aa70e850f5252ce54829cff0a107c69834",
+   "obstacles": "fb5c5e6a3e6db6b5328a9249b376896ba43bcc8fb6030e48c3a18928eacce7af",
+   "patrollers": "ef9be1a1088865f24be0b8918322cacda8056ae390ed755b0bf5cce825a43357",
+   "roadmap_points": "395ff53b9118d790e2586e4a937131cd9406b0f8607fe6e5c47b60509a46b755",
+   "roadmap_adj": "e951a794dc4b5ce23c745dfbae375a9f1ca46a02471d682f5efcc4e6250ed1c2"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 37,
+   "world_sha256": "118d042f3eab0ef9cfae18d9d0f1c84f6138e5de4768b7a2140404514e61118f",
+   "start_goal": "99bace7fe90520e4218e9bf6d43359b8eabb393a02501eb647096f3565ba121b",
+   "obstacles": "697496c974a735e6c98e3fce531f0bfdf24a1a94119a9b71591f4e474572d71d",
+   "patrollers": "3de7f20c7e8c0cc63690b2a3368540539853ab27baf5cbe430e72bb0fd4d08d8",
+   "roadmap_points": "58dd55622235de0a87ea4209f8c23495c6b45f504069a3f7367728214675e9f4",
+   "roadmap_adj": "53d52df0550d797a132a373816704d211a0f76de9ba5c57fa67ddc656e7c0ace"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 38,
+   "world_sha256": "0c6e4298111153d14d413e221efd2209f16dc0dd8c580a4d0fadc2a582f8138e",
+   "start_goal": "77e6bba349ad586a1a391b2ab520480d122de9d04dbc84327a5154e961fadc54",
+   "obstacles": "2ff6bffeb279608c4ae9f9ccc85b167f667f7327b86f2b642c440866ca19b655",
+   "patrollers": "3126d5e563c3f73ff2f4e351b0a70f5f63bf9c4d58360ee65fcc4b5107a6c559",
+   "roadmap_points": "6985efd7d33f048d75e061167f0b9ae0a2f40d71ce7e1f24dc33eb01785b37a0",
+   "roadmap_adj": "bad81fbc623f65be6363f42eaa9828b49e06cf8dd2e9086f3e84eb60132737c7"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 39,
+   "world_sha256": "726f33ebfb0268db5f70fd15a4f0db7ef748fb3df38656c1d8255ca2149f8c11",
+   "start_goal": "e7f89d855892383aaa65d8573250059300ac0fc7676c32e80af828657106d7ee",
+   "obstacles": "471d920a337962eb2db5d5e2bd0d4cb3696e96fc7c9a7cb2efebf8ebec33cc0a",
+   "patrollers": "1f677e2aa4bfdfa4524d626bdfbb4e9d21a3079b90f01d9c990cfece319a8c13",
+   "roadmap_points": "6f7ef32433ab1ca522e58093157b8085e72eca448f2d0e76555d93da69cb47d8",
+   "roadmap_adj": "974afba9bf0c1cc04223a37d723891e014d20dcb25654835a075766eafea64fa"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 40,
+   "world_sha256": "d27e1b43be73d75ed9bc983f19ffd02bb1607ce7fce5974b0ab1f2c559ed7c08",
+   "start_goal": "2010fca38bb21c9b172e3980c59f8b30e7b982d68439e2d8a764dfd757860eac",
+   "obstacles": "ad75479fbb5d7c6731ce6177f2bc427669106e2f6e5247b652a6e834914aa07b",
+   "patrollers": "351a97b59c8b04b57048869e16105226f8e2a6b53601701c061d017af56e6331",
+   "roadmap_points": "6f1cd65e9fd7efea3502417d6f2d096f981d087b4195b138ba886c33818206aa",
+   "roadmap_adj": "f6a234d1c30c169018a9fe75add5fe26739aa0f3585748b669e3e02e86f60876"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 41,
+   "world_sha256": "4678addf254253bf95b34be7b00f6dd64a2bda47bab8ae53fa988a15c9513858",
+   "start_goal": "24cb5a49c866aedd5d61338c3af7fdbabca441eba229410da1c21542805f9e27",
+   "obstacles": "42f78671bbee57707cb454da8ee6a5817588682db8a1cd9ca6279acf4f6a144b",
+   "patrollers": "1abe4f829f5828404e379b2e39d5fa29ec61edb09fb2ec6bf391d8a4cf6aa174",
+   "roadmap_points": "8994ff775190668b7303af93680256237b689da3872fd471f190bf5bdfd15dee",
+   "roadmap_adj": "57d32388cb0e369a479d1c50a7e15025f169a3a17eca6c9e4e31d6223ef5a7f2"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 42,
+   "world_sha256": "ae3c137e589329515985af0a54927edadff191f048b34c41836aa00e009dd632",
+   "start_goal": "fdbd45e77c5088fbe27af334bea4df9e63af38a28d1ac29aee42084b926149a8",
+   "obstacles": "2d7839f40b5ccd95a410d20d3e6384e0b520e789305c087326c652b61329f7c3",
+   "patrollers": "a3f21bb497ab01ea7cf9f6bbecce14eca5eb087a04e1db4feb39c504d7cb24f9",
+   "roadmap_points": "4c1d8183e542b7f18aa81f7842224422ffc73e6d4f7f4fb8a22eb69afec24541",
+   "roadmap_adj": "348e6226ef5e8d55aaeeecd2f5267c9ed5627d495129c420ef36b9cc53aae323"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 43,
+   "world_sha256": "27f39866874033dc1fde6ed3642ed605b6df804a511c330e665ba52e986614bc",
+   "start_goal": "f43a270e209e315cb50827a2867fee179934028c7f4187fbd0425401b46f618a",
+   "obstacles": "05c85253e5d10a85922812e83071a82c2ba795317b4f5becc4875bceed629a87",
+   "patrollers": "dc53f29c16e63f9f3a8b1665d66117bdb5eb64d36422f05d034dfbbb57148873",
+   "roadmap_points": "f264436ecd84a3b58e23d9c503b440b7cf6f6acb66f6b664f5f9f4dae5a4e89f",
+   "roadmap_adj": "9c423b19625aa4a3149320738a16632830c8775ccca41929c02c955618c7b6ee"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 44,
+   "world_sha256": "80e8ccd34b752030bb0e37f9089d3aa1c7a66de5a62d856bd3b696c929ce99bb",
+   "start_goal": "eff1b07bf94cc8b02864d4d86cd18127e7aff515e15cefcb19f85564d08f7a72",
+   "obstacles": "601089dd9e5470524817eda42c30f1bf8aa00331a118be90b3f4eda34052b14a",
+   "patrollers": "636fc4ca580fedad76cfda5f4792e18a31a598684132134d50538c323b83a0a4",
+   "roadmap_points": "ec54ae6abd120485e4124eb81547570adba7fe4236fc1e3428ec3d55e1f1ff2d",
+   "roadmap_adj": "7295b3d6396b0b533bcc2d3e512d4654d4f26944fcad1f71b032cc44dcdf07aa"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 45,
+   "world_sha256": "79e6a18379f7c397e708b01c634380bd097dfe84f6c06fd99e31e3a6491e9aee",
+   "start_goal": "6cb2f1fe780275983ac4d5fadd2487ee7de59180c8096a38a60cd35c8da587d2",
+   "obstacles": "599192cc5e66c28b89ff714e5d9d63029c863eb5c0f3f95367d7ddfd6c694c6f",
+   "patrollers": "8f62c027c2688645693949bf6c18c67ededb894d054b8a80f80e0fbcbc9c2b9c",
+   "roadmap_points": "102bddf68484a89950c0c37f8dd78207e4112dd08741621b7722fd67df014339",
+   "roadmap_adj": "402db4ec15c64541beb4abb71bb21ec67debd440a71c7f977bd176f0a3ad262f"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 46,
+   "world_sha256": "5ea306e8d1f3095fdccbaa0e77adb220e88bf0288028e479f8d61d58bc6e01d7",
+   "start_goal": "42598feeac50c9f7ecc766a450a7b5dd2a7a90e5c9a2c3a5ad998d856b55401c",
+   "obstacles": "ffb5f52dd96c7a4999ade22f30bf12f3806d3cab2f8f224a61587988491e9454",
+   "patrollers": "af718c82bf33238fea87dc1a435f20d3f71a1fb5e1d37efeeac692c13d2fb2f4",
+   "roadmap_points": "a9e4a2fb10f714b2fa836c1edd1620cd47d3c564c104c36cc0b8fd9362531ba5",
+   "roadmap_adj": "7a57ada06056f5aa442567eabb298785b983a43c8933e5c68a6ad1ff6d82e4aa"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 47,
+   "world_sha256": "089f8196e9c47c428fd5498a8a0d3c51423f94b936db94bfab5afa158f23903c",
+   "start_goal": "80cdf829420c98485612503c8c52605c0e117d5409d0f3fbc865183e08e0abf8",
+   "obstacles": "0c187e652499e93c0c1aeb5091ae3cce9abba024f078af176bb6c09d500554fb",
+   "patrollers": "7ed00ca19c621582089bd05e9dba440ca2f28ec3fdff80e205bade4d4379634d",
+   "roadmap_points": "8acf07cdbb1014e52994a32e1ab37e1cb5c0c62d9f4801f661920df997380f2a",
+   "roadmap_adj": "2ff6787fd4097f22baf11432674c94020485b66c6b141ae60148d9e816858018"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 48,
+   "world_sha256": "c86e906262059dc5efbbdda1ff22e074aec0ec00e0f7e05cf805a4010c07caca",
+   "start_goal": "168954405c8dcf1d72f6a5ee287108172ecd95e368ce053677046ea9bd49f58c",
+   "obstacles": "1ba21f9102f3f5f4a287030d4bf80c20b0ba20ec6c0ce38528daf403e76100c7",
+   "patrollers": "424674487aa695e257cac80ae608adcb033a5dbf20c501f586c4b95ca194a3f5",
+   "roadmap_points": "3afc418efd68b7090f3b75ddd681465d9db60f7f1595c58ca8e04254a8374a3a",
+   "roadmap_adj": "fc24b8af6f471054dfe988f98ec77b436f7faf991f1a830a8e115ee57a83719e"
+  },
+  {
+   "suite": "C_dyn_rooms_large",
+   "world_index": 49,
+   "world_sha256": "8c2381a27e90e63990dcbba44a677a500dcd01e6c2af574d013bad85c5f2fa7d",
+   "start_goal": "1dd4c0cde971d644fb221856514fd90cbc208a6fa92ddd4c90072d9e38437585",
+   "obstacles": "20f7f9545a16d2b3b98e1a7b99e5e7439e9231a8630a23a297c7a34580e3ede7",
+   "patrollers": "c2ce22cacab2caa327f6d4205fb406b4bc87cad78cf6eda1685870e17e6c57ed",
+   "roadmap_points": "a1f69e8211142b86b0fa2b7cea94b20ef76cd5676b75d8e688411f29696f1498",
+   "roadmap_adj": "9d445a6914c387f00b5720d7e6cddc091d7b2bebead3aeb8a272b423fe32bf6f"
+  }
+ ]
+}

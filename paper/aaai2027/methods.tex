@@ -1,0 +1,140 @@
+%File: methods.tex --- standalone Methodology companion to
+% "An Empirical Analysis of Transfer for Dynamic Path Planning" (AAAI-27 submission).
+% Single-column reference document; not part of the submission archive.
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage[round]{natbib}
+\usepackage[hyphens]{url}
+\frenchspacing
+
+\newcommand{\stage}[1]{\textsc{#1}}
+
+\title{Methodology Companion\\[0.3em]\large An Empirical Analysis of Transfer for Dynamic Path Planning}
+\author{}
+\date{2026-07-23 --- anonymized companion document}
+
+\begin{document}
+\maketitle
+
+\noindent This document collects, in one place and at full protocol detail, the methodology of the accompanying submission: environments, learned heuristic providers, planner integrations, transfer and adaptation protocols, the bounded-observation study, evaluation metrics, statistical procedures, and the methodological safeguards under which every claim was produced. Results appear only where a number justifies a design choice.
+
+\section{Overview and Design Logic}
+
+The study asks whether heuristics learned on training maps transfer---zero-shot or from a few labeled target maps---to new environments for dynamic path planning, and what governs the answer. Two coupled experimental programs address it: a \emph{discrete} grid-world program and a \emph{continuous} roadmap program, spanning thirteen preregistered stages (\stage{C1}--\stage{C13}) plus discrete counterparts.
+
+Two design principles organize everything. First, \emph{static suites serve as a proving ground}: supervision there is exact and confounds are controllable, so choices of training objective and planner integration are validated on static maps before being evaluated on the dynamic target, where the classical baseline is weakest. Second, \emph{every comparison isolates one factor}: twin models differing in a single input, integration comparisons reusing identical frozen weights, and architecture arms trained under one matched recipe. Transfer results are otherwise confounded by the objective, the integration, and the supervision content of a ``shot''; the methodology below exists to remove those confounds.
+
+\section{Environments and Substrates}
+
+\subsection{Discrete grid worlds}
+Maps are occupancy grids from $20{\times}20$ up to $256{\times}256$ cells with static obstacles and, in dynamic variants, moving obstacles; the planner is A\textsuperscript{*} \citep{hart1968astar} with the Manhattan-distance baseline heuristic. Evaluation suites cover in-distribution families, structural out-of-distribution families, and scale out-of-distribution sizes (e.g., models trained at smaller scales evaluated at $128{\times}128$--$256{\times}256$), under fixed expansion budgets with 100 episodes per suite/budget row in the controlled runs (22 suites $\times$ 3 budgets in the canonical transfer grid).
+
+\subsection{Continuous roadmaps}
+A point robot plans in 2-D environments with procedurally generated obstacles via a probabilistic roadmap \citep[PRM;][]{kavraki1996prm} of ${\sim}192$ nodes with $k{=}7$ connectivity; the baseline heuristic is Euclidean distance. Obstacle families include hard maze, dense maze, rooms, spiral, bugtrap, and large-room layouts; families are deliberately held out of training to measure family-level transfer.
+
+\subsection{Dynamic environments}
+Dynamic obstacles follow deterministic trajectories. The search state is a (node, time) pair, following space--time A\textsuperscript{*} \citep{silver2005cooperative,phillips2011sipp}: waiting and timing are part of the plan, and the search expands states of a time-expanded graph. Six dynamic suites (crossing, maze, dense maze, rooms, large rooms, spiral) use per-suite budgets; the heavy configuration trains on 53 usable maps and evaluates on 20 held-out maps per suite.
+
+\subsection{Calibration and binding budgets}
+Every suite carries a per-suite \emph{binding budget} of node expansions; success means reaching the goal within it. Budgets are calibrated so the classical baseline lands in a discriminative band (observed 0.25--0.62 success across formal static cells; e.g., binding budgets of 140 for maze-family suites, 24 for bugtrap, 56 for large rooms). Early uncalibrated pilots (\stage{C1}--\stage{C4}) saturated (baseline success 0.925--1.00), hiding all differences; calibration is therefore treated as a precondition for any method comparison.
+
+\section{Learned Heuristic Providers}
+
+\subsection{Training objectives}
+Three supervision schemes are used. (i) \emph{Scalar residual regression}: predict a nonnegative detour residual on top of the baseline heuristic from local features, with a label cap; exact costs-to-go come from graph Dijkstra. (ii) \emph{Value fields}: predict a goal-conditioned raster residual field over the map (eight input channels: occupancy, reachable-free mask, clearance, goal and start Gaussians, $x$, $y$, normalized Euclidean distance), sampled at roadmap nodes. (iii) \emph{Space--time values}: exact backward space--time Dijkstra labels over $(\text{node},t)$ states for dynamic training ($1{,}129{,}536$ scalar samples in the heavy run). The bounded-observation study (Section~6) replaces exact labels entirely with behavior-derived returns. The choice among these objectives is itself a methodological finding: under (i) one architecture collapses to a constant at the label cap while another excels, and switching to (ii) with no other change rescues it; a properly trained (i) is later shown viable as well. Objective selection therefore precedes, and is reported separately from, any architecture or transfer claim.
+
+\subsection{Architectures and parameter matching}
+Providers are implemented over Multilayer Perceptrons, LSTMs \citep{hochreiter1997lstm}, ON-LSTMs \citep{shen2019onlstm}, Hierarchical Reasoning Models \citep{wang2025hrm}---including a faithful port with adaptive computation \citep{graves2016act,banino2021pondernet} verified bit-exact against the reference forward pass---U-Nets \citep{ronneberger2015unet} with FiLM conditioning \citep{perez2018film}, and product-graph graph networks. Within each comparison, arms are parameter-matched to comparable complexity and trained under one matched recipe (same data, epochs, learning-rate schedule); pooled (multi-family) training is the default, with specialist variants used only as controls.
+
+\section{Planner Integrations}
+
+The same learned estimate can enter A\textsuperscript{*} in several ways; the integration is treated as an experimental factor, selected by the tightness of the admissible baseline.
+
+\begin{description}
+  \item[Additive.] The learned residual is added to the baseline heuristic, sacrificing admissibility for guidance. Used where the baseline is loose (continuous suites; path suboptimality observed 1.02--1.14).
+  \item[Rank-only (focal).] Search keeps an admissible band $f \leq w \cdot f_{\min}$ \citep{pearl1982semiadmissible,pohl1970} and the learned signal only orders expansions \emph{within} the band; at $w{=}1.0$ node optimality is untouched. Used where the baseline is tight (discrete grids), consuming the model as a ranking rather than a magnitude \citep{chrestien2023rank}.
+  \item[Inference-time local Bellman backup.] In the bounded-observation study, learned predictions serve only as \emph{exit values} of a radius-bounded local subgraph; one Bellman backup over that subgraph, computed at inference for the queried state, produces the heuristic (kin to a single value-iteration step \citep{tamar2016vin} at the planner interface). A scale factor $\alpha$ multiplies the backup; $\alpha$ is calibrated once on a disjoint block and then frozen.
+  \item[Certified control.] A separate bounded operating point runs the learned rank inside a $w{=}1.10$ focal search whose incumbent is proven against a consistent baseline bound sharing a single queue and $g$-state; every returned path carries a per-instance certificate. Integration lesson: an earlier variant that ran a \emph{fresh} certifier search discarded the incumbent's work and lost all six oracle-provider comparisons; sharing the queue reversed this to six of six---so certification is implemented strictly as a shared-state search.
+\end{description}
+
+\section{Transfer and Adaptation Protocols}
+
+\subsection{Transfer distances}
+Three distances are distinguished: (a) unseen maps from training families; (b) unseen \emph{families} (obstacle statistics never trained on); (c) unseen maps under restricted observation (Section~6). \emph{Zero-shot} applies the provider frozen.
+
+\subsection{Few-shot arms}
+$K$-shot adaptation uses $K \in \{1,2,4,8,16,32\}$ labeled target maps and three arms: rank-8 LoRA \citep{hu2021lora} (bounded and unbounded output variants), full fine-tuning, and training from scratch as a control; five adaptation seeds (three in the matched-compute rerun) on 30 fixed test maps per target. The matched-compute hardening gives every arm 10 epochs at learning rate $2{\times}10^{-4}$, and adds convolutional LoRA for the field U-Net, so capacity---not compute---is the manipulated variable; comparing bounded to unbounded adapters separates the adapter's output clamp from its rank. Dynamic-target adaptation (\stage{C9b}) repeats the protocol on space--time providers (486 adapters over three backbones $\times$ aware/blind $\times$ three targets), where a single dynamic map supplies ${\sim}25{,}000$ labeled $(\text{node},t)$ states---the protocol feature that lets supervision \emph{density}, not map count, be identified as the regime variable.
+
+\subsection{Temporal-information twins}
+For every dynamic backbone we train aware/blind \emph{twins} differing in exactly one input: an 8-step future obstacle window ($W{=}8$) versus the present frame only ($W{=}0$). Twins share data, labels, recipe, and architecture, isolating the value of future-motion information both zero-shot and under adaptation.
+
+\subsection{Composition control}
+A zero-label alternative to adaptation interpolates 16 single-family expert adapters (four maze-density and four room-scale sources, two backbones) by task-descriptor similarity: RBF weights over descriptor axes, plus nearest, uniform, weight-space merge, and prediction-space mixture variants. Descriptor routing quality is measured separately from planning benefit so that ``routing works'' and ``composition pays'' cannot be conflated.
+
+\section{The Bounded-Observation Protocol}
+
+The hardest transfer setting restricts information access: the heuristic for a state may use only bounded local observations---a radius-0.20 subgraph around the state on a known roadmap---and may never read complete-map rasters, graph Dijkstra values, or any shortest-path supervision. Labels are \emph{behavior-derived}: median successful returns of three fresh-start local-policy rollouts per node, with visit history reset at every labeled start. Training uses 96 suite-balanced maps (three families), validation 24, and a disjoint development block of 24 maps spanning all six families; eight outer iterations of local heuristic Bellman learning produce the checkpoint, selected on validation only.
+
+The staged design is falsification-first: each rung of a preregistered ladder changes one factor (target statistic, calibration, analytic local constructions, training distribution, integration, scale), and only the surviving mechanism---the inference-time local backup of Section~4 with $\alpha{=}1.50$ calibrated on 48 fresh maps---advances. Confirmation then freezes the checkpoint, radius, $\alpha$, integration, gate thresholds, and analysis code \emph{before} generating 144 zero-overlap maps (24 per family; seed offset disjoint from every prior cohort; feature caches hash-verified against live regeneration). The preregistered gate requires: 144 valid paths; pooled paired expansion CI below zero against the strongest complete-map provider; negative mean delta in at least four families; and mean/max path-cost ratios within $+0.005$/$+0.02$ of that provider. The certified $w{=}1.10$ control must separately return 144 valid paths with zero bound or certificate violations. Timing is recorded but excluded from gates (the prototype Python feature builder averages 5.14\,s per map versus 0.37\,s for complete-map inference; model inference itself is 0.8\,ms).
+
+\section{Evaluation Metrics}
+
+\begin{description}
+  \item[Success.] Fraction of episodes reaching the goal within the binding budget. Budgets differ across suites; absolute success is never compared across unrelated protocols.
+  \item[Matched-solved expansion ratio.] Learned-arm expansions divided by baseline expansions on maps both solve; below 1 is better. Because this conditions on joint success (and can flatter a low-success arm), it is always reported alongside---never instead of---success.
+  \item[Path suboptimality.] Found path cost divided by the exact optimum (graph or space--time), reported separately from search effort; additive integrations are inadmissible and their suboptimality is quantified rather than assumed away.
+  \item[Timing.] Feature-construction, model-inference, and search wall time recorded separately; timing never enters preregistered gates.
+\end{description}
+
+\section{Statistical Methodology}
+
+Success contrasts use paired McNemar tests with Benjamini--Hochberg correction within stage families. Effort contrasts use bootstrap percentile intervals (10k--20k resamples) over matched maps. Because several stages evaluate repeated seeds on the same test maps, publication-grade inference clusters at the \emph{map} level: seeds are averaged within maps before any interval, test, or permutation is computed; the paper's quoted quantities were recomputed under this grain (map-clustered bootstraps; a stratified permutation test for the halting--depth correlation, shuffling within configuration since maps are independent across depth cells). Two reporting rules are enforced throughout: success evidence and solved-only effort evidence are never merged into a single score, and negative results are stated as failures to observe an effect under the tested protocol---never as equivalence, for which no tests were run. A procedural note recorded during reanalysis: accidentally pooling additive and focal evaluation modes attenuated apparent transfer effects by roughly half, so mode filtering is part of the analysis contract, not a convenience.
+
+\section{Methodological Safeguards}
+
+\begin{description}
+  \item[Headroom gates.] Before a hypothesis-bearing stage is trained, a privileged oracle must prove the benchmark can express the hypothesized effect (e.g., an exact compositional oracle beating a leg-sum baseline at expansion ratios 0.082--0.225 before the depth study; a privileged-history diagnostic proving memory relevance before the memory study; oracle integration ceilings before learned providers enter a new search). A null under a passed gate is informative; without one it is noise.
+  \item[Preregistration and hard stops.] From the seventh stage onward, designs, budgets, gate thresholds, and analysis grains are frozen before execution; failed development gates block confirmation rather than triggering retuning; confirmation cohorts are generated only after models, integrations, and evaluation code are frozen and hashed.
+  \item[Integrity manifests.] Checkpoints, feature caches, cohort manifests, raw rows, verdicts, and reports are hash-bound; caches are re-verified against live regeneration at evaluation time; duplicate evaluations must reproduce identical decision rows (wall-clock fields excluded).
+  \item[Collapse forensics.] Constant-prediction training collapse is detected by signature (identical final loss pinned at the label cap) and affected cells are excluded from capacity conclusions; padding manipulations are checked so pad steps cannot masquerade as useful recurrent compute. A related audit rule---any adaptive-computation ``accuracy'' equal to $100$ minus exact-match accuracy indicates a frozen halting head---was applied to the ported architecture before its use.
+  \item[Matched controls everywhere.] An explicit MLP control accompanies every claim about structured architectures; twins isolate single inputs; frozen-weight reuse isolates integrations; and scratch training anchors every adaptation curve.
+\end{description}
+
+\section{Stage-by-Stage Protocol Summary}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lp{11.2cm}@{}}
+\toprule
+Stage & Protocol essentials \\
+\midrule
+\stage{C1--C4} & 9 easy suites, $n{=}80/40$ maps, budgets 100--200; pooled bases, task-LoRA experts, RBF mixtures. \\
+\stage{C5} & calibrated hard maze/dense/rooms; 160 train / ${\sim}80$ eval maps; budgets 128--168; scalar residual target with cap. \\
+\stage{C6} & goal-conditioned raster residual field (8 channels), sampled at roadmap nodes; 96/40 maps; budgets 128--168. \\
+\stage{C7} & 6 suites (3 held-out families); 96/24 maps per suite; binding budgets 140/24/56; scalar+field $\times$ additive+focal matrix; exact-Dijkstra oracle. \\
+\stage{C8} & deterministic moving obstacles; space--time roadmap; aware ($W{=}8$) vs.\ blind ($W{=}0$) twins; 53 train / 20 eval maps per suite; 1{,}129{,}536 samples. \\
+\stage{C9/C9h} & adapt pooled bases to 3 held-out families; $K\in\{1..32\}$; LoRA(r8, bounded/unbounded), full FT, scratch; matched compute (10 epochs, LR $2{\times}10^{-4}$); 30 fixed test maps per target. \\
+\stage{C9b} & same protocol on dynamic sources (aware+blind), 486 adapters, 3 targets, $K\in\{1,4,16\}$. \\
+\stage{C10} & 16 rank-8 experts on 2 family axes; zero-label transfer to 3 interior targets; RBF/nearest/uniform weight-merge and prediction-mix composition. \\
+\stage{C11} & compositional missions (waypoints; keys/doors), configs A/B/C, length $K\in\{0,2,4,8\}$; 40 train / 25 test maps per cell; 6 arms $\times$ 3 seeds (198 checkpoints; 54{,}450 eval rows); exact mission oracle and leg-sum baseline; forced-compute and would-halt probes. \\
+\stage{C12} & (A) hidden slow/fast regime dynamics, memory-headroom gate, matched temporal-hierarchy pilot; (B) tied vs.\ untied product-graph refiner, cycles 1--8, configs A/C $\times$ $K\in\{2,8\}$, 3 seeds, 48 checkpoints. \\
+\stage{C13} & bounded-observation heuristic (radius 0.20); behavior-derived fresh-start rollout labels (median of 3); staged falsification ladder (\stage{A}--\stage{L}); frozen 144-map confirmation (\stage{M}); architecture substitutions (\stage{N}/\stage{O}). \\
+Discrete & $20{\times}20$ to $256{\times}256$ grids; Manhattan baseline; forecasting, additive residual transfer (22 suites $\times$ 3 budgets $\times$ 100 episodes), pooled multitask bases, focal ranking at $w\in\{1.0,1.05,1.1\}$. \\
+\bottomrule
+\end{tabular}
+\caption{Protocol essentials by stage.}
+\label{tab:protocols}
+\end{table}
+
+\section{Compute and Reproducibility}
+
+Continuous-program stages are local single-GPU (RTX 5090) validations with one primary training seed per stage unless stated (three model/adaptation seeds where noted); the discrete program ran on a remote fleet. Code, preregistrations, per-stage raw tables, and integrity manifests are prepared for release; artifact hashing and the duplicate-evaluation contract above are what make the release checkable rather than merely available.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

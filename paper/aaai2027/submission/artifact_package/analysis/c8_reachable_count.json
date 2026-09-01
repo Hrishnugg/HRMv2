@@ -1,0 +1,2844 @@
+{
+ "canonical_1234": {
+  "seed": 1234,
+  "train_worlds_per_suite": 24,
+  "usable_worlds": 53,
+  "usable_per_suite": {
+   "C_dyn_maze": 17,
+   "C_dyn_rooms": 19,
+   "C_dyn_spiral": 17
+  },
+  "all_worlds_192_nodes": true,
+  "all_worlds_111_slots": true,
+  "total_slots": 1129536,
+  "total_reachable": 821850,
+  "reachable_fraction": 0.7275996515383308,
+  "per_world_reachable_min": 13028,
+  "per_world_reachable_mean": 15506.603773584906,
+  "per_world_reachable_max": 17322,
+  "by_suite": {
+   "C_dyn_maze": {
+    "worlds": 17,
+    "slots": 362304,
+    "reachable": 263404
+   },
+   "C_dyn_rooms": {
+    "worlds": 19,
+    "slots": 404928,
+    "reachable": 312016
+   },
+   "C_dyn_spiral": {
+    "worlds": 17,
+    "slots": 362304,
+    "reachable": 246430
+   }
+  },
+  "per_world": [
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 101237,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16037
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 111210,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16790
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 131156,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16646
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 141129,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13134
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 171048,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14703
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 190994,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16188
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 200967,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16115
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 220913,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15370
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 240859,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15411
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 260805,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14748
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 270778,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15488
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 280751,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15206
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 290724,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15328
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 300697,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14959
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 310670,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15480
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 320643,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15731
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 330616,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16070
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 201240,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 17157
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 211213,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16553
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 221186,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16386
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 231159,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16261
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 241132,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15408
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 251105,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16629
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 261078,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16121
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 281024,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16676
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 290997,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 17322
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 300970,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16882
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 310943,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16451
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 340862,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16126
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 370781,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16713
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 380754,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16933
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 390727,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16057
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 400700,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16094
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 410673,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15862
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 420646,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 17257
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 430619,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15128
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 301243,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14128
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 331162,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14886
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 341135,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13242
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 351108,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15496
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 371054,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13028
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 381027,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13932
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 391000,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14860
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 400973,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13211
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 420919,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15605
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 430892,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15882
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 440865,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16419
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 450838,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14738
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 460811,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14406
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 470784,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13750
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 510676,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14576
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 520649,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14401
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 530622,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13870
+   }
+  ],
+  "elapsed_s": 352.8
+ },
+ "seed2001": {
+  "seed": 2001,
+  "train_worlds_per_suite": 64,
+  "usable_worlds": 139,
+  "usable_per_suite": {
+   "C_dyn_maze": 41,
+   "C_dyn_rooms": 50,
+   "C_dyn_spiral": 48
+  },
+  "all_worlds_192_nodes": true,
+  "all_worlds_111_slots": true,
+  "total_slots": 2962368,
+  "total_reachable": 2115331,
+  "reachable_fraction": 0.7140675972735325,
+  "per_world_reachable_min": 12282,
+  "per_world_reachable_mean": 15218.208633093525,
+  "per_world_reachable_max": 17025,
+  "by_suite": {
+   "C_dyn_maze": {
+    "worlds": 41,
+    "slots": 873792,
+    "reachable": 614767
+   },
+   "C_dyn_rooms": {
+    "worlds": 50,
+    "slots": 1065600,
+    "reachable": 810485
+   },
+   "C_dyn_spiral": {
+    "worlds": 48,
+    "slots": 1022976,
+    "reachable": 690079
+   }
+  },
+  "per_world": [
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 111977,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12627
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 121950,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14296
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 131923,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13376
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 141896,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15387
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 151869,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15112
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 161842,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14703
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 171815,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15775
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 181788,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13810
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 191761,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14462
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 231653,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15343
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 241626,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15375
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 271545,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14825
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 281518,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15082
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 291491,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15930
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 301464,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14605
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 321410,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16337
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 331383,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13547
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 351329,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12401
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 361302,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15548
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 371275,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15402
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 391221,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15155
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 401194,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15909
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 441086,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16406
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 461032,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15576
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 471005,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14852
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 500924,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15341
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 510897,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16035
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 520870,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15797
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 530843,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13865
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 540816,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16134
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 550789,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14543
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 560762,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15473
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 590681,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14204
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 620600,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15811
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 630573,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16255
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 660492,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14478
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 670465,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15816
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 680438,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15236
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 690411,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13707
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 700384,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15615
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 720330,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14616
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 211980,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16211
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 221953,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16555
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 231926,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15397
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 241899,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16209
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 251872,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15655
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 261845,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16158
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 271818,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16295
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 281791,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16461
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 301737,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16452
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 311710,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16299
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 321683,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15666
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 331656,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14946
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 341629,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16435
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 351602,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16365
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 361575,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16233
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 371548,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16129
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 381521,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16258
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 391494,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16263
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 401467,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 17025
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 411440,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16453
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 421413,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15934
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 431386,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16245
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 451332,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16724
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 461305,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15849
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 471278,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16957
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 491224,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16510
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 511170,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15493
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 521143,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15586
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 531116,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16065
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 541089,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16097
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 561035,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16384
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 571008,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15637
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 580981,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15351
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 590954,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16493
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 600927,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16731
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 610900,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15806
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 620873,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16077
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 660765,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16643
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 670738,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16343
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 680711,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16090
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 710630,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16620
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 730576,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16645
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 740549,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16038
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 750522,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16697
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 760495,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15901
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 780441,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16310
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 790414,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16463
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 810360,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16939
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 820333,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16475
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 830306,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15917
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 302010,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14236
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 311983,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15544
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 351875,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13892
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 361848,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15049
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 371821,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14435
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 411713,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14021
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 421686,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15010
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 431659,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14599
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 441632,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15501
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 451605,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15109
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 461578,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14149
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 471551,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13857
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 481524,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14442
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 491497,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13681
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 501470,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14407
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 511443,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15628
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 521416,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15464
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 531389,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15496
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 541362,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14016
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 551335,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14129
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 561308,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15710
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 571281,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14709
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 581254,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15587
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 601200,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15016
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 621146,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12282
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 631119,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13906
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 651065,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15024
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 661038,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14429
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 671011,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15539
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 680984,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12819
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 690957,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13396
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 700930,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14943
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 720876,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13082
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 740822,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14452
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 750795,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14177
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 780714,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15357
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 790687,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15534
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 800660,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13834
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 810633,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13177
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 820606,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13123
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 830579,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15161
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 840552,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15585
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 850525,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12724
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 860498,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14034
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 880444,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12670
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 890417,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14220
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 920336,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13289
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 930309,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13635
+   }
+  ],
+  "elapsed_s": 1074.9
+ },
+ "seed2002": {
+  "seed": 2002,
+  "train_worlds_per_suite": 64,
+  "usable_worlds": 149,
+  "usable_per_suite": {
+   "C_dyn_maze": 40,
+   "C_dyn_rooms": 54,
+   "C_dyn_spiral": 55
+  },
+  "all_worlds_192_nodes": true,
+  "all_worlds_111_slots": true,
+  "total_slots": 3175488,
+  "total_reachable": 2257512,
+  "reachable_fraction": 0.7109181328979987,
+  "per_world_reachable_min": 10932,
+  "per_world_reachable_mean": 15151.087248322148,
+  "per_world_reachable_max": 17705,
+  "by_suite": {
+   "C_dyn_maze": {
+    "worlds": 40,
+    "slots": 852480,
+    "reachable": 605925
+   },
+   "C_dyn_rooms": {
+    "worlds": 54,
+    "slots": 1150848,
+    "reachable": 874368
+   },
+   "C_dyn_spiral": {
+    "worlds": 55,
+    "slots": 1172160,
+    "reachable": 777219
+   }
+  },
+  "per_world": [
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 102005,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12818
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 121951,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15591
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 131924,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15643
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 141897,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15513
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 151870,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15509
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 161843,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15040
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 171816,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15448
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 201735,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14192
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 211708,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12538
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 221681,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15907
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 241627,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15508
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 251600,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14815
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 281519,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13618
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 321411,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15846
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 331384,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15504
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 351330,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15340
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 371276,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15864
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 421141,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15336
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 431114,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14913
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 441087,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15700
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 461033,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16011
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 471006,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16009
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 480979,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15640
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 490952,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14805
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 500925,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15588
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 520871,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15769
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 560763,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15343
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 570736,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15488
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 580709,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16054
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 610628,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13127
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 630574,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14818
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 640547,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15880
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 650520,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15624
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 660493,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14614
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 670466,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14734
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 680439,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14662
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 690412,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14766
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 700385,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16224
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 710358,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15423
+   },
+   {
+    "suite": "C_dyn_maze",
+    "world_seed": 730304,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14703
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 202008,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16279
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 221954,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16360
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 231927,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16243
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 241900,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16867
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 271819,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16541
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 281792,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16008
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 301738,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16426
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 321684,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16313
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 331657,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15767
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 341630,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16033
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 351603,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16743
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 361576,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 17705
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 371549,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15654
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 381522,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16804
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 391495,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15337
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 411441,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15780
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 421414,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 17042
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 431387,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14732
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 441360,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15743
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 451333,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15536
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 461306,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15898
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 471279,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16076
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 481252,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15927
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 501198,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16117
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 511171,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16287
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 521144,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16102
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 531117,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16515
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 541090,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15824
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 551063,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16969
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 561036,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15898
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 571009,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15848
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 580982,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16335
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 590955,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15896
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 610901,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16420
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 620874,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15737
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 640820,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14715
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 650793,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16127
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 670739,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16764
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 680712,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16730
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 690685,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16559
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 700658,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16585
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 710631,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16540
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 720604,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15451
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 730577,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16293
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 740550,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15757
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 750523,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15788
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 760496,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16723
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 770469,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16134
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 780442,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16610
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 790415,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16853
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 800388,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16547
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 810361,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14850
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 820334,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 17265
+   },
+   {
+    "suite": "C_dyn_rooms",
+    "world_seed": 830307,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16315
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 302011,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13031
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 311984,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15603
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 321957,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14329
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 331930,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14204
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 351876,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13370
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 361849,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15717
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 371822,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15365
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 381795,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15247
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 391768,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 10932
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 401741,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14610
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 411714,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13873
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 421687,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15166
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 441633,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12308
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 451606,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13950
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 461579,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13063
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 471552,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15681
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 481525,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 11770
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 491498,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13520
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 501471,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15789
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 511444,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14601
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 521417,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15608
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 531390,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14449
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 541363,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 16048
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 551336,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13941
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 561309,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14273
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 571282,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13719
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 581255,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15075
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 601201,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14830
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 631120,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13261
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 641093,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13297
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 651066,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14256
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 661039,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13523
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 671012,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13728
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 680985,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13720
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 690958,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15099
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 700931,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13936
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 710904,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13921
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 720877,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12798
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 740823,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13627
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 750796,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13686
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 760769,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14399
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 770742,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14291
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 780715,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14387
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 800661,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15295
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 810634,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 11891
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 820607,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13158
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 830580,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14027
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 840553,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 15057
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 850526,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14878
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 860499,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 12939
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 870472,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14679
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 890418,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 13781
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 900391,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14548
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 910364,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14408
+   },
+   {
+    "suite": "C_dyn_spiral",
+    "world_seed": 930310,
+    "n_nodes": 192,
+    "t_slots": 111,
+    "slots": 21312,
+    "reachable": 14557
+   }
+  ],
+  "elapsed_s": 1193.2
+ }
+}

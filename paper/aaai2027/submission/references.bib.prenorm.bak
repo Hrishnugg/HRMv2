@@ -1,0 +1,329 @@
+% Verified programmatically against arXiv / Semantic Scholar / Crossref metadata.
+% See lit/lit_report*.md for the per-entry verification audit.
+
+@article{wang2025hrm,
+  title         = {Hierarchical Reasoning Model},
+  author        = {Guan Wang and Jin Li and Yuhao Sun and Xing Chen and Changling Liu and Yue Wu and Meng Lu and Sen Song and Yasin Abbasi Yadkori},
+  year          = {2025},
+  eprint        = {2506.21734},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2506.21734},
+  primaryClass  = {cs.AI},
+}
+
+@article{jolicoeur2025trm,
+  title         = {Less is More: Recursive Reasoning with Tiny Networks},
+  author        = {Alexia Jolicoeur-Martineau},
+  year          = {2025},
+  eprint        = {2510.04871},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2510.04871},
+  primaryClass  = {cs.LG},
+}
+
+@article{bhardwaj2017sail,
+  title         = {Learning Heuristic Search via Imitation},
+  author        = {Mohak Bhardwaj and Sanjiban Choudhury and Sebastian Scherer},
+  year          = {2017},
+  eprint        = {1707.03034},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1707.03034},
+  primaryClass  = {cs.RO},
+}
+
+@article{yonetani2021neuralastar,
+  title         = {Path Planning using Neural A* Search},
+  author        = {Ryo Yonetani and Tatsunori Taniai and Mohammadamin Barekatain and Mai Nishimura and Asako Kanezaki},
+  year          = {2020},
+  eprint        = {2009.07476},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2009.07476},
+  primaryClass  = {cs.LG},
+}
+
+@article{kirilenko2023transpath,
+  title         = {TransPath: Learning Heuristics For Grid-Based Pathfinding via Transformers},
+  author        = {Daniil Kirilenko and Anton Andreychuk and Aleksandr Panov and Konstantin Yakovlev},
+  year          = {2022},
+  eprint        = {2212.11730},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2212.11730},
+  primaryClass  = {cs.AI},
+}
+
+@article{tamar2016vin,
+  title         = {Value Iteration Networks},
+  author        = {Aviv Tamar and Yi Wu and Garrett Thomas and Sergey Levine and Pieter Abbeel},
+  year          = {2016},
+  eprint        = {1602.02867},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1602.02867},
+  primaryClass  = {cs.AI},
+}
+
+@article{lee2018gppn,
+  title         = {Gated Path Planning Networks},
+  author        = {Lisa Lee and Emilio Parisotto and Devendra Singh Chaplot and Eric Xing and Ruslan Salakhutdinov},
+  year          = {2018},
+  eprint        = {1806.06408},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1806.06408},
+  primaryClass  = {cs.LG},
+}
+
+@article{hu2021lora,
+  title         = {LoRA: Low-Rank Adaptation of Large Language Models},
+  author        = {Edward J. Hu and Yelong Shen and Phillip Wallis and Zeyuan Allen-Zhu and Yuanzhi Li and Shean Wang and Lu Wang and Weizhu Chen},
+  year          = {2021},
+  eprint        = {2106.09685},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2106.09685},
+  primaryClass  = {cs.CL},
+}
+
+@article{wortsman2022soups,
+  title         = {Model soups: averaging weights of multiple fine-tuned models improves accuracy without increasing inference time},
+  author        = {Mitchell Wortsman and Gabriel Ilharco and Samir Yitzhak Gadre and Rebecca Roelofs and Raphael Gontijo-Lopes and Ari S. Morcos and Hongseok Namkoong and Ali Farhadi and Yair Carmon and Simon Kornblith and Ludwig Schmidt},
+  year          = {2022},
+  eprint        = {2203.05482},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2203.05482},
+  primaryClass  = {cs.LG},
+}
+
+@article{ilharco2022task,
+  title         = {Editing Models with Task Arithmetic},
+  author        = {Gabriel Ilharco and Marco Tulio Ribeiro and Mitchell Wortsman and Suchin Gururangan and Ludwig Schmidt and Hannaneh Hajishirzi and Ali Farhadi},
+  year          = {2022},
+  eprint        = {2212.04089},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2212.04089},
+  primaryClass  = {cs.LG},
+}
+
+@article{shen2019onlstm,
+  title         = {Ordered Neurons: Integrating Tree Structures into Recurrent Neural Networks},
+  author        = {Yikang Shen and Shawn Tan and Alessandro Sordoni and Aaron Courville},
+  year          = {2018},
+  eprint        = {1810.09536},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1810.09536},
+  primaryClass  = {cs.CL},
+}
+
+@article{graves2016act,
+  title         = {Adaptive Computation Time for Recurrent Neural Networks},
+  author        = {Alex Graves},
+  year          = {2016},
+  eprint        = {1603.08983},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1603.08983},
+  primaryClass  = {cs.NE},
+}
+
+@article{banino2021pondernet,
+  title         = {PonderNet: Learning to Ponder},
+  author        = {Andrea Banino and Jan Balaguer and Charles Blundell},
+  year          = {2021},
+  eprint        = {2107.05407},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2107.05407},
+  primaryClass  = {cs.LG},
+}
+
+@article{ronneberger2015unet,
+  title         = {U-Net: Convolutional Networks for Biomedical Image Segmentation},
+  author        = {Olaf Ronneberger and Philipp Fischer and Thomas Brox},
+  year          = {2015},
+  eprint        = {1505.04597},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1505.04597},
+  primaryClass  = {cs.CV},
+}
+
+@article{perez2018film,
+  title         = {FiLM: Visual Reasoning with a General Conditioning Layer},
+  author        = {Ethan Perez and Florian Strub and Harm de Vries and Vincent Dumoulin and Aaron Courville},
+  year          = {2017},
+  eprint        = {1709.07871},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1709.07871},
+  primaryClass  = {cs.CV},
+}
+
+@article{agarwal2021precipice,
+  title         = {Deep Reinforcement Learning at the Edge of the Statistical Precipice},
+  author        = {Rishabh Agarwal and Max Schwarzer and Pablo Samuel Castro and Aaron Courville and Marc G. Bellemare},
+  year          = {2021},
+  eprint        = {2108.13264},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2108.13264},
+  primaryClass  = {cs.LG},
+}
+
+@article{henderson2018matters,
+  title         = {Deep Reinforcement Learning that Matters},
+  author        = {Peter Henderson and Riashat Islam and Philip Bachman and Joelle Pineau and Doina Precup and David Meger},
+  year          = {2017},
+  eprint        = {1709.06560},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1709.06560},
+  primaryClass  = {cs.LG},
+}
+
+@article{pineau2021reproducibility,
+  title         = {Improving Reproducibility in Machine Learning Research (A Report from the NeurIPS 2019 Reproducibility Program)},
+  author        = {Joelle Pineau and Philippe Vincent-Lamarre and Koustuv Sinha and Vincent Larivière and Alina Beygelzimer and Florence d'Alché-Buc and Emily Fox and Hugo Larochelle},
+  year          = {2020},
+  eprint        = {2003.12206},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2003.12206},
+  primaryClass  = {cs.LG},
+}
+
+@article{ichter2018sampling,
+  title         = {Learning Sampling Distributions for Robot Motion Planning},
+  author        = {Brian Ichter and James Harrison and Marco Pavone},
+  year          = {2017},
+  eprint        = {1709.05448},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1709.05448},
+  primaryClass  = {cs.RO},
+}
+
+@article{velickovic2021nar,
+  title         = {Neural Algorithmic Reasoning},
+  author        = {Petar Veličković and Charles Blundell},
+  year          = {2021},
+  eprint        = {2105.02761},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2105.02761},
+  primaryClass  = {cs.LG},
+}
+
+@article{pohl1970,
+  title   = {Heuristic Search Viewed as Path Finding in a Graph},
+  author  = {I. Pohl},
+  year    = {1970},
+  journal = {Artificial Intelligence},
+  doi     = {10.1016/0004-3702(70)90007-X},
+}
+
+@article{chrestien2023rank,
+  title         = {Optimize Planning Heuristics to Rank, not to Estimate Cost-to-Goal},
+  author        = {Leah Chrestien and Tomás Pevný and Stefan Edelkamp and Antonín Komenda},
+  year          = {2023},
+  eprint        = {2310.19463},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2310.19463},
+  primaryClass  = {cs.AI},
+}
+
+@article{czechowski2021subgoal,
+  title         = {Subgoal Search For Complex Reasoning Tasks},
+  author        = {Konrad Czechowski and Tomasz Odrzygóźdź and Marek Zbysiński and Michał Zawalski and Krzysztof Olejnik and Yuhuai Wu and Łukasz Kuciński and Piotr Miłoś},
+  year          = {2021},
+  eprint        = {2108.11204},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:2108.11204},
+  primaryClass  = {cs.AI},
+}
+
+@article{qureshi2019mpnet,
+  title         = {Motion Planning Networks},
+  author        = {Ahmed H. Qureshi and Anthony Simeonov and Mayur J. Bency and Michael C. Yip},
+  year          = {2018},
+  eprint        = {1806.05767},
+  archivePrefix = {arXiv},
+  journal       = {arXiv preprint arXiv:1806.05767},
+  primaryClass  = {cs.RO},
+}
+
+@article{kavraki1996prm,
+  title   = {Probabilistic roadmaps for path planning in high-dimensional configuration spaces},
+  author  = {L. Kavraki and P. Svestka and J. Latombe and M. Overmars},
+  year    = {1996},
+  journal = {IEEE Trans. Robotics Autom.},
+  doi     = {10.1109/70.508439},
+}
+
+@article{korf1990rta,
+  title   = {Real-Time Heuristic Search},
+  author  = {R. Korf},
+  year    = {1990},
+  journal = {Artificial Intelligence},
+  doi     = {10.1016/0004-3702(90)90054-4},
+}
+
+@article{aine2016mha,
+  title   = {Multi-Heuristic A*},
+  author  = {Sandip Aine and Siddharth Swaminathan and Venkatraman Narayanan and Victor Hwang and Maxim Likhachev},
+  year    = {2014},
+  journal = {Robotics: Science and Systems X},
+  doi     = {10.15607/rss.2014.x.056},
+}
+
+@article{pearl1982semiadmissible,
+  title   = {Studies in Semi-Admissible Heuristics},
+  author  = {Judea Pearl and Jin H. Kim},
+  year    = {1982},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  doi     = {10.1109/tpami.1982.4767270},
+}
+
+@article{koenig2006rtaa,
+  title   = {Real-time adaptive A*},
+  author  = {Sven Koenig and Maxim Likhachev},
+  year    = {2006},
+  journal = {Proceedings of the fifth international joint conference on Autonomous agents and multiagent systems},
+  doi     = {10.1145/1160633.1160682},
+}
+
+@article{silver2005cooperative,
+  title   = {Cooperative Pathfinding},
+  author  = {David Silver},
+  year    = {2005},
+  journal = {Proceedings of the AAAI Conference on Artificial Intelligence and Interactive Digital Entertainment},
+  doi     = {10.1609/aiide.v1i1.18726},
+}
+
+@article{phillips2011sipp,
+  title   = {SIPP: Safe interval path planning for dynamic environments},
+  author  = {Mike Phillips and Maxim Likhachev},
+  year    = {2011},
+  journal = {2011 IEEE International Conference on Robotics and Automation},
+  doi     = {10.1109/icra.2011.5980306},
+}
+
+@article{arfaee2011bootstrap,
+  title   = {Learning heuristic functions for large state spaces},
+  author  = {Shahab Jabbari Arfaee and Sandra Zilles and Robert C. Holte},
+  year    = {2011},
+  journal = {Artificial Intelligence},
+  doi     = {10.1016/j.artint.2011.08.001},
+}
+
+@article{hart1968astar,
+  title   = {A Formal Basis for the Heuristic Determination of Minimum Cost Paths},
+  author  = {Peter Hart and Nils Nilsson and Bertram Raphael},
+  year    = {1968},
+  journal = {IEEE Transactions on Systems Science and Cybernetics},
+  doi     = {10.1109/tssc.1968.300136},
+}
+
+@article{hochreiter1997lstm,
+  title   = {Long Short-Term Memory},
+  author  = {Sepp Hochreiter and Jürgen Schmidhuber},
+  year    = {1997},
+  journal = {Neural Computation},
+  doi     = {10.1162/neco.1997.9.8.1735},
+}
+
+@article{ferber2020neural,
+  title   = {Neural Network Heuristics for Classical Planning: A Study of Hyperparameter Space},
+  author  = {Patrick Ferber and Malte Helmert and J{\"o}rg Hoffmann},
+  year    = {2020},
+  journal = {Frontiers in Artificial Intelligence and Applications},
+  doi     = {10.3233/faia200364},
+}
+

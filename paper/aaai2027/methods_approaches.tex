@@ -1,0 +1,121 @@
+%File: methods_approaches.tex --- standalone "Methods / Approaches" companion to
+% "An Empirical Analysis of Transfer for Dynamic Path Planning" (AAAI-27 submission).
+% Condensed and reorganized from submission.tex sections: Experimental Setting and
+% Evaluation; Harness Effects; Zero-Shot Transfer; Few-Shot Adaptation.
+% Reference document; not part of the submission archive.
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage[round]{natbib}
+\usepackage[hyphens]{url}
+\usepackage{microtype}
+\frenchspacing
+
+\newcommand{\stage}[1]{\textsc{#1}}
+
+\title{Methods and Approaches\\[0.3em]\large An Empirical Analysis of Transfer for Dynamic Path Planning}
+\author{}
+\date{2026-07-23 --- anonymized companion document}
+
+\begin{document}
+\maketitle
+
+\noindent This companion collects the submission's methodological core --- the experimental setting and evaluation discipline, the two harness effects (target representation and planner integration), and the zero-shot and few-shot transfer protocols --- with enough quantitative detail to stand alone. Full per-rung intervals, twin tables, replication rows, and reproducibility inventories remain in the submission and its technical appendix.
+
+\section{Experimental Setting and Evaluation}
+
+\textbf{Planning tasks.} Two coupled programs share one question. The \emph{discrete} program plans with receding-horizon space--time A\textsuperscript{*} on occupancy grids from $20{\times}20$ up to $256{\times}256$ cells, with Manhattan distance as the classical baseline; the controlled transfer grid covers 22 suites $\times$ 3 budgets at 100 episodes per cell, spanning in-distribution, structurally out-of-distribution, and scale out-of-distribution families. The \emph{continuous} program uses a 2-D point robot on a probabilistic roadmap \citep[PRM;][]{kavraki1996prm} of ${\sim}192$ nodes with $k{=}7$ connectivity and Euclidean distance as the baseline; obstacle families include maze, dense maze, rooms, spiral, bugtrap, and large-room layouts, with several families deliberately held out of training. In dynamic suites, obstacles follow deterministic trajectories, the search state is a $(\text{node},t)$ pair in the time-expanded graph, and waiting is a legal action.
+
+\textbf{Binding budgets.} Every suite carries a per-suite \emph{binding} node-expansion budget, calibrated so the classical baseline is neither saturated nor hopeless; success means reaching the goal within it. This is a precondition, not a convenience: early uncalibrated pilots saturated the baseline (success 0.925--1.00) and hid every method difference. Under calibration, baseline success lands in a discriminative band (0.25--0.62 across formal static cells; e.g., binding budgets of 140 for maze-family suites, 24 for bugtrap, and 56 for large rooms, with per-suite dynamic budgets ranging from 150 to 2{,}500).
+
+\textbf{Labels and providers.} Static continuous labels are exact graph-Dijkstra costs-to-go on the PRM; dynamic labels are exact backward space--time Dijkstra values over $(\text{node},t)$ (the heavy dynamic run trains on 53 usable maps and $1{,}129{,}536$ scalar samples, evaluating on held-out maps per suite). Two provider forms are studied: scalar residual regressors (predicting a nonnegative detour residual over the baseline from local features, with a label cap) and goal-conditioned raster residual \emph{fields} (an eight-channel raster input --- occupancy, reachable-free mask, clearance, goal/start encodings, coordinates, normalized Euclidean distance --- decoded to a residual field sampled at PRM nodes). Backbones span MLPs, LSTMs \citep{hochreiter1997lstm}, ON-LSTMs \citep{shen2019onlstm}, Hierarchical Reasoning Models \citep[HRMs;][]{wang2025hrm} including an adaptive-computation port \citep{graves2016act,banino2021pondernet}, FiLM-conditioned U-Nets \citep{ronneberger2015unet,perez2018film}, and graph networks. Arms are parameter-matched and trained under one matched recipe wherever an experiment makes a direct architecture comparison; the paper never treats parameter counts from unrelated stages as a global match.
+
+\textbf{Transfer protocol.} Three transfer distances are distinguished: unseen maps from trained families, unseen map \emph{families}, and a final restricted-observation setting in which the provider cannot see the complete map at query time. Zero-shot transfer applies a frozen provider with no target supervision. Few-shot adaptation draws $K$ labeled target maps and compares three update rules from the same frozen source: rank-8 LoRA \citep{hu2021lora}, full fine-tuning, and training from scratch, under matched optimization. (In the compositional study, $K$ instead denotes mission length; the submission flags that use explicitly so the two quantities are never conflated.)
+
+\textbf{Metrics.} Success and search effort are never merged into one score. Effort is the \emph{matched-solved expansion ratio}: learned-arm expansions divided by baseline expansions on the maps both solve. Because it conditions on joint success, it can flatter an arm that solves only easier maps --- so success always leads, ratios follow, and empirical path-cost ratios are reported separately (additive guidance sacrifices admissibility, and its observed suboptimality is quantified rather than assumed away).
+
+\textbf{Statistical inference.} Success comparisons use paired McNemar tests with Benjamini--Hochberg correction within stage families; expansion ratios use percentile bootstrap intervals. The analysis grain is the \emph{map}: for stages that repeat adaptation or model seeds on fixed test maps, seeds are averaged within maps before inference, and all quoted adaptation/architecture contrasts use map-clustered bootstraps (10k resamples) or stratified permutation. This matters in practice --- a reanalysis pass that accidentally pooled evaluation modes attenuated measured adaptation effects by roughly half, so mode filtering and map-level clustering are treated as part of the method, not post-processing.
+
+\textbf{Preregistration discipline.} From \stage{C7} onward every stage freezes a written design --- gates, budgets, arms, and analysis grain --- before execution; confirmation cohorts are generated only after model, integration, and evaluation code are fixed; failed development gates block confirmation rather than trigger retuning; and negative outcomes are reported as-is. Most continuous headline stages use one primary training seed unless stated; the mission-compositional and refiner stages carry multi-seed grids, and the dynamic primary result now carries a three-seed replication (Section~3).
+
+\section{Harness Effects: Representation and Integration}
+
+The abstract's proviso --- \emph{with the right training objective and planner integration} --- is an empirical result. Both choices can manufacture an apparent transfer or architecture failure while the learned signal itself is useful, so both are validated before any transfer or architecture verdict is read.
+
+\textbf{Target representation.} On calibrated hard static maps, a pooled ON-LSTM scalar residual regressor raises hard-maze success from 0.525 to 1.000 over Euclidean A\textsuperscript{*} (corrected $q{=}4.3{\times}10^{-11}$), while the parameter-matched HRM scalar arm collapses to a constant prediction at the normalization cap and merely matches the baseline; lower learning rates and a soft-cap variant reproduce the collapse, so it is not a tuning accident. Retaining the HRM backbone but changing only the target/output structure to a goal-conditioned raster residual field rescues it: hard-maze success rises from 0.625 to 0.975 ($q{=}3.4{\times}10^{-4}$). A later stage completes the triangulation by showing a \emph{well-trained} scalar HRM is also viable (per-suite ratios 0.427--0.822). The evidence therefore localizes the original failure to the target/optimization path --- value fields are not intrinsically necessary, and the HRM is not intrinsically unsuitable; the collapse signature itself (identical final loss pinned at the cap) later serves as an automatic screen for dead arms in the architecture grid.
+
+\textbf{Planner integration.} The useful interface depends on the tightness of the admissible baseline. Against the \emph{loose} Euclidean baseline of continuous hard roadmaps, additive integration works: the learned residual fills the gap Euclid leaves, with field-HRM matched ratios 0.521--0.850 and empirical path-cost ratios of only ${\approx}1.02$--1.14, while focal (rank-only) variants stay closer to plain Euclidean search. Against the \emph{tight} Manhattan baseline of discrete grids, the same additive idea is inert or harmful even though the learned signal is demonstrably informative: the pooled residual correlates 0.987--0.994 with the true residual across map sizes, but its magnitude is scale-flat (predicted-to-true mean falls from 0.73 to 0.19 as maps grow), and every additive learned arm in the controlled 22-suite run is at or below its matched baseline. Reusing the \emph{same frozen predictions} only to rank expansions inside an admissible focal band at $w{=}1.0$ --- where node optimality is untouched --- cuts expansions by 6--15\% in the tested cells with no observed success regression, supporting rank-oriented heuristic learning \citep{chrestien2023rank}.
+
+\textbf{The oracle integration control.} A later control isolates integration from learning entirely. An \emph{exact} value ranker paired with a fresh, work-discarding certifier search loses all six primary comparisons (141.2 vs.\ 129.7 mean expansions) --- perfect values, wrong plumbing. Sharing one search state (a single queue and $g$-state) changes no oracle values yet wins all six comparisons (122.8 expansions). The lesson is deliberately narrower than a universal recipe: the objective and the integration must both be validated, or transfer and architecture verdicts are uninterpretable.
+
+\section{Zero-Shot Transfer}
+
+\textbf{Static maps and held-out families.} On six calibrated static PRM suites --- three training families, three held out --- the transferred field HRM solves 0.75--1.00 of test maps against Euclidean success of 0.25--0.58, with corrected success evidence on four suites and matched ratios 0.521--0.850. Family-level transfer reappears in the adaptation stage: frozen pooled providers beat Euclidean A\textsuperscript{*} in all six target/backbone cells ($q{<}0.001$--0.025) before any target labels are used.
+
+\textbf{Dynamic maps: the fixed-provider primary result.} The dynamic stage uses six suites with deterministic moving obstacles and exact space--time labels. To remove any selection over architectures --- the ``oracle over arms'' worry --- the primary analysis fixes \emph{one} provider for every suite before target outcomes are observed: the field U-Net \emph{blind} twin, which receives no future-motion input. On a fresh 50-map-per-suite evaluation cohort, whose generation seed was frozen before any result was observed and which is provably map-disjoint from the original run, this single frozen provider improves success on all six suites with every paired map-level 95\% CI excluding zero, and cuts matched search effort by 73--95\% (Table~\ref{tab:fixed}).
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Suite & Euclid succ. & Blind U-Net succ. & $\Delta$succ. & Ratio [95\% CI] \\
+\midrule
+Crossing    & 0.12 & 0.92 & $+0.80$ & 0.273 [0.109, 0.516] \\
+Maze        & 0.12 & 0.96 & $+0.84$ & 0.047 [0.021, 0.153] \\
+Dense maze  & 0.06 & 0.70 & $+0.64$ & 0.216 [0.100, 0.281] \\
+Rooms       & 0.42 & 1.00 & $+0.58$ & 0.121 [0.106, 0.172] \\
+Large rooms & 0.82 & 1.00 & $+0.18$ & 0.250 [0.188, 0.306] \\
+Spiral      & 0.16 & 1.00 & $+0.84$ & 0.092 [0.065, 0.146] \\
+\bottomrule
+\end{tabular}
+\caption{Fixed-provider dynamic zero-shot transfer on the fresh 50-map-per-suite cohort (field U-Net blind twin; additive integration; binding budgets; jointly solved counts 3--41 per suite). All six paired success CIs exclude zero.}
+\label{tab:fixed}
+\end{table}
+
+\textbf{Replication.} The result replicates three ways. Across cohorts: the original 20-map cohort gives the same picture (deltas $+0.20$ to $+0.75$; medians 0.087--0.246). Across training seeds: two further full-pipeline retrains with independent seeds, evaluated on the same frozen cohort under a preregistered protocol, reproduce the success result --- 17 of 18 seed--suite paired CIs exclude zero (deltas $+0.10$ to $+0.88$; the single crossing interval is a near-ceiling large-rooms cell where Euclid already solves 0.82). Effort magnitudes are seed-stable on three suites (medians 0.047--0.135 in every seed: maze, rooms, spiral) and seed-variable on the other three (0.216--0.625 across seeds: crossing, dense maze, large rooms), and are quoted as across-seed ranges. Across budgets: an appendix robustness pass derives exact success-vs-budget curves from a single $4\times$-binding evaluation and shows Euclidean search needs 1.7--2.8$\times$ the binding budget to reach the fixed provider's binding-budget success. A per-suite best-arm view also exists (ratios 0.046--0.380) but is explicitly post-hoc and never quoted as primary.
+
+\textbf{Future-window inputs provide no consistent benefit.} Aware/blind twins differ in exactly one input: an eight-step future-obstacle window. The headline provider above is already the blind twin, so the gains require no future information; the twin study quantifies the contrast. Across the three training seeds' 18 suite-level contrasts on the fresh cohort, two significantly favor the aware twin, two the blind twin, and fourteen neither --- and the significant cells fall in different suites for different seeds, with one suite flipping from significantly blind-better ($-0.200$ $[-0.320,-0.100]$) in one seed to significantly aware-better ($+0.080$ $[+0.020,+0.160]$) in another; the per-suite effects behave like training-seed noise. The original run's 24 suite$\times$backbone cells point the same way (one uncorrected significant cell favors aware, seven favor blind), direct heuristic MAE splits 11/13 between the twins, and after full fine-tuning on $K{=}16$ target maps, eight of nine map-level success differences are non-positive with the sole positive interval crossing zero. The claim is a \emph{failure to observe} a systematic future-window benefit under deterministic dynamics --- not equivalence, not harm; stochastic motion is untested.
+
+\textbf{Discrete transfer.} In the complete pooled-multitask run, the HRM average base improves mean success from 0.591 to 0.612 with lower mean expansions (descriptive), while task-specific adapters do not improve broadly --- only one of several specialists beats its matched four-suite baseline. The focal transfer result is narrower: a 3--8-seed pilot on selected 128- and 192-cell maps finds 6--15\% expansion reductions at $w{=}1.0$ with equal or higher observed success (e.g., 128-cell static ratio 0.85 with success $0.62 \to 0.75$); $w{=}1.0$ is the evidence-safe operating point, since $w{=}1.05$ improves one cell but regresses success elsewhere. This is evidence that transferable ordering survives scale shift, short of a full-suite confirmation.
+
+\textbf{Restricted-observation stress test (static).} The final study asks whether the mechanism survives when the provider cannot condition on complete-map features at query time. The planner still knows the PRM; the provider sees only a radius-0.20 local subgraph and is trained from fresh-start behavior returns rather than shortest-path labels. A falsification ladder changes one factor per rung: the exact behavior-return statistic itself loses to matched focal search ($+11.50$; 0/6 suites), analytic local-escape targets are too weak ($+6.83$; 0/6), and both one-family and suite-balanced training lose by $+15$--16 expansions under static insertion. A single radius-bounded Bellman backup at inference --- computed over the local subgraph with learned predictions as exit values, kin to one value-iteration step \citep{tamar2016vin} at the planner interface --- flips the same checkpoint to $-1.21$, and a one-shot scale calibration on fresh maps ($\alpha{=}1.50$, frozen thereafter) reaches $-13.04$ ($[-18.67,-7.65]$). The frozen confirmation on a disjoint 144-map cohort then yields 68.31 expansions for the restricted-observation MLP versus 81.26 for the preregistered complete-map field-HRM comparator: paired delta $-12.96$ (95\% CI $[-16.30,-9.74]$), 109/3/32 wins/ties/losses, every suite mean negative, and \emph{better} empirical path quality (mean/max cost ratios 1.024/1.162 vs.\ 1.031/1.335). The local provider also beats every fixed static learned provider in pooled expansions on that cohort, and a separate $w{=}1.10$ certified control passes all 144 per-instance bound and certificate checks. Scope, stated plainly: a static mechanism study (not evidence about moving obstacles), one model seed and one cohort, no formal bound on the direct arm, and a prototype feature builder that is slower in wall time (5.138\,s/map vs.\ 0.371\,s complete-map field inference) despite fewer expansions.
+
+\section{Few-Shot Adaptation}
+
+Adaptation behavior is indexed better by labeled \emph{states} than by labeled maps; the same $K$ can sit in opposite supervision regimes across domains.
+
+\textbf{Scarce static labels: the prior must be protected.} At $K{=}1$ on the maze-dense target, rank-8 LoRA preserves and sharpens the transferred prior --- map-level ratio 0.686 $[0.590,0.774]$, success delta $+0.467$ $[+0.300,+0.633]$ over Euclid --- while unconstrained updates are unstable: full fine-tuning on rooms-large at $K{=}1$ reaches ratio 1.293 $[1.170,1.503]$ with success $-0.167$ $[-0.340,+0.013]$, and scratch on maze-dense is significantly harmful (success $-0.167$ $[-0.300,-0.047]$, ratio 1.035). These cells show what transfer contributes at low data: a useful prior that adaptation can preserve or destroy.
+
+\textbf{More labels expose full-rank capacity.} By $K{=}8$--16 full fine-tuning often overtakes: rooms-large full-FT swings from its $K{=}1$ catastrophe to $+0.387$ $[+0.227,+0.547]$ at $K{=}8$ (ratio 0.590), and on maze-dense at $K{=}16$ the LoRA/full-FT map-level intervals are disjoint --- 0.610 $[0.549,0.670]$ versus 0.786 $[0.694,0.891]$ (Table~\ref{tab:c9cells}). A matched-compute ablation attributes the LoRA plateau to rank capacity rather than the output clamp: across 27 cells, bounded-minus-unbounded map-level ratio differences have median 0.0000 (15/27 exactly zero; sd 0.0077; max $|\Delta|$ 0.037) --- strong descriptive evidence, not a formal equivalence test. Nor is LoRA universally base-preserving: bugtrap degrades significantly by $K{=}32$ (ratio 1.153 $[1.012,1.523]$; success $-0.320$).
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+Cell (HRM, maze-dense unless noted) & $\Delta$success [CI] & Map ratio [CI] \\
+\midrule
+LoRA $K{=}1$        & $+0.467$ $[+0.300,+0.633]$ & 0.686 $[0.590,0.774]$ \\
+LoRA $K{=}16$       & $+0.433$ $[+0.267,+0.600]$ & 0.786 $[0.694,0.891]$ \\
+Full FT $K{=}1$     & $+0.227$ $[+0.080,+0.380]$ & 0.789 $[0.751,0.836]$ \\
+Full FT $K{=}16$    & $+0.460$ $[+0.287,+0.633]$ & \textbf{0.610} $[0.549,0.670]$ \\
+Scratch $K{=}1$     & $-0.167$ $[-0.300,-0.047]$ & 1.035 $[1.029,1.039]$ \\
+Rooms-large full $K{=}1$ & $-0.167$ $[-0.340,+0.013]$ & 1.293 $[1.170,1.503]$ \\
+Rooms-large full $K{=}8$ & $+0.387$ $[+0.227,+0.547]$ & 0.590 $[0.498,0.712]$ \\
+Bugtrap LoRA $K{=}32$    & $-0.320$ $[-0.507,-0.133]$ & 1.153 $[1.012,1.523]$ \\
+\bottomrule
+\end{tabular}
+\caption{Key static adaptation cells (map-clustered inference; binding budgets; additive mode). The $K{=}16$ full-FT/LoRA intervals are disjoint (the crossover); the rooms-large $K{=}1$ catastrophe and the bugtrap LoRA degradation bound both methods' safety.}
+\label{tab:c9cells}
+\end{table}
+
+\textbf{Dynamic maps are label-rich.} One dynamic map supplies ${\sim}192$ nodes $\times$ ${\sim}140$ time steps --- more than 25{,}000 supervised $(\text{node},t)$ states --- so the first map already leaves the static low-label regime: full fine-tuning is no longer systematically catastrophic at $K{=}1$, and LoRA can continue to improve rather than merely preserve the base. Scratch arms can post attractive solved-only ratios while solving fewer maps, so success leads all such comparisons. The submission states this as a regime shift in supervision density, not a universal law about map counts.
+
+\textbf{Composition does not improve the prior.} A zero-label alternative interpolates 16 single-family rank-8 experts using target descriptors, evaluated on interior (bracketed) targets. Routing is essentially solved --- own-axis descriptor mass 0.986--0.998 --- yet map-paired composition never improves significantly over the pooled zero-shot provider and is significantly \emph{worse} in two of six cells (expansion-ratio deltas up to $+0.098$ $[+0.076,+0.123]$); weight-space and prediction-space mixtures agree to within $[-0.012,+0.007]$. The negative complements model averaging and task arithmetic \citep{wortsman2022soups,ilharco2022task}: accurate routing is insufficient when the experts have not moved beyond a strong pooled base.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

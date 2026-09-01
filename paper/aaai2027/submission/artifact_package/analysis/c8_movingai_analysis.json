@@ -1,0 +1,122 @@
+{
+ "street": {
+  "binding": 600,
+  "w_star": 1.5,
+  "n_eval": 25,
+  "succ": {
+   "euclid": 0.76,
+   "wastar": 0.76,
+   "learned": 0.68
+  },
+  "learned_vs_euclid": {
+   "delta": -0.08,
+   "ci": [
+    -0.2,
+    0.0
+   ],
+   "discordant": [
+    0,
+    2
+   ],
+   "p_mcnemar": 0.5
+  },
+  "learned_vs_wastar": {
+   "delta": -0.08,
+   "ci": [
+    -0.2,
+    0.0
+   ],
+   "discordant": [
+    0,
+    2
+   ],
+   "p_mcnemar": 0.5
+  },
+  "ratio_learned_euclid": {
+   "median": 0.4810126582278481,
+   "ci": [
+    0.2830188679245283,
+    0.6432748538011696
+   ],
+   "n": 17
+  },
+  "ratio_learned_wastar": {
+   "median": 1.050314465408805,
+   "ci": [
+    0.8118811881188119,
+    1.218487394957983
+   ],
+   "n": 17
+  },
+  "subopt_joint": {
+   "learned": 1.0742121189744176,
+   "wastar": 1.0,
+   "diff_mean": 0.07421211897441775,
+   "diff_ci": [
+    0.030090088517536997,
+    0.1357969256329983
+   ],
+   "n": 17
+  }
+ },
+ "dao": {
+  "binding": 900,
+  "w_star": 2.0,
+  "n_eval": 25,
+  "succ": {
+   "euclid": 0.76,
+   "wastar": 0.96,
+   "learned": 0.68
+  },
+  "learned_vs_euclid": {
+   "delta": -0.08,
+   "ci": [
+    -0.28,
+    0.12
+   ],
+   "discordant": [
+    2,
+    4
+   ],
+   "p_mcnemar": 0.6875
+  },
+  "learned_vs_wastar": {
+   "delta": -0.28,
+   "ci": [
+    -0.48,
+    -0.12
+   ],
+   "discordant": [
+    0,
+    7
+   ],
+   "p_mcnemar": 0.015625
+  },
+  "ratio_learned_euclid": {
+   "median": 0.7964601769911505,
+   "ci": [
+    0.26057906458797325,
+    1.669811320754717
+   ],
+   "n": 15
+  },
+  "ratio_learned_wastar": {
+   "median": 2.196078431372549,
+   "ci": [
+    1.254302103250478,
+    6.36
+   ],
+   "n": 17
+  },
+  "subopt_joint": {
+   "learned": 1.107210763093116,
+   "wastar": 1.0060371517027864,
+   "diff_mean": 0.10117361139032968,
+   "diff_ci": [
+    0.021241092928399444,
+    0.21721634187965455
+   ],
+   "n": 17
+  }
+ }
+}

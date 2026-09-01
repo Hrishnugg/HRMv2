@@ -10,7 +10,7 @@ The evidence indexes catalog the generated continuous and discrete reports and t
 
 - For the paper-scaffolding evidence base, read the [Master Experiment Evidence Synthesis](MASTER_EXPERIMENT_SYNTHESIS.md). It consolidates exact figures, caveats, claim-audit corrections, paper readiness, and the disposition of every authored and generated report.
 - For the whole program and its cross-space conclusions, read the [program audit](cross-space/PROGRAM_AUDIT_HIERARCHY_AND_SUBSTRATE.md).
-- For the discrete learned-A\* chronology, read the [discrete results compendium](discrete/learned-heuristic/results/EXPERIMENT_RESULTS_COMPENDIUM.md), then the [focal redesign report](discrete/learned-heuristic/results/EXPERIMENT_RESULTS_FOCAL_REDESIGN.md).
+- For the discrete learned-A\* chronology, read the [discrete results compendium](discrete/learned-heuristic/results/EXPERIMENT_RESULTS_COMPENDIUM.md), then the [focal redesign report](discrete/learned-heuristic/results/EXPERIMENT_RESULTS_FOCAL_REDESIGN.md). For the exhaustive family/script/volume map over that chronology, see the [complete discrete experiment inventory](discrete/DISCRETE_EXPERIMENT_INVENTORY.md).
 - For the continuous chronology, read [The Story So Far](continuous/program/CONTINUOUS_PRM_STORY.md), then the per-stage result documents.
 - For current validation status, read [Cross-Space Validation Gates](cross-space/VALIDATION_GATES.md).
 - For generated/raw evidence, use the [discrete evidence catalog](discrete/GENERATED_EVIDENCE.md) and [continuous evidence catalog](continuous/GENERATED_EVIDENCE.md).
@@ -219,6 +219,9 @@ Superseded historical notes are preserved rather than erased:
 | [C13F_M_CURRENT_STATE_RESULT.md](continuous/c13/results/C13F_M_CURRENT_STATE_RESULT.md) | Canonical completed result | Documents every C13-F through C13-M mechanism test and the confirmed 15.95% expansion reduction versus complete-map field HRM, with path-quality, timing, and claim-scope caveats. |
 | [C13N_HRM_SUBSTITUTION_RESULT.md](continuous/c13/results/C13N_HRM_SUBSTITUTION_RESULT.md) | Completed architecture diagnostic | The fixed HRM endpoint has useful pooled signal but fails suite robustness and matched-MLP path-quality gates; no untouched confirmation is authorized. |
 | [C13O_HRM_ALIGNMENT_RESULT.md](continuous/c13/results/C13O_HRM_ALIGNMENT_RESULT.md) | Completed readout-alignment diagnostic | Summary-last helps trimmed HRM at iteration 6 but not at the fixed endpoint; no cell passes the field/flat/readout method gate, so confirmation remains untouched. |
+| [2026-07-19-c13p-persistent-search-state.md](continuous/c13/design/2026-07-19-c13p-persistent-search-state.md) | C13-P preregistration | Freezes the query-level persistent-carry pilot: persistent-versus-reset modes of one checkpoint, a stationary path-frontier target from the frozen C13-M teacher, forbidden-information boundaries, and world-clustered G0-P/G1-P/G2-P gates. |
+| [2026-07-19-c13p-persistent-search-state.md (plan)](continuous/c13/plans/2026-07-19-c13p-persistent-search-state.md) | Completed implementation plan | Frozen staged harness, independent raw-artifact reconstruction, and canonical documentation workflow for the completed pilot. |
+| [C13P_PERSISTENT_SEARCH_RESULT.md](continuous/c13/results/C13P_PERSISTENT_SEARCH_RESULT.md) | Completed valid negative mechanism pilot | G0-P passes, but persistent-minus-reset world-macro MRR is -0.0294 with 95% CI [-0.0598, -0.0030]; verdict `c13p_no_persistent_ranking_signal`. No self-bootstrap or confirmation was run. |
 
 ## Evidence and scope notes
 

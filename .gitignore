@@ -174,3 +174,25 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Local experiment outputs
+/runs/
+hrm-cloud/continuous_prm/runs/
+hrm-cloud/continuous_prm/**/runs/
+hrm-cloud/continuous_prm/.pytest-*/
+
+# Local render/work artifacts
+/work/
+/.hermes/desktop-attachments/
+docs/experiments/~$*.docx
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.log
+*.out
+*.synctex*
+*.toc

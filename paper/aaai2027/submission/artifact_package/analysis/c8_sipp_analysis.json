@@ -1,0 +1,50 @@
+{
+ "C_dyn_crossing": {
+  "success": 1.0,
+  "success_at_binding": 1.0,
+  "exp_median": 80.0,
+  "t_intervals_mean": 1.2032440000000002,
+  "t_search_mean": 0.12782400000000002,
+  "n": 50
+ },
+ "C_dyn_maze": {
+  "success": 0.98,
+  "success_at_binding": 0.98,
+  "exp_median": 254.0,
+  "t_intervals_mean": 0.961004,
+  "t_search_mean": 0.210226,
+  "n": 50
+ },
+ "C_dyn_maze_dense": {
+  "success": 0.94,
+  "success_at_binding": 0.94,
+  "exp_median": 290.0,
+  "t_intervals_mean": 1.438442,
+  "t_search_mean": 0.233902,
+  "n": 50
+ },
+ "C_dyn_rooms": {
+  "success": 1.0,
+  "success_at_binding": 1.0,
+  "exp_median": 195.0,
+  "t_intervals_mean": 0.763938,
+  "t_search_mean": 0.150288,
+  "n": 50
+ },
+ "C_dyn_rooms_large": {
+  "success": 1.0,
+  "success_at_binding": 1.0,
+  "exp_median": 105.0,
+  "t_intervals_mean": 1.6589720000000003,
+  "t_search_mean": 0.14432,
+  "n": 50
+ },
+ "C_dyn_spiral": {
+  "success": 1.0,
+  "success_at_binding": 1.0,
+  "exp_median": 282.0,
+  "t_intervals_mean": 0.7303979999999999,
+  "t_search_mean": 0.161828,
+  "n": 50
+ }
+}

@@ -1,0 +1,1674 @@
+{
+  "arms": [
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N1024__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N16384__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N256__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N4096__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__dynamic__N65536__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "dynamic",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 1024,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N1024__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 16384,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N16384__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 256,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N256__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 4096,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N4096__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__full_ft__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__full_ft__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__full_ft__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__lora__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__lora__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__lora__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__scratch__s0.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__scratch__s1.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__conc__scratch__s2.pt",
+      "diversity": "conc",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__full_ft__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__full_ft__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__full_ft__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "full_ft",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__lora__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__lora__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__lora__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "lora",
+      "seed": 2
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__scratch__s0.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 0
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__scratch__s1.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 1
+    },
+    {
+      "N": 65536,
+      "ckpt": "/vol/runs/c14_modal/checkpoints/c14__static__N65536__dist__scratch__s2.pt",
+      "diversity": "dist",
+      "domain": "static",
+      "method": "scratch",
+      "seed": 2
+    }
+  ],
+  "cells": {
+    "dynamic__N1024__conc": {
+      "N": 1024,
+      "diversity": "conc",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 1,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N1024__conc.npz",
+      "rows_md5": "90ba5b57cd69fec2d499efd47a8f1060",
+      "w_min": 1
+    },
+    "dynamic__N1024__dist": {
+      "N": 1024,
+      "diversity": "dist",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 8,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N1024__dist.npz",
+      "rows_md5": "53bbe81a66811ef145b41af5c9e35ecb",
+      "w_min": 1
+    },
+    "dynamic__N16384__conc": {
+      "N": 16384,
+      "diversity": "conc",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 1,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N16384__conc.npz",
+      "rows_md5": "0db31f42145341dbafcb32a1502d5f2d",
+      "w_min": 1
+    },
+    "dynamic__N16384__dist": {
+      "N": 16384,
+      "diversity": "dist",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 8,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N16384__dist.npz",
+      "rows_md5": "cce19e0dbd0db9173a4fde2ca5f778ca",
+      "w_min": 1
+    },
+    "dynamic__N256__conc": {
+      "N": 256,
+      "diversity": "conc",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 1,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N256__conc.npz",
+      "rows_md5": "407b98b3edf9443cd5409edb088cfbf4",
+      "w_min": 1
+    },
+    "dynamic__N256__dist": {
+      "N": 256,
+      "diversity": "dist",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 8,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N256__dist.npz",
+      "rows_md5": "a0c76156153ce05333f50a1a76526168",
+      "w_min": 1
+    },
+    "dynamic__N4096__conc": {
+      "N": 4096,
+      "diversity": "conc",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 1,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N4096__conc.npz",
+      "rows_md5": "0c2f6aaa139e51c5a68d0bc6a1f0259e",
+      "w_min": 1
+    },
+    "dynamic__N4096__dist": {
+      "N": 4096,
+      "diversity": "dist",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 8,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N4096__dist.npz",
+      "rows_md5": "56ff08438b73fccfda6ba29bc96a103d",
+      "w_min": 1
+    },
+    "dynamic__N65536__conc": {
+      "N": 65536,
+      "diversity": "conc",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 4,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N65536__conc.npz",
+      "rows_md5": "2d86a9fdada02b69225bf5783dae3d4a",
+      "w_min": 4
+    },
+    "dynamic__N65536__dist": {
+      "N": 65536,
+      "diversity": "dist",
+      "domain": "dynamic",
+      "feasible": true,
+      "n_worlds": 32,
+      "npz": "/vol/runs/c14_modal/datasets/dynamic__N65536__dist.npz",
+      "rows_md5": "84fe3e72481ba200c59812c4730518ba",
+      "w_min": 4
+    },
+    "static__N1024__conc": {
+      "N": 1024,
+      "diversity": "conc",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 6,
+      "npz": "/vol/runs/c14_modal/datasets/static__N1024__conc.npz",
+      "rows_md5": "9d234b0e3948aa9176d10b927a8b793b",
+      "w_min": 6
+    },
+    "static__N1024__dist": {
+      "N": 1024,
+      "diversity": "dist",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 48,
+      "npz": "/vol/runs/c14_modal/datasets/static__N1024__dist.npz",
+      "rows_md5": "18eafef3e88552bbf258e19e7c6599ab",
+      "w_min": 6
+    },
+    "static__N16384__conc": {
+      "N": 16384,
+      "diversity": "conc",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 89,
+      "npz": "/vol/runs/c14_modal/datasets/static__N16384__conc.npz",
+      "rows_md5": "dc7a770578f45fdca6957a6ac6304418",
+      "w_min": 89
+    },
+    "static__N16384__dist": {
+      "N": 16384,
+      "diversity": "dist",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 712,
+      "npz": "/vol/runs/c14_modal/datasets/static__N16384__dist.npz",
+      "rows_md5": "01d8eecfc04ee58a4fd83fbdb2c885cd",
+      "w_min": 89
+    },
+    "static__N256__conc": {
+      "N": 256,
+      "diversity": "conc",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 2,
+      "npz": "/vol/runs/c14_modal/datasets/static__N256__conc.npz",
+      "rows_md5": "cf1e53c932f85fbd90a077efa08f4804",
+      "w_min": 2
+    },
+    "static__N256__dist": {
+      "N": 256,
+      "diversity": "dist",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 16,
+      "npz": "/vol/runs/c14_modal/datasets/static__N256__dist.npz",
+      "rows_md5": "3cb85d388ce4f8d736d460e28df96170",
+      "w_min": 2
+    },
+    "static__N4096__conc": {
+      "N": 4096,
+      "diversity": "conc",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 22,
+      "npz": "/vol/runs/c14_modal/datasets/static__N4096__conc.npz",
+      "rows_md5": "94c1eea7eae65ef5d9ed8ec89f045137",
+      "w_min": 22
+    },
+    "static__N4096__dist": {
+      "N": 4096,
+      "diversity": "dist",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 176,
+      "npz": "/vol/runs/c14_modal/datasets/static__N4096__dist.npz",
+      "rows_md5": "813c47500f28aeb1f3cb47730976b5ee",
+      "w_min": 22
+    },
+    "static__N65536__conc": {
+      "N": 65536,
+      "diversity": "conc",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 356,
+      "npz": "/vol/runs/c14_modal/datasets/static__N65536__conc.npz",
+      "rows_md5": "b5e3abf2033c07d1122f8a9270e58a55",
+      "w_min": 356
+    },
+    "static__N65536__dist": {
+      "N": 65536,
+      "diversity": "dist",
+      "domain": "static",
+      "feasible": true,
+      "n_worlds": 2848,
+      "npz": "/vol/runs/c14_modal/datasets/static__N65536__dist.npz",
+      "rows_md5": "c71006ae9edaaa3cf98e4ea3f15f3fe6",
+      "w_min": 356
+    }
+  },
+  "config": {
+    "alpha": 1.0,
+    "cpu": false,
+    "diversities": "conc,dist",
+    "domains": "static,dynamic",
+    "dynamic_source_dir": "/vol/runs/c14_sources/c8_local_heavy",
+    "field_batch": 8,
+    "field_lr": 0.0002,
+    "field_weight_decay": 0.0001,
+    "grid_size": 64,
+    "methods": "lora,full_ft,scratch",
+    "mode": "full",
+    "n_grid": "256,1024,4096,16384,65536",
+    "n_seeds": 3,
+    "n_test_dynamic": 20,
+    "n_test_static": 30,
+    "out_dir": "/vol/runs/c14_modal",
+    "rank": 8,
+    "seed": 1234,
+    "static_source_dir": "/vol/runs/c14_sources/c7_local",
+    "total_steps": 2560,
+    "w_values": "1.0"
+  },
+  "sources": {
+    "dynamic": "c14_sources/c8_local_heavy/checkpoints/c8_field__unet_blind.pt",
+    "provenance": "collected locally 2026-07-23; adapted on Modal L4 fleet",
+    "static": "c14_sources/c7_local/checkpoints/avgbase__hrm.pt"
+  }
+}

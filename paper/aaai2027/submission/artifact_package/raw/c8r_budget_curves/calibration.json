@@ -1,0 +1,23 @@
+{
+  "budgets": {
+    "C_dyn_rooms_large": [
+      2400
+    ],
+    "C_dyn_maze": [
+      7200
+    ],
+    "C_dyn_crossing": [
+      600
+    ],
+    "C_dyn_rooms": [
+      5200
+    ],
+    "C_dyn_spiral": [
+      10000
+    ],
+    "C_dyn_maze_dense": [
+      10000
+    ]
+  },
+  "note": "budget-curves run: single 4x-binding budget per suite; design frozen 2026-07-23"
+}

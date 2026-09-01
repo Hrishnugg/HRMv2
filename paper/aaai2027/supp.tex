@@ -1,0 +1,208 @@
+%File: supp.tex --- Technical Appendix (supplementary material)
+% AAAI 2027 submission draft, AAAI 2026 author kit.
+\def\aaaianonymous{true}
+%
+\documentclass[letterpaper]{article} % DO NOT CHANGE THIS
+\ifdefined\aaaianonymous
+    \usepackage[submission]{aaai2026}
+\else
+    \usepackage{aaai2026}
+\fi
+\usepackage{times}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage[hyphens]{url}
+\usepackage{graphicx}
+\urlstyle{rm}
+\def\UrlFont{\rm}
+\usepackage{natbib}
+\usepackage{caption}
+\frenchspacing
+\setlength{\pdfpagewidth}{8.5in}
+\setlength{\pdfpageheight}{11in}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\pdfinfo{
+/TemplateVersion (2026.1)
+}
+\setcounter{secnumdepth}{0}
+
+\newcommand{\stage}[1]{\textsc{#1}}
+
+\title{Technical Appendix:\\The Harness, Not the Hierarchy}
+\author{Anonymous Submission}
+\affiliations{}
+
+\begin{document}
+\maketitle
+
+\section{A. Protocols by Stage}
+
+All continuous stages share the substrate: a 2-D point robot, worlds with procedurally generated obstacles, a probabilistic roadmap (PRM) of $\sim$192 nodes with $k{=}7$ connectivity, and A\textsuperscript{*} evaluated at a per-suite \emph{binding budget} of node expansions calibrated so the algorithmic baseline is neither saturated nor hopeless. Unless noted, training labels are exact graph-Dijkstra costs on the PRM (static) or exact backward space--time Dijkstra values over $(\text{node},t)$ (dynamic). Headline continuous runs are local single-GPU (RTX 5090) validations with one primary training seed unless stated; the discrete program ran on a remote fleet.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{@{}lp{5.6cm}@{}}
+\toprule
+Stage & Protocol essentials \\
+\midrule
+\stage{C1--C4} & 9 easy suites, $n{=}80$/40 worlds, budgets 100--200; pooled bases, TaskLoRA experts, RBF mixtures. \\
+\stage{C5} & calibrated hard maze/dense/rooms; 160 train / $\sim$80 eval worlds; budgets 128--168; scalar residual target with cap. \\
+\stage{C6} & goal-conditioned raster residual field (8 input channels), sampled at PRM nodes; 96/40 worlds; budgets 128--168. \\
+\stage{C7} & 6 suites (3 held-out families); 96/24 worlds per suite; binding budgets 140/24/56; scalar+field $\times$ additive+focal matrix; exact-Dijkstra oracle. \\
+\stage{C8} & deterministic moving circular obstacles; space--time PRM; aware ($W{=}8$ future window) vs.\ blind ($W{=}0$) twins; 53 train / 20 eval worlds/suite; 1{,}129{,}536 scalar samples. \\
+\stage{C9/C9h} & adapt \stage{C7} pooled bases to 3 held-out families; $K\in\{0..32\}$ labeled worlds; LoRA(r8, bounded/unbounded), full FT, scratch; \stage{C9h} matches compute (10 epochs, LR $2{\times}10^{-4}$); 30 fixed test worlds/target. \\
+\stage{C9b} & same protocol on \stage{C8} dynamic sources (aware+blind), 486 adapters, 3 targets, $K\in\{1,4,16\}$. \\
+\stage{C10} & 16 rank-8 experts on 2 family axes; zero-label transfer to 3 interior targets; RBF/nearest/uniform weight-merge and prediction-mix composition. \\
+\stage{C11} & compositional missions (waypoint sequences; key/door), configs A/B/C, mission length $K\in\{0,2,4,8\}$; 40 train / 25 test worlds per cell; 6 learned arms $\times$ 3 seeds (198 checkpoints; 54{,}450 eval rows); exact mission oracle and leg-sum baseline; forced-compute and would-halt probes. \\
+\stage{C12} & (A) hidden slow/fast regime dynamics, memory-headroom gate, matched temporal-hierarchy pilot; (B) tied vs.\ untied product-graph refiner, cycles 1--8, configs A/C $\times$ $K\in\{2,8\}$, 3 seeds, 48 checkpoints, two 3{,}200-row test tables. \\
+\stage{C13} & current-state heuristic under bounded observation (radius 0.20 local subgraph); behavior-derived fresh-start rollout labels (median of 3); staged falsification ladder (\stage{A}--\stage{L}) then frozen 144-world confirmation (\stage{M}); architecture substitutions (\stage{N}/\stage{O}). \\
+Discrete & 20$\times$20 to 256$\times$256 grids; Manhattan-baseline A\textsuperscript{*}; forecasting (dynamic obstacles), additive residual transfer (22 suites $\times$ 3 budgets $\times$ 100 episodes), pooled multitask bases, learned focal ranking at $w\in\{1.0,1.05,1.1\}$. \\
+\bottomrule
+\end{tabular}
+\caption{Protocol essentials by stage.}
+\label{tab:protocols}
+\end{table}
+
+\section{B. Full Static and Dynamic Suite Tables}
+
+Tables~\ref{tab:c7} and~\ref{tab:c8} give the complete per-suite \stage{C7} static and \stage{C8} dynamic results summarized in the main paper.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Suite & Euclid succ. & Field-HRM succ. & Ratio [95\% CI] \\
+\midrule
+Maze & 0.583 & 1.000 & 0.521 [0.450, 0.627] \\
+Maze-dense & 0.250 & 0.958 & 0.804 [0.707, 0.829] \\
+Rooms & 0.375 & 0.958 & 0.829 [0.775, 0.885] \\
+Spiral & 0.250 & 0.917 & 0.850 [0.742, 0.919] \\
+Bugtrap & 0.458 & 0.750 & 0.714 [0.533, 0.800] \\
+Rooms-large & 0.417 & 0.750 & 0.839 [0.646, 1.222] \\
+\bottomrule
+\end{tabular}
+\caption{\stage{C7} static suites at binding budgets: success and matched-solved median expansion ratio (field HRM vs.\ Euclid). Success gains are BH-significant in 4/6 suites (maze, dense, rooms, spiral); bugtrap and rooms-large reach corrected significance only for other learned arms. Scalar-HRM ratios span 0.427--0.822. Matched $n$ ranges 6--14.}
+\label{tab:c7}
+\end{table}
+
+\begin{table}[h]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Suite (arm) & Succ.\ E$\to$L & Ratio [95\% CI] & Matched $n$ \\
+\midrule
+Crossing (U-Net) & 0.30$\to$1.00 & 0.258 [0.132, 0.769] & 6 \\
+Maze (U-Net) & 0.30$\to$1.00 & 0.064 [0.046, 0.088] & 6 \\
+Maze-dense (U-Net) & 0.05$\to$0.75 & 0.278 (no CI) & 1 \\
+Rooms (U-Net) & 0.30$\to$1.00 & 0.096 [0.038, 0.191] & 6 \\
+Rooms-large (U-Net) & 0.75$\to$0.90 & 0.380 [0.132, 0.591] & 14 \\
+Spiral (field HRM) & 0.20$\to$0.90 & 0.046 [0.038, 0.073] & 4 \\
+\bottomrule
+\end{tabular}
+\caption{\stage{C8} heavy dynamic run, selected strongest arms: Euclid$\to$learned success and matched-solved ratios. Corrected success evidence holds on five suites; rooms-large is supported mainly by expansion evidence. Dense-maze has matched $n{=}1$ and supports no expansion inference.}
+\label{tab:c8}
+\end{table}
+
+\section{C. Transfer and Composition Details}
+
+Representative \stage{C9} HRM curves (ratio at success): maze-dense LoRA $0.650$ (1.00) at $K{=}1$ to $0.730$ (0.97) at $K{=}16$; maze-dense full FT $0.744$ (0.76) to $0.571$ (0.99) at $K{=}16$ and $0.552$ at $K{=}32$; scratch $1.008$ (0.37) to $0.808$ (0.80); rooms-large full FT $1.128$ (0.37) at $K{=}1$ to $0.500$ (0.92) at $K{=}8$; bugtrap LoRA degrades from $\approx$0.696 (0.83) to $0.950$ (0.48) at $K{=}32$---LoRA is usually but not universally base-preserving. \stage{C9h} (matched compute): bounded-minus-unbounded LoRA median ratio delta $0.000\pm0.008$ across 27 cells (22/27 exactly zero; max $|\Delta|$ 0.028); rooms-large field U-Net full FT reaches $0.404$ at 0.97 success from $0.982$ zero-shot while conv-LoRA stays at $0.992$--$1.002$. \stage{C9b} (dynamics): maze-dense aware U-Net zero-shot $0.145$ (0.60), LoRA $K{=}16$ $0.059$ (0.97), full FT $K{=}1$ $0.112$ (0.70); aware-minus-blind success deltas at full-FT $K{=}16$ are $0.00$ or $-0.05$ in all nine cells. \stage{C10}: RBF-merge minus zero-shot expansion-ratio deltas by target/backbone: $-0.022$, $-0.012$, $-0.024$, $+0.082$, $+0.012$, $+0.116$; weight-space vs.\ prediction-space deltas lie within $[-0.012, +0.007]$; own-axis RBF mass 0.986--0.998.
+
+\section{D. \stage{C11} Gates, Collapse Forensics, and Scale}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{@{}lp{5.2cm}@{}}
+\toprule
+Gate & Verdict \\
+\midrule
+K=0 continuity & FAIL, diagnosed as false premise: \stage{C7} had no MLP arm and did not give every architecture the \stage{C11} input; real shallow separation plus collapsed recurrent cells violate the all-tie assumption. Measurement layer verified. \\
+G1 dose--response & Negative: no structured arm beats MLP at $\geq$2 mission depths with non-decreasing gap. \\
+G2a forced compute & Negative: HRM-v2 $k{=}1/2/4/8$ expansion and MAE curves flat in every $K{=}8$ config. \\
+G2b learned halting & Negative, inverted: pooled Spearman $\rho{=}-0.407$, permutation $p{\approx}5{\times}10^{-4}$, $n{=}675$; mean would-halt steps 6.79/7.01/5.30 at $K{=}2/4/8$. \\
+G3 closure & Neither preregistered branch: global-input arms separate at shallow $K$ (U-Net/GNN vs.\ MLP ratios $\approx$0.67--0.87; state MAE 0.151/0.171 vs.\ 0.251 at A/$K{=}0$), but no arm converts depth into growing advantage. \\
+\bottomrule
+\end{tabular}
+\caption{\stage{C11} preregistered gates.}
+\label{tab:c11gates}
+\end{table}
+
+\textbf{Collapse forensics.} Five of 33 recurrent/ACT arm-cells show constant-prediction or partial seed collapse (HRM-trace A8/C8, ON-LSTM B0, HRM-v2 B0, two ON-LSTM A8 seeds), with a reproducible loss signature at the normalization cap. The largest recurrent deficits (HRM-trace ratios 1.526 at A8, 1.600 at C8) are collapse measurements, not expressiveness estimates. Removing $K{=}0$ padding \emph{worsens} recurrent predictions: models used pad steps as extra recurrent compute.
+
+\textbf{Scaled addendum.} A 12-run \texttt{unet\_film\_big} vs.\ \texttt{hrm\_trace\_big} comparison (complete; 2{,}700 eval rows) preserves the ordering: completion 0.804 vs.\ 0.736 at $K{=}2$ and 0.413 vs.\ 0.307 at $K{=}8$; mean state MAE 0.395 vs.\ 0.447 ($K{=}2$) and 0.906 vs.\ 1.855 ($K{=}8$). At $K{=}8$ the scaled HRM exactly matches the leg-sum baseline's completion and mean expansions (0.307; 701.34)---persistent collapse, not recovered hierarchy.
+
+\section{E. \stage{C12} Detail}
+
+\stage{C12-A} (memory headroom, then learned pilot): constructed decision-relevant aliasing at 71.3\% of paired decisions; privileged mode/history diagnostic $+0.467$ completion and $-65.1$\% collision-adjusted regret (world-bootstrap 95\% CI 63.0--66.9\%); oracle completion 0.975. The one-seed matched temporal-hierarchy pilot fails G1 (forecast), G2 (planning), and G3 (persistent carry); overall \emph{strong negative}. \stage{C12-B} (tied refiner): cycle-1$\to$8 normalized burden improves monotonically in every cell (A/$K2$ 0.859$\to$0.815; A/$K8$ 0.624$\to$0.576; C/$K2$ 0.867$\to$0.777; C/$K8$ 0.576$\to$0.517; all cycle-1/8 world-bootstrap intervals separate), but the $K8{-}K2$ gain is $+0.0038$ (CI $[-0.0199, 0.0281]$) on A and $-0.0305$ ($[-0.0726, 0.0096]$) on C---no dose--response. Tied beats shallow and untied on C/$K8$ (deltas 0.0177/0.0076, BH $q{=}6.7{\times}10^{-5}$) but loses to untied on A/$K8$ ($q{=}0.0168$). Bellman residual \emph{worsens} over cycles in every cell while burden improves; solved cycle-8 paths average 1.4--2.2\% above oracle cost. $K{=}16$ was dropped before training by a construction gate (only 2/300 and 1/300 valid missions).
+
+\section{F. Discrete Program Detail}
+
+\textbf{Forecasting.} Matched 100-episode protocol: HRM-3M/10M 71/100 vs.\ LSTM 67--69/100 (no uncertainty reported; two-episode matched gap). Structured Preset~M+ (four 100-episode suites): ON-LSTM-10M 0.3875 mean success vs.\ HRM-10M 0.2650 and HRM-3M 0.200; ON-LSTM-3M also has the lowest rollout MSE (0.1257/1.1269 one-/five-step vs.\ 0.3973/2.6438 for HRM-3M).
+
+\textbf{Additive transfer (clean v3, 22 suites $\times$ 3 budgets).} Manhattan 0.590 success / 126{,}707 mean expansions; HRM full-FT 0.585 / 128{,}013; ON-LSTM full-FT 0.564 / 127{,}228; HRM LoRA 0.554 / 140{,}852; ON-LSTM LoRA 0.514 / 145{,}282. Every learned arm $\leq$ matched baseline.
+
+\textbf{Pooled multitask.} HRM pooled base 0.612 success ($+2.11$pp) / 122{,}184 expansions vs.\ Manhattan 0.591 / 126{,}630---the strongest completed discrete additive positive; only 1 of several specialists beats its matched four-suite baseline ($+2.0$pp; others $-0.42$ to $-20.25$pp).
+
+\textbf{Focal ranking (local pilot, 3--8 seeds).} Magnitude is scale-flat despite near-perfect ordering (correlation 0.987--0.994; predicted/true mean 0.73/0.42/0.27/0.19 at 64/128/192/256). At $w{=}1.0$: HRM A128-static ratio 0.85 with success 0.62$\to$0.75; A192 0.94 (0.75$\to$0.75); A128-dynamic 0.93 (0.62$\to$0.62); ON-LSTM A128/A192 0.85 (0.75$\to$0.75). At $w{=}1.05$, A128-dynamic improves further but A192 success regresses 0.75$\to$0.62; $w{=}1.0$ is the evidence-safe operating point. Experts exactly match pooled bases in tested cells.
+
+\section{G. Validity Forensics}
+
+\textbf{The frozen-halt artifact.} A 27.27M-parameter direct maze solver reported 96.64\% token accuracy, 25.40\% exact accuracy, and ``74.60\% halt accuracy'' with 16 average adaptive-computation steps. Audit: $74.60 = 100 - 25.40$ exactly---the halt logit was frozen negative (a constant-false classifier) because the training loop omitted the halt loss and back-propagated only the final segment. After repairing the loss path (verified live: halt loss 0.14$\to$0.06, token accuracy 90--95\%), exact accuracy remained 0.000 at the chosen stop point; the repaired run demonstrates mechanism liveness, not task convergence. Bit-exact forward parity with the reference implementation was separately established. We recommend the $100{-}x$ pattern as a standard red flag for adaptive-computation metrics.
+
+\textbf{The cap-collapse signature.} \stage{C5}'s scalar HRM collapse sits at a loss value pinned by the residual cap (2.612 in that setup, with constant predictions at the cap). The same class of signature reappears in \stage{C11}: collapsed cells share an \emph{identical} final loss (1.1397, exactly the constant-cap loss under that normalization), enabling automatic collapse detection instead of misreading collapsed cells as capacity evidence.
+
+\textbf{Pad steps as compute.} In \stage{C11}, removing $K{=}0$ padding tokens \emph{degraded} recurrent predictions---models had co-opted padding as additional recurrent iterations. Sequence-model comparisons that alter padding alter compute.
+
+\section{H. Statistics}
+
+Success is compared with paired McNemar tests, BH-corrected within stage families. Expansion effort is compared only on matched solved worlds via median ratios with bootstrap percentile CIs (10k--20k resamples); from \stage{C12} onward, bootstraps are world-clustered by design. \stage{C9}--\stage{C11} originally pooled repeated evaluations of fixed test worlds across adaptation/model seeds; Section~I reports the world-clustered reanalysis of every quantity the main paper quotes from those stages. Matched-solved ratios condition on joint success and can favor arms that solve only easier worlds; we therefore always report success and ratios separately and never combine them into a single score. Negative results are failures to observe an effect under the tested protocol, not equivalence claims; no equivalence tests were run.
+
+\section{I. World-Clustered Reanalysis}
+
+Units are TEST worlds; adaptation/model seeds are averaged within worlds before inference; success deltas use 10{,}000-resample world bootstraps; expansion ratios are medians of per-world ratios over matched worlds at the binding budget in additive mode; the \stage{C11} halting test aggregates model seeds within worlds and permutes mission length within config (worlds are independent across $K$ cells; 20{,}000 stratified permutations). Estimator conventions differ slightly from the published record-level curves, so point values differ modestly; the question is verdict-level agreement. A methodological caution surfaced during this work: a first pass that accidentally pooled additive and focal evaluation modes attenuated the apparent \stage{C9} transfer effects by roughly half---mode/aggregation mixing alone can manufacture or destroy an effect of the size under study.
+
+\textbf{\stage{C11} halting.} Record level reproduces the published value ($\rho{=}-0.4066$, $n{=}675$); world level strengthens it ($\rho{=}-0.5778$, $n{=}225$, stratified permutation $p{=}5{\times}10^{-5}$). World-level means 6.78/7.01/5.30 at $K{=}2/4/8$.
+
+\textbf{\stage{C11} vs-MLP ratios.} World-clustered ratio-of-means CIs exclude parity at $K\in\{0,2\}$ in config A for both U-Net (0.734/0.846) and GNN (0.822/0.923), and in config B at $K{=}0$ (0.904/0.818) plus B/$K{=}2$ for the GNN (0.805); config C never separates; every $K\in\{4,8\}$ cell includes parity.
+
+\begin{table}[h]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Cell (HRM) & $\Delta$success [CI] & world ratio [CI] \\
+\midrule
+dense LoRA $K{=}1$ & $+0.467$ $[+0.300,+0.633]$ & 0.686 $[0.590,0.774]$ \\
+dense LoRA $K{=}16$ & $+0.433$ $[+0.267,+0.600]$ & 0.786 $[0.694,0.891]$ \\
+dense full $K{=}1$ & $+0.227$ $[+0.080,+0.380]$ & 0.789 $[0.751,0.836]$ \\
+dense full $K{=}16$ & $+0.460$ $[+0.287,+0.633]$ & \textbf{0.610} $[0.549,0.670]$ \\
+dense scratch $K{=}1$ & $-0.167$ $[-0.300,-0.047]$ & 1.035 $[1.029,1.039]$ \\
+rl.\ full $K{=}1$ & $-0.167$ $[-0.340,+0.013]$ & 1.293 $[1.170,1.503]$ \\
+rl.\ full $K{=}8$ & $+0.387$ $[+0.227,+0.547]$ & 0.590 $[0.498,0.712]$ \\
+bug.\ LoRA $K{=}32$ & $-0.320$ $[-0.507,-0.133]$ & 1.153 $[1.012,1.523]$ \\
+\bottomrule
+\end{tabular}
+\caption{World-clustered \stage{C9} key cells (binding budgets, additive mode; dense = maze-dense, rl.\ = rooms-large, bug.\ = bugtrap). The $K{=}16$ full-FT/LoRA CIs are disjoint (the crossover), the rooms-large $K{=}1$ catastrophe excludes parity, and the bugtrap LoRA degradation is significant in both metrics.}
+\label{tab:wcr-c9}
+\end{table}
+
+\textbf{\stage{C9h} bound-vs-capacity.} 27 cells: median bounded-minus-unbounded world-level ratio delta $+0.0000$; 15/27 exactly zero; sd 0.0077; max $|\Delta|$ 0.0370---the capacity attribution stands.
+
+\textbf{\stage{C9b} aware$-$blind (full FT, $K{=}16$).} Eight of nine point deltas are zero or negative; the single positive ($+0.017$ $[0.000,+0.050]$) does not exclude zero; no cell shows a significant aware advantage.
+
+\textbf{\stage{C10} composition.} World-paired deltas vs.\ zero-shot: four cells $\approx$0 with CIs crossing zero; the two ON-LSTM rooms cells are significantly \emph{worse} ($+0.089$ $[+0.061,+0.121]$ and $+0.098$ $[+0.076,+0.123]$), matching the published point deltas and upgrading the null to ``never better, sometimes significantly worse.''
+
+No preregistered verdict flips under any of these recomputations.
+
+\section{J. Reproducibility}
+
+From \stage{C7} onward every stage freezes a written design (gates, budgets, analysis grain) before execution; artifacts (checkpoints, feature caches, cohort manifests, raw rows, verdicts, reports) are hash-bound in integrity manifests; confirmation cohorts are generated only after freezing model, integration, and evaluation code; failed development gates block confirmation rather than triggering retuning. Duplicate-evaluation determinism is enforced where preregistered (byte-identical traces; identical decision rows). The final-stage follow-up on persistent planning-time state is preregistered with a fully test-verified harness (158 focused-plus-neighboring tests; hardware preflight). Its first staged execution ended at a preregistered execution-integrity hard stop---the harness's independent reanalysis disagreed with the primary comparison computation, voiding all mechanism fields---and the named-defect repair and fresh-fingerprint rerun were in progress at submission time. It contributes no outcome evidence and is cited only as future work; we note the stop itself as the integrity machinery functioning as designed. Code, preregistrations, per-stage raw tables, and integrity manifests will be released; an anonymized archive accompanies the submission.
+
+\end{document}

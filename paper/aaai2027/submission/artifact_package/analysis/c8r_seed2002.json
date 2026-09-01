@@ -1,0 +1,173 @@
+{
+  "primary": "field_unet_blind",
+  "suites": {
+    "C_dyn_crossing": {
+      "label": "Crossing",
+      "euclid_success": 0.12,
+      "primary_success": 1.0,
+      "dsucc": 0.88,
+      "dsucc_ci": [
+        0.78,
+        0.96
+      ],
+      "ratio_median": 0.29850498338870435,
+      "ratio_ci": [
+        0.13212719298245615,
+        0.7253479853479854
+      ],
+      "matched_n": 6,
+      "aware_minus_blind_succ": 0.0,
+      "aware_minus_blind_succ_ci": [
+        0.0,
+        0.0
+      ],
+      "aware_minus_blind_ratio_delta": -0.1470012239902081,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 1.0,
+        "ratio_median": 0.15150375939849625,
+        "matched_n": 6
+      }
+    },
+    "C_dyn_maze": {
+      "label": "Maze",
+      "euclid_success": 0.12,
+      "primary_success": 0.96,
+      "dsucc": 0.84,
+      "dsucc_ci": [
+        0.74,
+        0.94
+      ],
+      "ratio_median": 0.05876391553040308,
+      "ratio_ci": [
+        0.03748422291468649,
+        0.10730798946096397
+      ],
+      "matched_n": 6,
+      "aware_minus_blind_succ": 0.02,
+      "aware_minus_blind_succ_ci": [
+        0.0,
+        0.06
+      ],
+      "aware_minus_blind_ratio_delta": -0.022197802060822586,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 0.98,
+        "ratio_median": 0.0365661134695805,
+        "matched_n": 6
+      }
+    },
+    "C_dyn_maze_dense": {
+      "label": "Dense maze",
+      "euclid_success": 0.06,
+      "primary_success": 0.62,
+      "dsucc": 0.56,
+      "dsucc_ci": [
+        0.42,
+        0.7
+      ],
+      "ratio_median": 0.3778825995807128,
+      "ratio_ci": [
+        0.32426502852128125,
+        0.5705045278137129
+      ],
+      "matched_n": 3,
+      "aware_minus_blind_succ": -0.06,
+      "aware_minus_blind_succ_ci": [
+        -0.14,
+        0.02
+      ],
+      "aware_minus_blind_ratio_delta": -0.004034420554824225,
+      "best_arm": {
+        "provider": "field_unet_blind",
+        "success": 0.62,
+        "ratio_median": 0.3778825995807128,
+        "matched_n": 3
+      }
+    },
+    "C_dyn_rooms": {
+      "label": "Rooms",
+      "euclid_success": 0.42,
+      "primary_success": 1.0,
+      "dsucc": 0.58,
+      "dsucc_ci": [
+        0.44,
+        0.72
+      ],
+      "ratio_median": 0.11717974180734857,
+      "ratio_ci": [
+        0.0635673624288425,
+        0.1302250803858521
+      ],
+      "matched_n": 21,
+      "aware_minus_blind_succ": 0.0,
+      "aware_minus_blind_succ_ci": [
+        0.0,
+        0.0
+      ],
+      "aware_minus_blind_ratio_delta": -0.03164816706714073,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 1.0,
+        "ratio_median": 0.08553157474020784,
+        "matched_n": 21
+      }
+    },
+    "C_dyn_rooms_large": {
+      "label": "Large rooms",
+      "euclid_success": 0.82,
+      "primary_success": 0.98,
+      "dsucc": 0.16,
+      "dsucc_ci": [
+        0.06,
+        0.26
+      ],
+      "ratio_median": 0.2549450549450549,
+      "ratio_ci": [
+        0.1601123595505618,
+        0.4066666666666667
+      ],
+      "matched_n": 41,
+      "aware_minus_blind_succ": 0.02,
+      "aware_minus_blind_succ_ci": [
+        0.0,
+        0.06
+      ],
+      "aware_minus_blind_ratio_delta": -0.06766590300159203,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 1.0,
+        "ratio_median": 0.1872791519434629,
+        "matched_n": 41
+      }
+    },
+    "C_dyn_spiral": {
+      "label": "Spiral",
+      "euclid_success": 0.16,
+      "primary_success": 1.0,
+      "dsucc": 0.84,
+      "dsucc_ci": [
+        0.74,
+        0.94
+      ],
+      "ratio_median": 0.06491621373008899,
+      "ratio_ci": [
+        0.03906646372399797,
+        0.17145421903052063
+      ],
+      "matched_n": 8,
+      "aware_minus_blind_succ": 0.0,
+      "aware_minus_blind_succ_ci": [
+        0.0,
+        0.0
+      ],
+      "aware_minus_blind_ratio_delta": -0.008384625136395304,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 1.0,
+        "ratio_median": 0.056531588593693685,
+        "matched_n": 8
+      }
+    }
+  }
+}

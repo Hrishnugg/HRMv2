@@ -1,0 +1,173 @@
+{
+  "primary": "field_unet_blind",
+  "suites": {
+    "C_dyn_crossing": {
+      "label": "Crossing",
+      "euclid_success": 0.12,
+      "primary_success": 0.92,
+      "dsucc": 0.8,
+      "dsucc_ci": [
+        0.68,
+        0.9
+      ],
+      "ratio_median": 0.2733918128654971,
+      "ratio_ci": [
+        0.10851648351648352,
+        0.5156589147286822
+      ],
+      "matched_n": 6,
+      "aware_minus_blind_succ": 0.08,
+      "aware_minus_blind_succ_ci": [
+        0.02,
+        0.16
+      ],
+      "aware_minus_blind_ratio_delta": -0.06380534670008353,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 1.0,
+        "ratio_median": 0.20958646616541354,
+        "matched_n": 6
+      }
+    },
+    "C_dyn_maze": {
+      "label": "Maze",
+      "euclid_success": 0.12,
+      "primary_success": 0.96,
+      "dsucc": 0.84,
+      "dsucc_ci": [
+        0.74,
+        0.94
+      ],
+      "ratio_median": 0.04656969577668106,
+      "ratio_ci": [
+        0.02052114552114552,
+        0.15297046005588688
+      ],
+      "matched_n": 6,
+      "aware_minus_blind_succ": 0.02,
+      "aware_minus_blind_succ_ci": [
+        0.0,
+        0.06
+      ],
+      "aware_minus_blind_ratio_delta": 0.030261401749780703,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 0.98,
+        "ratio_median": 0.07683109752646176,
+        "matched_n": 6
+      }
+    },
+    "C_dyn_maze_dense": {
+      "label": "Dense maze",
+      "euclid_success": 0.06,
+      "primary_success": 0.7,
+      "dsucc": 0.64,
+      "dsucc_ci": [
+        0.5,
+        0.78
+      ],
+      "ratio_median": 0.21632294866169371,
+      "ratio_ci": [
+        0.09958071278825996,
+        0.2807244501940492
+      ],
+      "matched_n": 3,
+      "aware_minus_blind_succ": -0.12,
+      "aware_minus_blind_succ_ci": [
+        -0.22,
+        -0.04
+      ],
+      "aware_minus_blind_ratio_delta": 0.2667836770513383,
+      "best_arm": {
+        "provider": "field_unet_blind",
+        "success": 0.7,
+        "ratio_median": 0.21632294866169371,
+        "matched_n": 3
+      }
+    },
+    "C_dyn_rooms": {
+      "label": "Rooms",
+      "euclid_success": 0.42,
+      "primary_success": 1.0,
+      "dsucc": 0.58,
+      "dsucc_ci": [
+        0.44,
+        0.72
+      ],
+      "ratio_median": 0.12073732718894009,
+      "ratio_ci": [
+        0.10553191489361702,
+        0.17229129662522202
+      ],
+      "matched_n": 21,
+      "aware_minus_blind_succ": 0.0,
+      "aware_minus_blind_succ_ci": [
+        0.0,
+        0.0
+      ],
+      "aware_minus_blind_ratio_delta": -0.02704530492548926,
+      "best_arm": {
+        "provider": "field_unet",
+        "success": 1.0,
+        "ratio_median": 0.09369202226345083,
+        "matched_n": 21
+      }
+    },
+    "C_dyn_rooms_large": {
+      "label": "Large rooms",
+      "euclid_success": 0.82,
+      "primary_success": 1.0,
+      "dsucc": 0.18,
+      "dsucc_ci": [
+        0.08,
+        0.3
+      ],
+      "ratio_median": 0.24958123953098826,
+      "ratio_ci": [
+        0.1882591093117409,
+        0.30578512396694213
+      ],
+      "matched_n": 41,
+      "aware_minus_blind_succ": -0.2,
+      "aware_minus_blind_succ_ci": [
+        -0.32,
+        -0.1
+      ],
+      "aware_minus_blind_ratio_delta": 0.07194615236707536,
+      "best_arm": {
+        "provider": "field_unet_blind",
+        "success": 1.0,
+        "ratio_median": 0.24958123953098826,
+        "matched_n": 41
+      }
+    },
+    "C_dyn_spiral": {
+      "label": "Spiral",
+      "euclid_success": 0.16,
+      "primary_success": 1.0,
+      "dsucc": 0.84,
+      "dsucc_ci": [
+        0.74,
+        0.94
+      ],
+      "ratio_median": 0.0921625811601099,
+      "ratio_ci": [
+        0.0654490106544901,
+        0.1455038409399006
+      ],
+      "matched_n": 8,
+      "aware_minus_blind_succ": -0.04,
+      "aware_minus_blind_succ_ci": [
+        -0.1,
+        0.0
+      ],
+      "aware_minus_blind_ratio_delta": 0.03133468772750368,
+      "best_arm": {
+        "provider": "field_unet_blind",
+        "success": 1.0,
+        "ratio_median": 0.0921625811601099,
+        "matched_n": 8
+      }
+    }
+  }
+}

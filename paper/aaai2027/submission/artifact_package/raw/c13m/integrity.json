@@ -1,0 +1,694 @@
+{
+ "inputs": {
+  "c13j_training_verdict": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_lhbl_multisuite/results/gate_verdict.json",
+   "sha256": "f7b96c7a80fc264ef34ba1f554f9bd0d9099719d8ce6099a088c129b3fbe36f6"
+  },
+  "c13l_gate_selection_evidence": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_local_backup_scale/results/gate_verdict.json",
+   "sha256": "5f482022a40a00be96f04f620f50ea9306277e7619690fd6180b632dda6182a1"
+  },
+  "c13l_raw_selection_evidence": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_local_backup_scale/results/calibration_raw.csv",
+   "sha256": "0d3c227b9ee353746447bdb84bedd6537b6c704229565b5fb755a8ad9eada329"
+  },
+  "c7_field_hrm": {
+   "path": "hrm-cloud/continuous_prm/runs/c7_local/checkpoints/c6_heatmap__hrm.pt",
+   "sha256": "7c09830192dcfa0c45eae2ecd878148e0d37a6a240dcc6decff34b9d53bcf2ba"
+  },
+  "c7_field_onlstm": {
+   "path": "hrm-cloud/continuous_prm/runs/c7_local/checkpoints/c6_heatmap__onlstm.pt",
+   "sha256": "d352390643fa2b04659bcfd50d7f65b6bc6bc474b28e9b8377bfedfc5060ab92"
+  },
+  "c7_field_unet": {
+   "path": "hrm-cloud/continuous_prm/runs/c7_local/checkpoints/c6_heatmap__unet.pt",
+   "sha256": "726665b0a1ba04e63037d286df595f64f4baf62c7ee49d710338c5eedb12793e"
+  },
+  "c7_scalar_hrm": {
+   "path": "hrm-cloud/continuous_prm/runs/c7_local/checkpoints/avgbase__hrm.pt",
+   "sha256": "26d5d4c597bfcc93d6b05c26aa17f85b48091d693b5121ec063679025f09badf"
+  },
+  "c7_scalar_onlstm": {
+   "path": "hrm-cloud/continuous_prm/runs/c7_local/checkpoints/avgbase__onlstm.pt",
+   "sha256": "6af72e83d9bf1be62a2d337dd5fd7c1320cf5d0d48991a274f87386d62e4259b"
+  },
+  "current_multisuite_iteration_08": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_lhbl_multisuite/checkpoints/flat_mlp_iteration_08.pt",
+   "sha256": "39d1e145bf5deb67e7d3281b784dc36810c06e5a8e6193a68590f012132c91c4"
+  },
+  "feature_cache_000": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17333256.npz",
+   "sha256": "7848cae533ab78d9e012744fb833feba0b2416250ab1e900bb487aecedac641f"
+  },
+  "feature_cache_001": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17349096.npz",
+   "sha256": "9a7171b410f6501faafd41d7d558ff3aae7bfd94f02c7648f7ef604e2ca4f7d1"
+  },
+  "feature_cache_002": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17412456.npz",
+   "sha256": "96a5207e967ae289a2d30cccc56ccf370d680875a3507a999652df2436376560"
+  },
+  "feature_cache_003": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17420376.npz",
+   "sha256": "c7643645abb7044c3de407a3bdddbce391b60eb0b62233899b3ef01c85ba8360"
+  },
+  "feature_cache_004": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17444136.npz",
+   "sha256": "8239fd44c6e3bb98d0095ac0f12bffbf0c3c7241d38b09659cd0f3b9716e85cf"
+  },
+  "feature_cache_005": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17452056.npz",
+   "sha256": "bc5adcc44e3ad8bec6ba99efed06cd3e117f012597c6df82ef7b18b54456a748"
+  },
+  "feature_cache_006": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17483736.npz",
+   "sha256": "d3a168f5f72582b2d17e2bf2109fa6ab742d1730e8bcab8ba686d246b7c7171d"
+  },
+  "feature_cache_007": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17547096.npz",
+   "sha256": "b25f7a9dab04886faaed550ff9f1961ad18eb92de13ac6c317a6877970f72a25"
+  },
+  "feature_cache_008": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17562936.npz",
+   "sha256": "0750e7e44a396e0be364af0321c3381bc6358759a79282ef3d0b1a7a171fe681"
+  },
+  "feature_cache_009": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17626296.npz",
+   "sha256": "ac86800bc33fd42c051b717c80ef6fc13a121b66ffbfc5f239416c8fba2a07ef"
+  },
+  "feature_cache_010": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17650056.npz",
+   "sha256": "4d98a87cead86363b43e34d416c6c0737c96adb3e3c4bc16bc032af68856e0ed"
+  },
+  "feature_cache_011": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17665896.npz",
+   "sha256": "50de310b552e06b8f2f39f69f3e769c100bfb06f5714d47a17ea37bb19d548fe"
+  },
+  "feature_cache_012": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17705496.npz",
+   "sha256": "1acf10e47af6e5438ebda57ddf5ee24f1e38ff63a0c1f5d09a4d3ba64f0abc2e"
+  },
+  "feature_cache_013": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17729256.npz",
+   "sha256": "d84b3b4e3ca81b0609cf5d472ea600f33dfe5d45372e493a5cc9def9a078517c"
+  },
+  "feature_cache_014": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17745096.npz",
+   "sha256": "2b41c2813fdb6abb38cd18f6d43b34eb5fcddb2e913d1757fd6d7a7ea480a423"
+  },
+  "feature_cache_015": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17753016.npz",
+   "sha256": "78657d3af413c47c215278b63a9bdc54e7b1868bf0b2898dfb0fd8ff2cf70bfc"
+  },
+  "feature_cache_016": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17776776.npz",
+   "sha256": "5668c9c814b87e3e6cebe7a03ee5e1bb22716d91331100c69e4edd98f7a38a8e"
+  },
+  "feature_cache_017": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17784696.npz",
+   "sha256": "33faa041c7b4a2e90de3bec5dca3c93d805851352981f4555d15004f835bca3c"
+  },
+  "feature_cache_018": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17800536.npz",
+   "sha256": "65aa61601ec4d6333db96ad949f661e49056938e65c0a488896384a08a1ebb47"
+  },
+  "feature_cache_019": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17816376.npz",
+   "sha256": "353f5909038889793ce3f4d326d01acc5f8cccb6d6c3c741159e2b5f3e40b15b"
+  },
+  "feature_cache_020": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17863896.npz",
+   "sha256": "693bbfa74b1beeff32966a783c194fac9740edff6309c05fa6095196596d4dd1"
+  },
+  "feature_cache_021": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17879736.npz",
+   "sha256": "835903a626a9dfd99b357d55d1bc0d490f63cd7ce55a5c2a2dec17540c70df91"
+  },
+  "feature_cache_022": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17887656.npz",
+   "sha256": "d8deea913003c7d6f3d34b4cfe5ee953a63d6f0a935d85b4493bc33f31d5d586"
+  },
+  "feature_cache_023": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze/17935176.npz",
+   "sha256": "ee3c360dffc487b24908112b7d1735695648e18cf2e85f61a2dc6b208d4cabe3"
+  },
+  "feature_cache_024": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/18349099.npz",
+   "sha256": "8054c58633592a13585be3683160f4be8d37d368f2e08f46471d4ebe6bc475ef"
+  },
+  "feature_cache_025": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/18380779.npz",
+   "sha256": "5ab9a5d4adf084dcee88bfecd024c15bff654167d155b684e14dc0346fa5bada"
+  },
+  "feature_cache_026": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/18396619.npz",
+   "sha256": "9adf82c0ff9867eb9973976a14a878fd5418c24eff838a51d7604ed78392b67c"
+  },
+  "feature_cache_027": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/18412459.npz",
+   "sha256": "9204034b88f20c5126437e5d4b2beb1906a2a10d69f4f17ca9309f6ef91c3728"
+  },
+  "feature_cache_028": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/18483739.npz",
+   "sha256": "01dc7b7cf6f861d19abca162edf20ec9ed59b6a84aa018a6d5a684ec639fd3ce"
+  },
+  "feature_cache_029": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/18919339.npz",
+   "sha256": "0a6f64a13a3c8d830d9af8dc743619eb5b3202519360e4db5d078260a812e3be"
+  },
+  "feature_cache_030": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/18951019.npz",
+   "sha256": "1fca20b789ab533df956995c819943e4dac74cb41241a9a1c6a1171785edafc5"
+  },
+  "feature_cache_031": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/19529179.npz",
+   "sha256": "f50ef5d3c011e7c7678436d90bfe0f1f0e5d54e336bd93b755f6ae413247bfb0"
+  },
+  "feature_cache_032": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/19640059.npz",
+   "sha256": "1f7f40d191f525feac5bd74b03c51484f82ca37e7454f05460483794273a1b30"
+  },
+  "feature_cache_033": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/19893499.npz",
+   "sha256": "e5089d48e33abdde1096b7177f02421185549d359098e5b05c3e8f0fa1806217"
+  },
+  "feature_cache_034": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/19948939.npz",
+   "sha256": "c9fc184071d9ed6eb2156bbbcc1fd416592c66c2bbb1b58b985b98fcfad1005d"
+  },
+  "feature_cache_035": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/20131099.npz",
+   "sha256": "a275b79558e7b321c63eb17a8674e38921a71824a536b795b90169b52ca63db2"
+  },
+  "feature_cache_036": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/20416219.npz",
+   "sha256": "ce2ebd4be5b6179233a93ca08e984be56594890c6a3d744783974ddce3562dfe"
+  },
+  "feature_cache_037": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/20550859.npz",
+   "sha256": "23d58aef7aefa711827e61cf2611461eaf8667355588fe8b162c7b54a9938f41"
+  },
+  "feature_cache_038": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/20637979.npz",
+   "sha256": "3a54ff6bda874c22d2a00542f14cbef44d5042c57092a9b97e42fed9cea4d57e"
+  },
+  "feature_cache_039": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/20812219.npz",
+   "sha256": "2cdaa6949b949ebe7b10a920eaf1a028d4f05ddef42e143dbbdad7ab3987c8d0"
+  },
+  "feature_cache_040": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/21041899.npz",
+   "sha256": "c71df050e321b437f6ec71a9dd84ad088ee8aad1d706b9034469644090d08c63"
+  },
+  "feature_cache_041": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/21160699.npz",
+   "sha256": "f17325073c62801a4fec970f49914a6b217e412eb61f2a029b7fd7259ba7c588"
+  },
+  "feature_cache_042": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/21374539.npz",
+   "sha256": "f509764ab606c1496258ebc46484884346187d91ef910bf8a86c8afb76955f1b"
+  },
+  "feature_cache_043": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/21841819.npz",
+   "sha256": "1b3b9c8be4ede65b3e4c5f18f637546ee706101c6ab170515857f76c45a60a2b"
+  },
+  "feature_cache_044": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/21944779.npz",
+   "sha256": "89651bb1a595df2fb318f8e7fd0da51800787ed5c70915c505af78ca4b4b93b1"
+  },
+  "feature_cache_045": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/22047739.npz",
+   "sha256": "f597b2ead8adee8fae391061d816f625530c8301a03def67ece45074acb12619"
+  },
+  "feature_cache_046": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/22166539.npz",
+   "sha256": "ff4031586a23d96fb2b5711907ce3fc85a35ec836ce2a18f0ca93b92b95219d5"
+  },
+  "feature_cache_047": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_maze_dense/22190299.npz",
+   "sha256": "cdd63955acbebab049019e2595276be731c194fe6e001c0bf2ea932962dbb653"
+  },
+  "feature_cache_048": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/19452062.npz",
+   "sha256": "5e0eeac170e59d1f68c0dd0a7c3e8d2499f77458c5467e8fc0dda70e6a1a71e6"
+  },
+  "feature_cache_049": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/19586702.npz",
+   "sha256": "d6097aa3e569c325a033c66d3653fa1edb95b6db6951e89e435b4077c75ca229"
+  },
+  "feature_cache_050": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/19673822.npz",
+   "sha256": "b3028f601f0a56ea40510373364c220f391bf30c54357eace207ba0d5cd7335a"
+  },
+  "feature_cache_051": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20085662.npz",
+   "sha256": "cf0403598abcf998ce1ea628bf3f9cd3e4238d78761a40febd97ddca955cf771"
+  },
+  "feature_cache_052": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20109422.npz",
+   "sha256": "e1fa87a07aa284f900ed07365ae2e803b0f81e4de30ce2d900d7b0f85544bee8"
+  },
+  "feature_cache_053": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20117342.npz",
+   "sha256": "6f41b684e4228810d3d8439decfddd4c9bf0829c4fcfd96c0743c3f208ae79ac"
+  },
+  "feature_cache_054": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20196542.npz",
+   "sha256": "34b3f1e85fef11f91f2c130387c05a50cd4069f6b6d5a017e57aa2c1764eed79"
+  },
+  "feature_cache_055": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20228222.npz",
+   "sha256": "29028ab98c678f6b1611822084cdb0865eef75b527f6df4f87b336a7ef16d913"
+  },
+  "feature_cache_056": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20362862.npz",
+   "sha256": "3eae0303ddbe1869d0ea15b508d58006042bb6dab1adda1fcf5f3c3d5560dffb"
+  },
+  "feature_cache_057": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20647982.npz",
+   "sha256": "8ef50f51d7b98280e6127dab509421d3e15989ab972df6382fad7dd2d0264938"
+  },
+  "feature_cache_058": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/20853902.npz",
+   "sha256": "35dd21f24a8beacc4ae414cb5e0523eec39c4b7aaecdf371d643690634f85e83"
+  },
+  "feature_cache_059": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/21020222.npz",
+   "sha256": "d3db37b9fc07d263a7f7152fae3da03fc0d83e69d274e96baca33ec67eb9e4ea"
+  },
+  "feature_cache_060": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/21059822.npz",
+   "sha256": "3e325a5ac1e6709919f484de23286b4adfcd0e3e70042a9eab1351c4a359ae2b"
+  },
+  "feature_cache_061": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/21099422.npz",
+   "sha256": "b735e7df387366eded4a77f1c6d18557a53745ddc6033e18a501281a1eec6f92"
+  },
+  "feature_cache_062": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/21218222.npz",
+   "sha256": "070ce51c896dd703a33bfaa2e36525fdad6f1ce12fe57bd84fd763cbf35c6c66"
+  },
+  "feature_cache_063": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/21455822.npz",
+   "sha256": "ea025bac3ac24bfe8636245664c25d9c9a4c7c863d27fbb5226c55f1f4a5b0e3"
+  },
+  "feature_cache_064": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/21645902.npz",
+   "sha256": "d93902ae7254d93cd3ba537ffde6089b96f529ad0aa9ee88cf3fb8a4d016b3ec"
+  },
+  "feature_cache_065": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/21725102.npz",
+   "sha256": "dc2cec9ae357e87cfac85f65c3b327be58be85cf32ce84b91abd2d8fd6df08a4"
+  },
+  "feature_cache_066": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/22033982.npz",
+   "sha256": "600b9d3d9e23e5b7ee6159ebbf7de0cd7609039687fff1f6db811f0f212f44e6"
+  },
+  "feature_cache_067": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/22049822.npz",
+   "sha256": "6553ce64616cba672d3bbf9b2719e26430b7ab56082623ba737452c6c7e0cc83"
+  },
+  "feature_cache_068": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/22192382.npz",
+   "sha256": "8cc09e082b3abe3ce2076d98720bf68f7bd5d375468b61a9df4650546b9f49a8"
+  },
+  "feature_cache_069": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/22327022.npz",
+   "sha256": "4e8126d10f7d22b584c8c5f4b4844a555d14309bd3c23828affccec7c36a2b9c"
+  },
+  "feature_cache_070": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/22366622.npz",
+   "sha256": "f7717e14b78dab459a5bdc770ff0f31f853aee8d2eb067d539c4d0e065266768"
+  },
+  "feature_cache_071": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms/22572542.npz",
+   "sha256": "2d3b320f87139b64a633f3ebb2ba144da839c514a9c46be3dd788e2c4d2caa50"
+  },
+  "feature_cache_072": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20325345.npz",
+   "sha256": "5f01f11c072a509bd8ff0dbd9a384ad426bfcb470e63498ed3359760b0bffcc1"
+  },
+  "feature_cache_073": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20333265.npz",
+   "sha256": "be7c6534f0dd5a4217536792e7b0f631eca0e897b4e623c9c4a7279582ac072f"
+  },
+  "feature_cache_074": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20341185.npz",
+   "sha256": "ac2a3b3369030c12d0176ef0f6c79997f6122990e03c91f470c262df14e38ad0"
+  },
+  "feature_cache_075": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20357025.npz",
+   "sha256": "695b748e20a90d0f97d2562f25b52e186cfadaba4ec99d8f5c86fafde7680ff4"
+  },
+  "feature_cache_076": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20364945.npz",
+   "sha256": "806d84551803e5bb0e114f0fd7ee633039150397594854d68b8e0d98f1588266"
+  },
+  "feature_cache_077": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20388705.npz",
+   "sha256": "4253608d492aea163b7e89480bf7d71f151e6b2b8549e1eaf2393db53838e027"
+  },
+  "feature_cache_078": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20404545.npz",
+   "sha256": "111ffac94f18ec8f10c6ed718cd1f1c35b54579adc86b64a82b2ba354fefc7c4"
+  },
+  "feature_cache_079": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20428305.npz",
+   "sha256": "877313e9323ca60f107096c2fe88045e234d8748b3e0d9410be4d22c491b1795"
+  },
+  "feature_cache_080": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20436225.npz",
+   "sha256": "56a0e0c67a4c659e11b08ba1220b4af7bc32d5c5abf3bddb82e6cb779f044820"
+  },
+  "feature_cache_081": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20452065.npz",
+   "sha256": "61fb532a08fce9c03e4c605fa812702825e328fe907da571de1883637c2b23c4"
+  },
+  "feature_cache_082": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20475825.npz",
+   "sha256": "f6a16496c86b2e28020e77e656160d6166befe5921641d00e66f4305a2d0d4bf"
+  },
+  "feature_cache_083": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20483745.npz",
+   "sha256": "7fe8041e5df624c0fa959cb1314bd24aafaae68dd86ce675491910785dcc3664"
+  },
+  "feature_cache_084": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20523345.npz",
+   "sha256": "cb7f825fd6ea51539e9fb5553fc6afd73b4c0528b5920eb3d833df206ede3907"
+  },
+  "feature_cache_085": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20547105.npz",
+   "sha256": "b07d0420a838e3f1d16ca95b38965aca62e5442266a86bf97a19c1c524dc8886"
+  },
+  "feature_cache_086": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20555025.npz",
+   "sha256": "66fbc553c03c229af74ddc88f21392da99233563283f8ba4b21391f4e20463aa"
+  },
+  "feature_cache_087": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20578785.npz",
+   "sha256": "3e06c5634a568c16d67a32fdc6493a37fe658f9029cf4d1aae87889cb6d5e1ac"
+  },
+  "feature_cache_088": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20602545.npz",
+   "sha256": "96b524db0878f404dd95069e867fc104bc9ca7556fd2da5d53df62a3d5298aaa"
+  },
+  "feature_cache_089": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20626305.npz",
+   "sha256": "833e349c34e73c3e0f2d61f94b050b6109f66ac0f35d228a9c56c77cdc324d6e"
+  },
+  "feature_cache_090": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20642145.npz",
+   "sha256": "fc39b45590f589e932475e0586302045cca59866792b454dda93c08ce61636db"
+  },
+  "feature_cache_091": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20650065.npz",
+   "sha256": "172ac6f87f52786508d4a6223bd6b4fb6c3c32d39873ff27b9ffcbec4afba21f"
+  },
+  "feature_cache_092": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20657985.npz",
+   "sha256": "9f23ea7e6b6a94893c46c1d9ccca46a35624b8c0768d7c1e1343f0dcb6ce6d8a"
+  },
+  "feature_cache_093": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20681745.npz",
+   "sha256": "a0c3e6b09f5c8a398a6cfbd3e96f5dc40c097b7a3eb62a19f605ed1fa291d17f"
+  },
+  "feature_cache_094": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20737185.npz",
+   "sha256": "f62a72d27e417fd74498b17b2b1649f8807f7e56eaa105f0e6637f4e88fdde48"
+  },
+  "feature_cache_095": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_spiral/20753025.npz",
+   "sha256": "9c2a4ffe5aaec777ab580c290b06e8b4ab1a9dc3e5b6af888ac04b6f3b09a6b0"
+  },
+  "feature_cache_096": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21325348.npz",
+   "sha256": "9eeeea8a6c0d82e9f96e7b9982cc0e6141175114c79d153ebc37266bca2f4514"
+  },
+  "feature_cache_097": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21333268.npz",
+   "sha256": "9dd9ce1c32a177a5fc1acb2905b97a41cd715639cf7b66759ada8e48290425b6"
+  },
+  "feature_cache_098": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21341188.npz",
+   "sha256": "c3652b638c9d9ce4f34f93e9adff72cfde939a763cb998cbfe3567d431e11650"
+  },
+  "feature_cache_099": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21349108.npz",
+   "sha256": "5bd3d384ccbab4c31d10220f809a6b56d9445c7986dd797f8ee84af5ef2f4dd3"
+  },
+  "feature_cache_100": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21357028.npz",
+   "sha256": "b15f23eebd1ee30ef08dfabf72903a0e23f4d6a7e28eee2f649860d2aa5a7684"
+  },
+  "feature_cache_101": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21364948.npz",
+   "sha256": "16e84c6dd8290be16e88fd0156ebb088819654e61053dbe3a683fb9ee469ab3c"
+  },
+  "feature_cache_102": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21372868.npz",
+   "sha256": "77d66c58b1616b7b89de1a181d611cc06590ce7969363405abddf954c162e81c"
+  },
+  "feature_cache_103": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21380788.npz",
+   "sha256": "1ff6b0474f1d1ff25e3071abf4cf42b84ef0ca75beca5b5fbd7da2beb2e5a12f"
+  },
+  "feature_cache_104": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21388708.npz",
+   "sha256": "ba19bf798259f41fe696cbeaa900daf3cb2ce442750bfa93fa9d4cd25f2b57c3"
+  },
+  "feature_cache_105": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21396628.npz",
+   "sha256": "463ce8662c2e03f89048807d27bd088d66a0806786e1daa1ec05e7007ad1a0b2"
+  },
+  "feature_cache_106": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21404548.npz",
+   "sha256": "91c1fa850e373942b8bfb5aa978377e9350bca06a2805ceaf7f86bc51a91d805"
+  },
+  "feature_cache_107": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21412468.npz",
+   "sha256": "dc69aa41d4fffacc9d6462d23f6f251fb84878975ffb97f56db1e5dc91c8637e"
+  },
+  "feature_cache_108": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21420388.npz",
+   "sha256": "e898ed16b769d39bd5ab737bb5fa483d6073ac7742742245de1acb70d3d30094"
+  },
+  "feature_cache_109": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21428308.npz",
+   "sha256": "62ae0b86aa617fe829baeb7a44d5166aa82304fd9d35a941e15539ede045e2c6"
+  },
+  "feature_cache_110": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21436228.npz",
+   "sha256": "d984143691f0e5ff93e2cc6af823ed6688b41a762780e57988d7d214d5876535"
+  },
+  "feature_cache_111": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21444148.npz",
+   "sha256": "91ed312291737568ca7afcec756d454915fca99a2a9485aa1bdbdfc0ea4c328f"
+  },
+  "feature_cache_112": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21452068.npz",
+   "sha256": "7a17f7cb86294875e627f621ec1efd86b1d87a9b3dfa9855889bd2e7d609c364"
+  },
+  "feature_cache_113": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21459988.npz",
+   "sha256": "f636df3559a2d0841f4f628504e1541c21f3823a479357a6e8e9d6c76914b04a"
+  },
+  "feature_cache_114": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21467908.npz",
+   "sha256": "33430f3464af0084cd3331674bbc28fa7963359b61f428bff235c05d565381b9"
+  },
+  "feature_cache_115": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21475828.npz",
+   "sha256": "c999456023d729b24625dfd1852ed337312168316c282e60a7d6b0b8ef818dc1"
+  },
+  "feature_cache_116": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21483748.npz",
+   "sha256": "32c8335bc605473f7d69d55258aa7c5f642131184051030f64dcf727de6428cf"
+  },
+  "feature_cache_117": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21491668.npz",
+   "sha256": "4a9a9d9baa1f2232f74e0731cb4a53cc100dda1a935360cd3f70474d089abda8"
+  },
+  "feature_cache_118": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21499588.npz",
+   "sha256": "ff74769641ecc2e5efd0169428a760db9638a3b6aa1b846e1cb021e0f49f6878"
+  },
+  "feature_cache_119": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_bugtrap/21507508.npz",
+   "sha256": "2b7cd8281a84e9ab1ddbfb8763851f2720c487fcdafdedd9c461fbde5984f80b"
+  },
+  "feature_cache_120": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22325351.npz",
+   "sha256": "4d31946a75bae8616fb79d5a07807849f3469028aca1317c64f99e12442ff32b"
+  },
+  "feature_cache_121": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22333271.npz",
+   "sha256": "3bb18d7bd9188cf9f2182e42338364898cbba61033332c4d83c46146b0854ca3"
+  },
+  "feature_cache_122": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22341191.npz",
+   "sha256": "c3deab1d5779ad37f94603fc9738f48f4ad67c8375558f0b7519ca27fd622770"
+  },
+  "feature_cache_123": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22357031.npz",
+   "sha256": "9b2e2b061dae4ac63eafe403f6f4c2c7eab430eb3a7685fa96ae443800137cd5"
+  },
+  "feature_cache_124": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22364951.npz",
+   "sha256": "3c7ffb1d3f564f01b2dbb62d8f4a233b58f0bb6279a16b897c04729a0ae2c38c"
+  },
+  "feature_cache_125": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22388711.npz",
+   "sha256": "7c5cd232b20000ef2ac828e1d10719733209003e6869ec96fd59eed70a103554"
+  },
+  "feature_cache_126": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22396631.npz",
+   "sha256": "4d0566ce4b968c26d054e92cc968e4000c096bebccd174a3d34d201ed6097b25"
+  },
+  "feature_cache_127": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22412471.npz",
+   "sha256": "753adcca4dc72dda75e584c1eb06843d46deda0ce8fc41a9a4585dc68804df97"
+  },
+  "feature_cache_128": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22420391.npz",
+   "sha256": "eb55cd531bf79d2b4e3788f21bf1e91e07033be683f811f6be15ed25f64fa5c4"
+  },
+  "feature_cache_129": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22428311.npz",
+   "sha256": "37d53fdd5d6eb20245a3f6a7c66da0168f18d5260b0281c4a0e0d9ab05544db0"
+  },
+  "feature_cache_130": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22436231.npz",
+   "sha256": "bc93208e6fb8a59ea3d27b6290bdc6af75ba01f3edd36a5aa8413fb3c1386ae2"
+  },
+  "feature_cache_131": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22444151.npz",
+   "sha256": "3646c9eec982a79eb3561d70c8ddd411cc0cfaa7a0df8aff84e4297e798b2bb9"
+  },
+  "feature_cache_132": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22452071.npz",
+   "sha256": "a97520b2842689d4edd3407c636deea14250b6933944349f83ba7238b17d68e5"
+  },
+  "feature_cache_133": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22459991.npz",
+   "sha256": "a472e199c68ef19b55fd2cea2f42a317b9518071b4440dd6ce4010d2511b109f"
+  },
+  "feature_cache_134": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22475831.npz",
+   "sha256": "6d7d188c9c852843fc9c55de8eb0730f69792f5de6cbaf001faddb0a054bbb4a"
+  },
+  "feature_cache_135": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22483751.npz",
+   "sha256": "1a5032aa19d5851a96e93a2437c0bcaa94ca8ef1c70ece25e229cf86c8003666"
+  },
+  "feature_cache_136": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22499591.npz",
+   "sha256": "5776203fd8a724cf5149bf0256608aa52d1e5f4f5c066007d8df8193563a114c"
+  },
+  "feature_cache_137": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22507511.npz",
+   "sha256": "592a52c138e7360efe8558960043496ba83681f1913cf955a27d3c59b2da008a"
+  },
+  "feature_cache_138": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22515431.npz",
+   "sha256": "a2be04c9d2f7e4567adf93e2e95b6304c6c4489046808c7a4b628b5f9b2f3556"
+  },
+  "feature_cache_139": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22523351.npz",
+   "sha256": "8f8ba4417ec7c520babec781678b4b3cf6e0753406836e024183d32ef6b57913"
+  },
+  "feature_cache_140": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22531271.npz",
+   "sha256": "c61efe2fde60d8c7332727f3b40dcf8eb30ceffb72660d36c523aa594df4caa4"
+  },
+  "feature_cache_141": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22539191.npz",
+   "sha256": "c9b6f07d76cc94cef15d2a8c7f66fa2b6502cc95addb634380d48e34064c03f9"
+  },
+  "feature_cache_142": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22547111.npz",
+   "sha256": "f4b75b63ab6776e4db7f6511a822ce728660f50b7e4a242fb636018c9466cb54"
+  },
+  "feature_cache_143": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/feature_cache/matched_quality_confirmation/C_hard_rooms_large/22555031.npz",
+   "sha256": "3e9c17c95ad4ee82a1876fbf62e2438404c90cc618c360f3f157524a24059e43"
+  },
+  "implementation": {
+   "path": "hrm-cloud/continuous_prm/continuous_prm_c13_matched_quality_confirmation.py",
+   "sha256": "fd2c67a45c0d2fe11642385d13345d093bbe5684d3192c8018e76b4436717840"
+  },
+  "preregistration": {
+   "path": "docs/experiments/continuous/c13/design/2026-07-17-c13m-matched-quality-confirmation.md",
+   "sha256": "860599ee9249cfde7e783501f66995be1707d135fcdd6c6cc84095ae1f3433f0"
+  },
+  "safety_original_iteration_04": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_lhbl_flat_48w/checkpoints/flat_mlp_iteration_04.pt",
+   "sha256": "dbfd516e3db8ac616f0a3a48f5323fbf1c12405c178ee50c5792388d70b64742"
+  }
+ },
+ "outputs": {
+  "cohort": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/confirmation_cohort.json",
+   "sha256": "137ab31189f38b712b682380869fd891edacc56c7fa61b772c9bf0ba7db940f8"
+  },
+  "diagnostics": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/rank_diagnostics.csv",
+   "sha256": "2f0d1e3f5c8eff49b73155e76160bb10cdd7a952b693631ee4a51b72e45db114"
+  },
+  "fingerprint": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/evaluation_fingerprint.json",
+   "sha256": "1bd0d93c9c529f7bad038e77a8ef4bb4770a707f903457d557530adabcf5a361"
+  },
+  "manifest": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/manifest.json",
+   "sha256": "73f9343465e73df15ed5634b906f7425fe7519fd7912d7046a5e6d050449b203"
+  },
+  "pairs": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/pairwise_summary.csv",
+   "sha256": "207868ffdf950768f0f4ad2c79dec66f9a6875a5accb4a7981e6cad42aaba489"
+  },
+  "raw": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/confirmation_raw.csv",
+   "sha256": "a473dea8c92e4f522b24882fbd0880dc7082560c6add5b84bd12c01b26006403"
+  },
+  "report": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/C13M_RESULTS.md",
+   "sha256": "8db38a083dc56e8367edd3a82aacfa839ccdc857738103cfb8f092dedf3d133d"
+  },
+  "suite_shard_C_hard_bugtrap": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/suite_shards/C_hard_bugtrap.csv",
+   "sha256": "b917cb5548b9e62c144433b3b7074cec131c400a838c90e852956803f79ac337"
+  },
+  "suite_shard_C_hard_maze": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/suite_shards/C_hard_maze.csv",
+   "sha256": "a6259cca3f4cb79a629211a4887c4466e221c42724fe0e387945b5a8b608eef0"
+  },
+  "suite_shard_C_hard_maze_dense": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/suite_shards/C_hard_maze_dense.csv",
+   "sha256": "b2bbdd007de828c03240d8dba001cf442a55d81cc82c82860f6e57394926a00a"
+  },
+  "suite_shard_C_hard_rooms": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/suite_shards/C_hard_rooms.csv",
+   "sha256": "99052b50565e6f67e3c85c81e3405aa9c2e47e1ff1e01443408e9754048e2e63"
+  },
+  "suite_shard_C_hard_rooms_large": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/suite_shards/C_hard_rooms_large.csv",
+   "sha256": "e51df8c0a60c4c73f39f3f544455e8cd0c7b35bbed71a715706748613adb0f92"
+  },
+  "suite_shard_C_hard_spiral": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/suite_shards/C_hard_spiral.csv",
+   "sha256": "14644a541a3b55de477cba8d49a62bc25de291b1a394b3e421e72e4fc9212e1f"
+  },
+  "summary": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/arm_summary.csv",
+   "sha256": "c63be4936f47e48c0d798497b0d87dcdc1cc6fc807828d662e8d8e9cec71833a"
+  },
+  "verdict": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/gate_verdict.json",
+   "sha256": "727636de8e132406e7cc8bb9f17799053a25f6864aa575b753fca8cae44e29d0"
+  },
+  "verification": {
+   "path": "hrm-cloud/continuous_prm/runs/c13_matched_quality_confirmation/results/verification.json",
+   "sha256": "2d205abcce68ee8f460c0f5a8b6a83047792e9af34e137b33919c1134441488a"
+  }
+ }
+}

@@ -1,0 +1,16 @@
+{
+  "projectId": "6a61c1e460ea8313d88abeec",
+  "projectName": "AAAI 2027 Paper",
+  "lastPull": "2026-07-24T17:03:34.558Z",
+  "remoteManifest": [
+    "aaai2027.sty",
+    "methods_approaches.tex",
+    "submission.aux",
+    "submission.tex",
+    "submission.bbl",
+    "aaai2027.bst",
+    "references.bib",
+    "aaai2027.synctex(busy)"
+  ],
+  "lastPush": "2026-07-29T06:39:23.494Z"
+}

@@ -1,0 +1,28 @@
+{
+ "t_htable_s": {
+  "mean": 1.2271466666666668,
+  "min": 0.953,
+  "max": 1.5899
+ },
+ "t_forward_ms": {
+  "mean": 5.878133333333333,
+  "min": 4.321,
+  "max": 9.275
+ },
+ "t_search_learned_s": {
+  "mean": 0.30765000000000003,
+  "min": 0.0102,
+  "max": 1.5234
+ },
+ "t_search_anchor_s": {
+  "mean": 0.75829,
+  "min": 0.0939,
+  "max": 1.6194
+ },
+ "t_search_wastar_s": {
+  "mean": 0.3877633333333333,
+  "min": 0.0132,
+  "max": 1.6111
+ },
+ "cpu_condition": "local CPU (Windows, PyTorch CPU build), single process"
+}
